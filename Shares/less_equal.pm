@@ -1,4 +1,5 @@
 package Finance::Shares::less_equal;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -193,8 +194,10 @@ over time.
 
 =head1 OPTIONS
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification.  See L<SYNOPSYS> for examples. 
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The entry must have a B<function> field, C<less_equal>, and a B<line> or
 B<lines> field indicating two source lines.

@@ -76,9 +76,9 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 
 my ($nlines, $npages, @files) = $fsm->build();
-is($nlines, 3, 'Number of lines');
+#warn $fsm->show_model_lines;
+is($nlines, 6, 'Number of lines');
 
-#show $fsm, $fsm->{pfsls}, 4;
 my $dump = 0;
 my $line = $fsm->{pfsls}[0][0][0];
 my $np = $line->{npoints};

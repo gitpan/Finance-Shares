@@ -1,5 +1,5 @@
 package Finance::Shares::Function;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -37,6 +37,7 @@ These functions should be implimented by any inheriting class.
     $fn->initialize();
     $fn->build();
     $n = $fn->lead_time();
+    $v = $fn->value();
     
 =head1 DESCRIPTION
 
@@ -56,8 +57,8 @@ modules.
 =head2 How to Write a Function Module
 
 Apart from a constructor (which must be called B<new>), the methods
-B<initialize>, B<build> and possible B<lead_time> should be implemented.
-This is best illustrated with an example.
+B<initialize>, B<build> must be implemented and optionally B<lead_time> and/or
+B<value>.  This is best illustrated with an example.
 
 =head3 Initialization
 
@@ -345,6 +346,63 @@ Only one source function is expected and that only has one line, so again
     
     my $src_key   = $src_lines[0][0]{key};
    
+=head2 Value Functions
+
+Some functions exist to support the tests and so don't need to be displayed at
+all.  Implimenting these is similar to a normal Function, except that it must
+also have a B<value> method and should probably support the C<no_line> option.
+
+The examples here are from L<Finance::Shares::standard_deviation>.  The
+B<initialize> method includes:
+
+    $o->common_defaults;
+    $o->{no_line} = 0 unless defined $o->{no_line};
+    if ($o->{no_line}) {
+	$o->{shown} = 0;
+	$o->{key}   = '';
+    }
+
+Note that the line must be hidden (not shown) if it is to be used only to
+calculate a value.  The B<value> method may take arguments, as this example
+shows.
+    
+    sub value {
+	my ($o, $field) = @_;
+	$field = 'std_dev' unless defined $field;
+	if ($field eq 'mean') {
+	    return $o->{mean};
+	} else {
+	    return $o->{std_dev};
+	}
+    }
+
+Where C<$o->{mean}> and C<$o->{std_dev}> were calculated as part of the B<build>
+method, which the following is taken from.
+    
+    if ($o->{no_line}) {
+	my $l = $o->line('sd0');
+	$l->{data} = [];
+    } else {
+	# fill the data and key(s) as normal
+    }
+
+In use, a special function C<value()> accesses the data.
+
+    lines => [
+	...
+	sd_range => {
+	    function => 'standard_deviation',
+	},
+    ],
+    tests => [
+	range => {
+	    before => q(
+		print "Std dev = ", value( $sd_price, 'std_dev'), "\n";
+		print "Mean    = ", value( $sd_price, 'mean'), "\n";
+	    ),
+	},
+    ],
+    
 =cut
 
 sub new {
@@ -457,6 +515,17 @@ method returns 0.
 
 =cut
 
+sub value {
+    return undef;
+}
+
+=head2 value( )
+
+This should be overridden if the function is to return some value to a B<test>
+code fragment.  The default method just returns 'undef'.
+
+=cut
+
 sub longest_lead_time {
     my ($o, $path) = @_;
     $path = {} unless defined $path;
@@ -528,13 +597,13 @@ sub build {
 
 sub finalize {
     my $o = shift;
-    out($o, 6, "finalizing Function ", $o->name);
+    out($o, 5, "finalizing ", ref($o), ' ', $o->name);
     out_indent(1);
     foreach my $line ($o->lines) {
 	$line->finalize();
     }
     out_indent(-1);
-    $o->{built}++;
+    $o->built(1);
 }
 
 # A convenience method calling B<finalize> for each line.  There is no need to
@@ -664,6 +733,12 @@ Return a list of the Finance::Shares::Line objects used as a source
 lines.
 
 =cut
+
+sub built {
+    my ($o, $val) = @_;
+    $o->{built} = $val if defined $val;
+    return $o->{built};
+}
 
 =head1 SUPPORT METHODS
 

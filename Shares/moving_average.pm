@@ -1,5 +1,5 @@
 package Finance::Shares::moving_average;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -105,28 +105,6 @@ sub build {
 # <intervening_undefined> undefined entries before the moving average begins.
 
 __END__
-
-	my $date = $dates->[$first];
-	out($o, 1, "$first $date\:");
-
-    my @listI;
-	my $oldI = $dates->[$i-$period];
-	my $newI = $dates->[$i];
-	unshift @listI, $oldI if defined $old;
-		my $useI = pop @listI;
-		
-		my $queue = join(' ',@list);
-		my $queueI = join(' ',@listI);
-		my $date = $dates->[$i];
-		my $oldS = defined($oldI) ? $oldI : '<undef>';
-		my $useS = defined($useI) ? $useI : '<undef>';
-		my $newS = defined($newI) ? $newI : '<undef>';
-		out($o, 1, "$i $date\: -$useS ($oldS) +$newS =$res  ($queueI)");
-
-
-    my @list;
-	unshift @list, $old if defined $old;
-
 =head1 NAME
 
 Finance::Shares::moving_average - Calculate an N-period moving average
@@ -177,10 +155,10 @@ required and the other illustrating all the possible fields.
 This module calculates the moving average of some other value, usually on the
 same graph.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<moving_average>.  
-The entry's tag must then appear in the C<line> field of a B<sample>.
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The other main fields are B<line>, B<gtype> or B<graph>, and B<period>.
 

@@ -42,23 +42,16 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    function => 'value',
 	    value    => 420,
 	    shown    => 1,
-	    order    => 0,
+	    order    => -1,
 	},
 	below => {
 	    function => 'mark',
 	    gtype    => 'volume',
 	    first_only => 0,
-	    style => {
-		point => {
-		    color    => [0, 0, 1],
-		    shape    => 'south',
-		    size     => 10,
-		    y_offset => 10,
-		    width    => 2,
-		},
-	    },
 	    order    => 8,
 	    key      => 'above average',
+	    style    => 'circle',
+	    order    => -8,
 	},
 	above => {
 	    function => 'mark',
@@ -73,13 +66,13 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		    width    => 3,
 		},
 	    },
-	    order    => 9,
+	    order    => -9,
 	},
 	line => {
 	    function => 'mark',
 	    gtype    => 'volume',
 	    key      => 'This line was generated from user code',
-	    order    => 3,
+	    order    => -2,
 	},
 	vavg => {
 	    function => 'moving_average',
@@ -92,7 +85,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		    outer_color => [ 0.6, 0.6, 0.6 ],
 		},
 	    },
-	    order    => 4,
+	    order    => -4,
 	},
     ],
     # NB: mark() must see undefined values (eval as 0) to distinguish genuine 'fails'
@@ -100,7 +93,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     tests => [
 	sub1 => sub {
 	    my ($date, $high, $low) = @_;
-	    print "$date\: $low to $high\n";
+	    #print "$date\: $low to $high\n";
 	},
 
 	test1 => q(
@@ -121,18 +114,15 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 
 my ($nlines, $npages, @files) = $fsm->build();
-is($nlines, 5, 'Number of lines');
+#warn $fsm->show_model_lines;
+is($nlines, 8, 'Number of lines');
 
-#show $fsm, $fsm->{pfsls}, 4;
-# line
-my $mark_np = $fsm->{pfsls}[0][0][1]{npoints};
+my $mark_np = $fsm->{ptfsls}[0][1]{npoints};
 is($mark_np, 56, 'Number of points');
 
-# above
-$mark_np = $fsm->{pfsls}[0][0][2]{npoints};
+$mark_np = $fsm->{ptfsls}[0][2]{npoints};
 is($mark_np, 8, 'Number of points');
 
-# below
-$mark_np = $fsm->{pfsls}[0][0][4]{npoints};
+$mark_np = $fsm->{ptfsls}[0][4]{npoints};
 is($mark_np, 5, 'Number of points');
 

@@ -1,4 +1,5 @@
 package Finance::Shares::greater_equal;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -79,7 +80,7 @@ sub build {
 __END__
 =head1 NAME
 
-Finance::Shares::greater_less - Compare two lines, value by value
+Finance::Shares::greater_equal - Compare two lines, value by value
 
 =head1 SYNOPSIS
 
@@ -191,10 +192,12 @@ on the axis, but these can be specified.
 Where the comparison stays the same, the resulting line can be made to decrease
 over time.
 
-=head1 OPTIONS
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification.  See L<SYNOPSYS> for examples. 
+=head1 OPTIONS
 
 The entry must have a B<function> field, C<greater_less>, and a B<line> or
 B<lines> field indicating two source lines.

@@ -57,7 +57,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 my ($nlines, $npages, @files) = $fsm->build();
 
-is($fsm->{ffile}[0],     $filename, 'psfile name');
+is($fsm->{ffile}[0],     'default', 'psfile name');
 is(ref($fsm->{fpsf}[0]), 'PostScript::File', 'PostScript::File');
 
 my $page = "$sample/$stock/$date";

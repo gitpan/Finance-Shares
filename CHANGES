@@ -1,0 +1,24 @@
+1.01	Mon Sep  8 15:21:57 GMT 2003
+	Chart displays lines behind data
+	Function objects may now provide a 'value()' method
+	    which can also be called via Line
+	Lines created by tests have 'is_mark' field 
+	samples Model spec accepts 'filename' option
+	Finalizing of Lines now done from tests, too
+	Tried to improve $nlines returned from Model::build()
+	Removed some alias handing in Model::canonical_names
+	Pseudo-variables in tests now work before/after
+	Tests can now handle fully qualified line names
+	    and wild cards; limited regexps
+	    also arrays supported
+	New predefined test variable: $self->{page}
+	Test lines (marks) now in line dependency structure
+	Model has better debug funcs including show_model_lines()
+	Documentation fixes in Model and function modules
+	Added several predefined styles to mark
+	New modules:
+	    maximum.pm
+	    minimum.pm
+	    sample_mean.pm
+	    standard_deviation.pm
+

@@ -17,7 +17,7 @@ L<Finance::Shares::Model> interprets this and uses L<Finance::Shares::Chart> to
 produce graphs showing the results.
 
 Stock quotes are fetched using L<Finance::Shares::MySQL> and held in
-a L<Finance::Shares::Sample> object.  Functions like averages or trend
+a L<Finance::Shares::data> object.  Functions like averages or trend
 identifiers are applied to these data and the results used in tests.  Each model
 can apply several tests to several samples.  When the tests are run signals may
 be invoked highlighting interesting situations.  The intention is to use these
@@ -25,21 +25,20 @@ signals to drive a simulated portfolio which can be used in analysing risk.
 
 =head2 Preparation
 
-You will need mysql working on your system.  The tests and tutorials that come
-with this package use the 'test' database that comes with every mysql
-installation.  They also expect a user called 'test' with 'test' as the
-password.
+You will need mysql working on your system.  This package's tests and tutorials
+use the 'test' database that comes with every mysql installation.  They also
+expect a user called 'test' with 'test' as the password.
 
 To set this up, as root, fire up the mysql client and declare the user:
 
-S< > # B<mysql>
+  # mysql
   Welcome to the MySQL monitor.  Commands end with ; or \g.
   Your MySQL connection id is 3 to server version: 3.23.52-Max-log
 
   Type 'help;' or '\h' for help. Type '\c' to clear the buffer.
 
-S< > mysql> B<grant all privileges on test.* to 'test'>
-      -> B<identified by 'test';>
+  mysql> grant all privileges on test.* to 'test'
+      -> identified by 'test';
 
   Query OK, 0 rows affected (0.15 sec)
 
@@ -79,21 +78,13 @@ such as B<gv> or B<KGhostView>.
 
 =over
 
-=item o
-
-B<mysql> has been set up as in L</Preparation> above.
+=item B<mysql> has been set up as in L</Preparation> above.
     
-=item o
+=item There is an open internet connection.
 
-There is an open internet connection.
+=item F<models/default.conf> has been copied to F<~/.fs/default.conf>.
 
-=item o
-
-F<models/default.conf> has been copied to F<~/.fs/default.conf>.
-
-=item o
-
-The command is given from the distribution top level directory.
+=item The command is given from the distribution top level directory.
 
 =back
 
@@ -293,11 +284,14 @@ Version 1 is more or less a complete re-write; very little of the original code
 remains.  The aim has changed.  Version 0 was attempting to become a toolkit of
 modules that could be used to build your own stock analysis system.  It seems
 that this general aim is not possible as the modules have to make assumptions
-about the running environment.  However, see L<http://geniustraders.org> for
-a well developed and useful Perl programming system.
+about the running environment.  [However, see L<http://geniustraders.org> for
+a well developed (and more complex) trading system written in Perl which is well
+worth a look.]
 
-The solution presented here was to provide a running environment which supports
-programmable extensions.
+This solution provides an engine running a simulation from a specification file.
+This file usually includes user perl code to be executed before, during and/or after
+the run.  The code typically makes use of the graph functions and may write to the
+graphs as well as invoke callbacks.
 
 =head3 Declarative specifications
 
@@ -338,19 +332,20 @@ One of the configuration features is the introduction of user-defined aliases
 
 =head3 Programmable tests
 
-It is now possible to specify code fragments or imported callbacks which can be
-invoked before, during or after a model is run.  The 'during' fragment is
-visited at every data point, when a variety of data is made available, including
-the value of all other lines.
+Probably the most useful development is the use of code fragments or imported
+callbacks which can be invoked before, during or after a model is run.  The
+'during' fragment is visited at every data point, when a variety of data is made
+available, including the value of all other lines.
 
 Code fragments can be as large as you wish - complete files using additional
 modules.  Callbacks or internal functions can be invoked conditionally within
 your code, replacing the old C<signals>.
 
 The line functions supporting this paradigm are rather different (See L</Support
-Modules>).  All of the
-lines producing logical output (e.g. C<greater_than>, C<and>) have gone.  A new
-class of functions will provide statistical measures.
+Modules>).  All of the lines producing logical output (e.g. C<greater_than>,
+C<and>) have gone.  Functions providing statistical measures (e.g. C<maximum>,
+C<standard_deviation>) are provided, but are more often used to access the
+single value they calculate.
 
 =head3 Multiple pages
 

@@ -1,4 +1,5 @@
-
+CSV File Sizes
+==============
 sbry	 43
 sfw	 43
 tsco	 43
@@ -9,6 +10,13 @@ shire	 61 +
 lgen	147 +
 egg	262
 
+Test Scenarios
+==============
+
+filename    : csv file
+    [additional modules used]
+    test purpose
+    results file
 
 010.t
     No input at all - suitable defaults are created
@@ -228,5 +236,33 @@ egg	262
     on_balance_volume
     1 page: analysis=1
 
+240.t	: mrw.csv
+    minimum, maximum
+    minimum, maximum and before/during/after test
+    1 page: price=2, volume=3
+
+241.t	: mrw.csv
+    standard_deviation
+    standard_deviation and before/during test
+    showing values and marks
+    stock2 prices
+    1 page: price=5, volume=4, analysis=6
+
+242.t	: mrw.csv, tsco.csv
+    minimum, maximum, standard_deviation, sample_mean, exponential_average
+    sample_mean, tests over multiple pages, 
+    names, group, literal sources
+    values both before and after
+    2 pages: price=3, analysis=1
+
+243.t	: mrw.csv, tsco.csv
+    bollinger_band, moving_average
+    Testing line names within tests:
+      fqln, wildcard, regexp, relative, aliased
+      including multiples, scalar and array variables;
+    Passing data from before to after;
+    Calling external subroutine, passing and returning value;
+    Passing global variables to and from code fragment;
+    2 pages: price=3,2
 
 

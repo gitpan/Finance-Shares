@@ -1,5 +1,5 @@
 package Finance::Shares::on_balance_volume;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period unique_name out show);
@@ -139,10 +139,10 @@ on_balance_volume line, it will NOT relate to the Y axis.  '0' will probably be 
 the middle (vertically) of the on_balance_volume line, while for the Y axis, '0' may well
 be below the bottom of the page.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<on_balance_volume>.  
-The entry's tag must then appear in the C<line> field of a B<sample>.
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 There are no significant options.
 

@@ -61,7 +61,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 my ($nlines, $npages, @files) = $fsm->build();
 
-is($fsm->{ffile}[0],     't/110', 'filename');
+is($fsm->{ffile}[0],     'default', 'filename');
 is(ref($fsm->{fpsf}[0]), 'PostScript::File', 'PostScript::File');
 
 is($fsm->{pname}[0],     'default/MKS.L/Q1', 'page name');

@@ -109,12 +109,12 @@ my $tesco_data = $fsm->{pfsd}[3];
 is($tesco_data->name, 'retail/TSCO.L/default/data', 'tesco data name');
 is($tesco_data->nprices, 59, 'tesco data points');
 my $tesco_lines = $fsm->{pfsls}[3];
-is(@$tesco_lines, 2, 'tesco lines');
+is(@$tesco_lines, 1, 'tesco lines');
 my $summary_data = $fsm->{pfsd}[4];
 is($summary_data->name, 'summary/<none>/default/data', 'summary data name');
 is($summary_data->nprices, 0, 'summary data points');
 my $summary_lines = $fsm->{pfsls}[4];
-is(@$summary_lines, 2, 'summary lines');
+is(@$summary_lines, 1, 'summary lines');
 
 }
 

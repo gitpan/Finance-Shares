@@ -1,11 +1,11 @@
 package Finance::Shares::test;
-our $VERSION = 0.01;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
 use Text::CSV_XS;
 use Finance::Shares::Support qw(
-    out show add_show_objects
+    out out_indent show add_show_objects
 );
 use Finance::Shares::MySQL;
 use Finance::Shares::Function;
@@ -34,7 +34,10 @@ sub build {
     my $o = shift;
     my $q = $o->{quotes};
     my $d = $q->dates;
-    out($o, 5, "build test ". $o->name);
+
+    return @{$o->{line}} if $o->built;
+    $o->built(1);
+    out($o, 5, "build test ", $o->name);
     out($o, 2, "before=", $o->{before} || 'undef');
     out($o, 2, "during=", $o->{during} || 'undef');
     out($o, 2, "after=",  $o->{after} || 'undef');
@@ -48,6 +51,7 @@ sub build {
 	by     => $q->{by},
 	stock  => $q->{stock},
 	date   => '0000-00-00',
+	page   => $q->chart->name,
 	quotes => $q,
     };
     my $_l_ = $o->{line};
@@ -56,9 +60,11 @@ sub build {
     my $_v_  = [];
     for (my $i = 0; $i <= $#$_l_; $i++) {
 	my $l = $_l_->[$i];
-	my $m = $l->function;
+	out($o, 2, qq(\$_l_->[$i] = ), $o->{verbose} > 2 ? $l->name : qq("$l->{key}"));
+	my $fn = $l->function;
+	$fn->build() unless $fn->built;
 	$_v_->[$i] = {
-	    first_only => $m->{first_only},
+	    first_only => $fn->{first_only},
 	    state => $MARK_START,
 	    next  => 0,
 	    undef => 0,
@@ -67,12 +73,14 @@ sub build {
 
     # before
     if ($o->{before}) {
+	out($o, 6, "evaluating 'before' test for ". $o->name);
 	eval $o->{before};
 	die $@ if ($@);
     }
     
     # compile code string into subroutine
     if ($o->{during}) {
+	out($o, 6, "evaluating 'during' test for ". $o->name);
 	my $i;
 	no warnings;
 	my $sub = eval "sub { $o->{during} }";
@@ -92,16 +100,20 @@ sub build {
 
     # after
     if ($o->{after}) {
+	out($o, 6, "evaluating 'after' test for ", $o->name);
 	eval $o->{after};
 	die $@ if ($@);
     }
 
-    # finalize
+    # finalize lines built during test
     for (my $i = 0; $i <= $#$_l_; $i++) {
 	my $l = $_l_->[$i];
 	my $fn = $l->function;
-	$fn->finalize if $fn->{function} eq 'mark';
+	#warn $l->name, ' built=', $fn->built;
+	$fn->finalize() unless $fn->built;
     }
+    
+    return @{$o->{line}};
 }
 
 sub mark {
@@ -148,6 +160,14 @@ sub call {
     my $code = shift;
     die "Error in call(), syntax is 'call('test_tag')'\n" unless ref($code) eq 'CODE';
     return &$code(@_);
+}
+
+sub value {
+    my $line = shift;
+    die "Error in value(), syntax is 'value(\$line_tag [, 'which_value'])'\n" unless
+	(ref($line) and $line->isa('Finance::Shares::Line'));
+    my $fn = $line->function;
+    return $fn->value(@_);
 }
 
 __END__
@@ -216,7 +236,12 @@ C<during> is run for every point in the sample and is identical to L<Simple
 text>.  C<after> is run once after C<during> has finished.
 
 This form allows one-off invocation of callbacks, or an open-print-close
-sequence for writing signals to file.  
+sequence for writing signals to file. 
+
+To assist debugging there is an additional field, C<verbose>, which overrides
+the global value.  Setting this to 2 or more shows the code fragments that are
+actually evaluated.  With '2', the line substitutions are listed by their keys
+while '3' lists them by their internal names.
 
 =head3 Raw code
 
@@ -229,17 +254,93 @@ In addition to perl variables declared with C<my> or C<our>, undeclared scalar
 variables are used to refer to the values of other lines on the chart.
 
 Before the code is compiled a search is made for everything that looks like
-a scalar variable i.e. matches qr/\$(\w+)/.  This will be replaced with a value
-if it is a tag from either B<names>, B<lines> or a fully qualified line name
-(see L<Finance::Shares::Model/Fully Qualified Line Names>).  Otherwise it is
-assumed to be a valid perl scalar and is left alone.
+a scalar or list variable that expands to a line name.  The name is then
+replaced by a reference to the internal data so that it executes correctly.
 
+As in the B<lines> specifications, it is possible to refer to several lines at
+once.  If this is prefixed by '@', all matching values are returned as a list.
+The same expression prefixed by '$' returns the first value.  [Note that it does
+NOT return the number in the array.]
+
+The special variables are as follows.
+
+=over
+
+=item (a)
+
+A tag from B<names> or B<lines>;
+
+Avoid all variable names that are used by Model.  These include $open,
+$high, $low, $close and $volume - aliases for the Finance::Shares::data lines.
+
+[B<Warning>  Due to the way code fragments are pre-processed, variables should
+not begin with these names, either.]
+
+=item (b)
+
+A fully qualified line name (see L<Finance::Shares::Model/Fully Qualified Line
+Names>);
+
+=item (c)
+
+A FQLN with wildcards or (some) regular expressions.
+
+As with B<lines>, the wildcard '*' means "any (sample, stock or date) other than
+this one".  Use the regular expression '.*' to match every page B<including>
+the current one.
+
+[The support for regular expressions is quite limited.  Code fragments handle
+line references by rewriting (like 'C' macro pre-processing).  So to use
+a regular expression as a name, it becomes necessary to search/replace a regexp
+string, temporarily ignoring any special characters.   Only a few of these
+are escaped at present: '$', '@', '.', '*'.  These are just enough to handle
+lists of lines, the wildcard '*' and regular expression '.*'.]
+
+=back
+
+Otherwise the '$' or '@' value is assumed to be a valid perl variable and is
+left alone.
+
+B<Examples>
+
+  lines => [
+    avg => {
+        function => 'moving_average',
+    },
+    boll => {
+        function => 'bollinger_band',
+    },
+  ],
+
+ test => q(
+    $v1 = $avg;				    # normal line
+    $v2 = $boll/high;			    # one of the 2 produced
+    @v3 = @*/*/*/close;			    # i.e. all other close prices
+    @v4 = @.*/.*//volume;		    # i.e. all volumes with this date
+    $v5 = $morrison/MRW.L/default/close;    # 'close' is an alias (a 'name')
+    $v6 = $morrison/MRW.L/default/boll/low; # fully qualified line name
+    $v7 = $tesco///close;		    # fqln with current stock & date
+    @v8 = @data;			    # all the 'data' lines
+    $v9 = @data;			    # the number of 'data' lines
+    $v0 = $data;			    # the first 'data' line
+ ),
+
+  samples => [
+    morrison => {
+        stock  => 'MRW.L',
+	test   => 'default',
+    },
+    tesco => {
+        stock  => 'TSCO.L',
+	test   => 'default',
+    },
+  ],
+  
 If it does refer to a line, the value becomes the value for the line at that
 date.  Clearly this only makes sense while the test is iterating through the
-data in the C<during> phase.
-
-B<NOTE:> Avoid all variable names that are used by Model.  These include $open,
-$high, $low, $close and $volume - aliases for the Finance::Shares::data lines.
+data in the C<during> phase.  [If a line is referenced in C<before> or C<after>
+code fragments, they return the Finance::Shares::Line object rather than its
+data.]
 
 Each test also has a special variable C<$self> available.  This is a hash ref
 holding persistent values (similar to an object ref, but not blessed).
@@ -250,6 +351,10 @@ These values are predefined.
 =item $self->{date}
 
 Only useful in the C<during> phase, this is set to the current date.
+
+=item $self->{page}
+
+This returns the string identifying the current page.
 
 =item $self->{stock}
 
@@ -285,6 +390,11 @@ It should not normally be needed, but it provides a door into the engine for
 those who need to access it.
 
 =back
+
+Although some effort has been made to make the code appear to be 'natural' perl,
+it is worth remembering that it is not.  For example, if something won't parse,
+try putting in more spaces.  Setting the C<verbose> option to 2+ shows the code
+that is actually evaluated - i.e. after the preprocessor substitutions.
 
 =head2 Marking the Chart
 
@@ -338,9 +448,11 @@ referred to in the test.  There is no need to list it explicitly as a line.
 =head2 Calling Foreign Code
 
 Model B<test> entries may be code refs as well as text.  The code is then called
-using a special function.
+using a special function, which will return whatever the code returns.
 
-    call( tag, arguments )
+             call( tag, arguments )
+    scalar = call( tag, arguments )
+    list   = call( tag, arguments )
 
 =over 8
 
@@ -431,6 +543,9 @@ using a $self->{buy} flag and having C<after =E<gt> 1> set in the appropriate
 B<dates> entry. </realism>
 
 =head1 BUGS
+
+These lines are reserved: $open, $high, $low, $close, $volume.  If a test uses
+a tag name starting with any of these, it will get confused.
 
 Please let me know when you suspect something isn't right.  A short script
 working from a CSV file demonstrating the problem would be very helpful.

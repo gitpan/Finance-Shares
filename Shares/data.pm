@@ -1,5 +1,5 @@
 package Finance::Shares::data;
-our $VERSION = 0.01;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;

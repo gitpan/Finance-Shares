@@ -1,5 +1,5 @@
 package Finance::Shares::Line;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -67,6 +67,9 @@ sub new {
 	lmin    => $highest_int,
 	lmax	=> $lowest_int,
 	built   => 0,
+
+	# identifies result of a test
+	is_mark => 0,
 
 	@_,
     };
@@ -203,6 +206,16 @@ sub npoints {
 
 sub for_scaling {
     return $_[0]->{scale};
+}
+
+sub value {
+    return $_[0]->function->value;
+}
+
+sub is_mark {
+    my ($o, $val) = @_;
+    $o->{is_mark} = $val if defined $val;
+    return $o->{is_mark};
 }
 
 ### SUPPORT METHODS
@@ -353,7 +366,7 @@ sub get_range {
 
 sub finalize {
     my $o = shift;
-    out($o, 7, "finalizing Line ", $o->name);
+    out($o, 6, "finalizing Line ", $o->name);
     my $q = $o->chart->data;
     
     unless (defined $o->{key}) {

@@ -40,7 +40,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
 	value => {
 	    function => 'value',
-	    value    => 285,
+	    value    => 182,
 	    shown    => 1,
 	},
 	undersold => {
@@ -65,16 +65,18 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     ],
     sample => {
 	stock => $stock,
-	#lines => 'lowest',
+	lines => 'value',
 	tests => 'near',
     },
 );
 
 
 my ($nlines, $npages, @files) = $fsm->build();
-is($nlines, 2, 'Number of lines');
+#warn $fsm->show_model_lines;
+
+is($nlines, 4, 'Number of lines');
 
 #show $fsm, $fsm->{pfsls}, 4;
-my $mark_np = $fsm->{pfsls}[0][0][1]{npoints};
-is($mark_np, 43, 'Number of points');
+my $mark_np = $fsm->{ptfsls}[0][0]{npoints};
+is($mark_np, 17, 'Number of points');
 

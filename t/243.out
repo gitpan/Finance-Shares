@@ -1,0 +1,12 @@
+tesco/TSCO.L/default
+tesco/TSCO.L/default/avg/mov
+tesco/TSCO.L/default/boll/high
+(morrison/MRW.L/default/data/close)
+(morrison/MRW.L/default/data/volume, tesco/TSCO.L/default/data/volume)
+morrison/MRW.L/default/data/close
+morrison/MRW.L/default/boll/low
+morrison/MRW.L/default/boll/low
+tesco/TSCO.L/default/data/close
+tesco/TSCO.L/default/data/open
+(tesco/TSCO.L/default/data/open, tesco/TSCO.L/default/data/high, tesco/TSCO.L/default/data/low, tesco/TSCO.L/default/data/close, tesco/TSCO.L/default/data/volume)
+variable_in=999

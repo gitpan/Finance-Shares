@@ -1,5 +1,5 @@
 package Finance::Shares::bollinger_band;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -180,10 +180,10 @@ required and the other illustrating all the possible fields.
 A Bollinger band is marked by high and low boundary lines drawn a number of
 standard deviations above and below a source line.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<bollinger_band>.  
-The entry's tag must then appear in the C<line> field of a B<sample>.
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The other main fields are B<line>, B<sd> and B<period>.
 

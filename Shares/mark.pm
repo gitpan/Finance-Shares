@@ -1,21 +1,11 @@
 package Finance::Shares::mark;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
 use Finance::Shares::Function;
 use Log::Agent;
 our @ISA = 'Finance::Shares::Function';
-
-# default style for mark
-our $default = {
-    bgnd_outline => 1,
-    point => {
-	shape => 'circle',
-	size  => 12,
-	width => 2,
-    },
-};
 
 sub new {
     my $class = shift;
@@ -30,11 +20,47 @@ sub initialize {
     my $o = shift;
 
     $o->common_defaults;
-    $o->add_line( "line", 
+
+    my $style = $o->{style};
+    if ($style and ref $style eq '') {
+	if ($style eq 'circle') {
+	    $o->{size} = 12 unless defined $o->{size};
+	    $o->{style} = {
+		bgnd_outline => 1,
+		point => {
+		    shape => 'circle',
+		    size  => $o->{size},
+		    width => $o->{size}/6,
+		},
+	    };
+	} elsif ($style eq 'up_arrow') {
+	    $o->{size} = 8 unless defined $o->{size};
+	    $o->{style} = {
+		point => {
+		    shape => 'north',
+		    size  => $o->{size},
+		    width => $o->{size}/5,
+		    y_offset => -$o->{size},
+		},
+	    };
+	} elsif ($style eq 'down_arrow') {
+	    $o->{size} = 8 unless defined $o->{size};
+	    $o->{style} = {
+		point => {
+		    shape => 'south',
+		    size  => $o->{size},
+		    width => $o->{size}/5,
+		    y_offset => $o->{size},
+		},
+	    };
+	}
+    }
+    
+    $o->add_line( "mark", 
 	    graph  => $o->{graph},
 	    gtype  => $o->{gtype},
 	    key    => $o->{key} || "mark '$o->{id}'",
-	    style  => $o->{style} || $default,
+	    style  => $o->{style},
 	    shown  => $o->{shown},
 	    order  => $o->{order},
 	);
@@ -42,15 +68,20 @@ sub initialize {
 
 sub build {
     my $o = shift;
-    return if $o->{built};
+    return if $o->built;
     my $q      = $o->{quotes};
     my $src    = $o->{line}[0][0];
     my $values = $src->{data};
     my $dates  = $q->dates;
     out($o, 5, "build mark following '", $src->name);
 
-    my $l = $o->line('line');
+    my $l = $o->line('mark');
     $l->{data} = [];
+    
+    my $test = $o->{test};
+    if (ref($test) and $test->isa('Finance::Shares::test')) {
+	$test->build();
+    }
 }
 
 __END__
@@ -104,13 +135,40 @@ required and the other illustrating all the possible fields.
 
 This module allows model B<test> code to write points or lines on the graphs.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<mark>.  The entry's tag must then appear in the C<line>
-field of a B<sample>.
+B<first_only>, B<style> and B<size> are the most significant options.  Note that
+there is no B<line> field as the position is set directly in the program
+function call.
 
-B<first_only> and B<style> are the most significant options.  Note that there is
-no B<line> field as the position is set directly in the program function call.
+=head2 Call Syntax
+
+This module should not be called in the usual way.
+
+There must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  However, the
+entry's tag may only be used in a B<test> code fragment.
+
+    mark( $line_tag, $position );
+
+C<$line_tag> is the B<lines> entry tag with a '$' in front.
+C<$position> is either another line tag or a B<scalar variable> holding a Y axis
+value.  Note that it cannot be an expression.
+
+B<Example>
+
+    lines => [
+	low10 = {
+	    function => 'lowest',
+	    period   => 10,
+	    key      => '10 day low',
+	}
+	test_line => {
+	    function => 'mark',
+	},
+    ],
+
+    test => q(
+	mark( $test_line, $low10 - 5 );
+    ),
 
 =head1 OPTIONS
 
@@ -231,18 +289,25 @@ This is normally a hash ref defining the data's appearance.  See
 L<PostScript::Graph::Style> for full details, or L<Finance::Shares::Model/Lines> for
 an example.
 
-Note that the default is not a line, but circles all the marked points.  It is
-equivalent to the following.
+There are three special settings, identified by strings C<circle>, C<up_arrow>
+and C<down_arrow>.  They are all affected by the B<size> option.  For example,
+
+    style => 'up_arrow',
+    size  => 12,
+
+is equivalent to:
 
     style => {
-	bgnd_outline => 1,
+	bgnd_outline => 0,
 	point => {
-	    shape => 'circle',
-	    size  => 12,
-	    width => 2,
+	    shape    => 'up_arrow',
+	    size     => 12,
+	    width    => 2,
+	    y_offset => -12,
 	},
     },
 
+    
 =head1 BUGS
 
 Please let me know when you suspect something isn't right.  A short script

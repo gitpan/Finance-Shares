@@ -1,5 +1,5 @@
 package Finance::Shares::Support;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Date::Calc qw(:all);
@@ -12,6 +12,7 @@ use DBIx::Namespace;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(
     $highest_int $lowest_int %period $number_regex $default_line_style
+    $field_split $field_join
     today_as_string is_date string_from_ymd ymd_from_string
     increment_ymd increment_date decrement_ymd decrement_date
     days_difference day_of_week

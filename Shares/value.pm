@@ -1,5 +1,5 @@
 package Finance::Shares::value;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(out show);
@@ -97,8 +97,10 @@ This module draws a horizontal line on a graph at a level specified by the user.
 
 =head1 OPTIONS
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification.  See L<SYNOPSYS> for examples. 
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The entry must have a B<function> field, C<value>.  The position of the line is
 determined by a B<value> field, and a B<gtype> field should be specified for any

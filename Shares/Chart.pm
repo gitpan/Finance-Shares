@@ -1,5 +1,5 @@
 package Finance::Shares::Chart;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -18,7 +18,7 @@ use Finance::Shares::Support qw(
 
 ## user options allowed for each graph
 our $background = [1, 1, 0.93];
-our $glyph_ratio = 0.45;
+our $glyph_ratio = 0.46;
 our $graph_options = {
     percent => 20,
     gtype => 'analysis',
@@ -1235,27 +1235,21 @@ sub draw_lines {
     foreach my $gname (@{$o->{gpaperord}}) {
 	my $graph = $o->{gpapers}{$gname};
 	$o->reorder_lines($graph);
-	my $data_shown = 0;
 	foreach my $lname (@{$graph->{lineord}}) {
 	    my $line = $graph->{lines}{$lname};
 	    my $z = $line->order();
-	    if ($order < 0 and $z >= 0) {
-		if ($graph->{gtype} eq 'price') {
-		    $o->price_marks($graph);
-		} elsif ($graph->{gtype} eq 'volume') {
-		    $o->volume_marks($graph);
-		}
-		$data_shown = 1;
-		$order = 0;
-	    }
+	    last if $z >= 0;
 	    $o->draw_line($graph, $line);
 	}
-	unless ($data_shown) {
-	    if ($graph->{gtype} eq 'price') {
-		$o->price_marks($graph);
-	    } elsif ($graph->{gtype} eq 'volume') {
-		$o->volume_marks($graph);
-	    }
+	if ($graph->{gtype} eq 'price') {
+	    $o->price_marks($graph);
+	} elsif ($graph->{gtype} eq 'volume') {
+	    $o->volume_marks($graph);
+	}
+	foreach my $lname (@{$graph->{lineord}}) {
+	    my $line = $graph->{lines}{$lname};
+	    my $z = $line->order();
+	    $o->draw_line($graph, $line) if $z >= 0;
 	}
     }
 

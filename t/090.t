@@ -57,7 +57,7 @@ is($fsm->{sname}[0],   'default',  "'sname' 0 OK");
 is(ref($fsm->find_option('sources', $fsm->{ssource}[0])),  'HASH', "ssource 0 OK");
 is(ref($fsm->find_option('stocks', $fsm->{scodes}[0])),  'ARRAY', "scodes 0 OK");
 is(ref($fsm->find_option('dates', $fsm->{sdates}[0])),  'HASH', "sdates 0 OK");
-is($fsm->find_option('files', $fsm->{sname}[0]),  'default', "sname 0 OK");
+is(ref($fsm->find_option('files', $fsm->{sname}[0])),  'HASH', "sname 0 OK");
 is(ref($fsm->{schart}[0]),  'HASH', "schart 0 OK");
 is($fsm->{spage}[0],   undef,    "'spage' 0 OK");
 is($fsm->{slines}[0][2],  '10day', "slines 0 OK");

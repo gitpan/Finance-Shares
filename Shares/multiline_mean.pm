@@ -1,4 +1,5 @@
 package Finance::Shares::multiline_mean;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
@@ -106,10 +107,10 @@ This module calculates the average of several lines.  It is probably most
 useful when averaging lines created by the same function on several different
 samples.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<multiline_mean>.  
-The entry's tag must then appear in the C<line> field of a B<sample>.
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The other main fields are B<lines>, B<gtype> or B<graph>.
 

@@ -18,7 +18,7 @@ my $date     = 'default';
 
 add_show_objects(
     'Finance::Shares::Line',
-    'Finance::Shares::is_rising',
+    'Finance::Shares::rising',
 );
 
 my $fsm = new Finance::Shares::Model( \@ARGV,

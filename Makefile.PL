@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	  => 'Finance::Shares',
-    VERSION	  => '1.00',
+    VERSION	  => '1.01',
     ABSTRACT      => 'Applying tests to share quotes',
     AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
     NORECURS      => 1,

@@ -27,7 +27,7 @@ is($fsm->{stocks}[1],       '',           "'stocks' 1 OK");
 is($fsm->{dates}[0],        'default',    "'dates' 0 OK");
 is(ref($fsm->{dates}[1]),   'HASH',       "'dates' 1 OK");
 is($fsm->{files}[0],        'default',    "'files' 0 OK");
-is($fsm->{files}[1],        'default',    "'files' 1 OK");
+is(ref($fsm->{files}[1]),   'HASH',       "'files' 1 OK");
 is($fsm->{charts}[0],       'default',    "'charts' 0 OK");
 is(ref($fsm->{charts}[1]),  'HASH',       "'charts' 1 OK");
 is($fsm->{groups}[0],       'default',    "'groups' 0 OK");

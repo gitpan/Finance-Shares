@@ -1,8 +1,8 @@
-package Finance::Shares::exponential_average;
+package Finance::Shares::minimum;
 our $VERSION = 1.01;
 use strict;
 use warnings;
-use Finance::Shares::Support qw(%period out show);
+use Finance::Shares::Support qw(%period out show $highest_int);
 use Finance::Shares::Function;
 use Log::Agent;
 our @ISA = 'Finance::Shares::Function';
@@ -20,10 +20,10 @@ sub initialize {
     my $o = shift;
 
     $o->common_defaults;
-    $o->{period} = 5 unless defined $o->{period};
-    $o->{factor} = 1 unless defined $o->{factor};
+    $o->{no_line} = 0 unless defined $o->{no_line};
+    $o->{shown}   = 0 if $o->{no_line};
 
-    $o->add_line('expo', 
+    $o->add_line('min', 
 	    graph  => $o->{graph},
 	    gtype  => $o->{gtype},
 	    key    => $o->{key} || '',
@@ -33,49 +33,45 @@ sub initialize {
 	);
 }
 
-sub lead_time {
-    my $o = shift;
-    #return int($o->{period} * 1.5) + 1;
-    return $o->{period};
+sub value {
+    return $_[0]->{minimum};
 }
 
 sub build {
     my $o = shift;
-    my $q = $o->{quotes};
-    my $s = $o->{line}[0][0];
-    my $v = $s->{data};
-    my $d = $q->dates;
+    my $q      = $o->{quotes};
+    my $src    = $o->{line}[0][0];
+    my $values = $src->{data};
+    my $dates  = $q->dates;
     my @points;
-    
-    my $level = 0;
-    my $total = 0;
-    my $count = 0;
-    my $w1 = $o->{period} ? 1/$o->{period} : 0;
-    my $w2 = 1 - $w1;
-    for (my $i = 0; $i <= $#$d; $i++) {
-	my $val = $v->[$i];
-	my $date = $d->[$i];
-	if (defined $val) {
-	    if ($count >= $o->{period}) {
-		$level = $level * $w2 + $val * $w1;
-		push @points, $level;
-	    } else {
-		$count++;
-		$total += $val;
-		$level = $total/$count;
-		push @points, undef;
-	    }
-	} else {
-	    push @points, undef;
-	}
+
+    my $min = $highest_int;
+    for (my $i = 0; $i <= $#$values; $i++) {
+	my $val = $values->[$i];
+	next unless defined $val;
+	$min = $val if $val < $min;
     }
-    my $l = $o->line('expo');
-    $l->{data} = \@points;
-	
-    unless ($l->{key}) {
-	my $dtype = $q->dates_by;
-	my $src_key = $s->default_key();
-	$l->{key} = "$o->{period} $period{$dtype} exponential average of '$src_key'";
+    $o->{minimum} = $min;
+    
+    my $l = $o->line('min');
+    if ($o->{no_line}) {
+	$l->{data} = [];
+    } else {
+	if ($min < $highest_int) {
+	    my $first = $q->date_to_idx( $q->nearest($q->{first}) );
+	    my $last  = $q->date_to_idx( $q->nearest($q->{last}, 1) );
+
+	    $l->{data}[$first] = $min;
+	    $l->{data}[$last]  = $min;
+	    $l->interpolate();
+	} else {
+	    $l->{data} = \@points;
+	}
+
+	unless ($l->{key}) {
+	    my $src_key = $src->default_key();
+	    $l->{key} = "maximum '$src_key'";
+	}
     }
 }
 
@@ -83,30 +79,29 @@ sub build {
 __END__
 =head1 NAME
 
-Finance::Shares::exponential_average - Calculate an N-period exponential average
+Finance::Shares::minimum - Lowest value of a given line
 
 =head1 SYNOPSIS
 
-Two examples of how to specify a exponential average line, one showing the minimum
+Two examples of how to specify a minimum line, one showing the minimum
 required and the other illustrating all the possible fields.
 
     use Finance::Shares::Model;
-    use Finance::Shares::exponential_average;
+    use Finance::Shares::minimum;
 
     my @spec = (
 	...
 	lines => [
 	    ...
 	    minimal => {
-		function => 'exponential_average',
+		function => 'minimum',
 	    },
 	    full = {
-		function => 'exponential_average',
+		function => 'minimum',
+		line     => 'some_line',
 		graph    => 'Stock Prices',
 		gtype    => 'price',
-		line     => 'some_line',
-		period   => 10,
-		key      => '10 day moving average',
+		key      => 'minimum price',
 		style    => { ... },
 		shown    => 1,
 		order    => -99,
@@ -114,10 +109,19 @@ required and the other illustrating all the possible fields.
 	    ...
 	],
 
+	tests => [
+	    values => {
+		before => q(
+		    my $min = value($full);
+		),
+	    },
+	],
+
 	samples => [
 	    ...
 	    one => {
 		lines => ['full', 'minimal'],
+		tests => 'values',
 		...
 	    }
 	],
@@ -128,21 +132,24 @@ required and the other illustrating all the possible fields.
 
 =head1 DESCRIPTION
 
-This module calculates the moving average of some other value, usually on the
-same graph.
+This module calculates the minimum value found in the source line and displays
+a line at that value.  It also returns a value C<minimum> that can be used by
+a code fragment.
+
+    my $minimum = value( $source_line );
 
 To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
 entry that has a B<function> field declaring the module's name.  Then the
 entry's tag must be used by a B<sample> in some way.  This may be either
 directly in a B<line> field, or by referring to it within a B<test>.
 
-The other main fields are B<line>, B<gtype> or B<graph>, and B<period>.
+The other main fields are B<line>, B<shown> and B<no_line>.
 
 =head1 OPTIONS
 
 =head3 function
 
-Required.  Must be C<exponential_average>.
+Required.  Must be C<minimum>.
 
 =head3 graph
 
@@ -158,7 +165,7 @@ C<level>.  (Default: C<price>)
 
 =head3 line
 
-Identifies the line whose data is to be averaged.  (Default: 'close')
+Identifies the line whose data is to be considered.  (Default: 'close')
 
 =head3 period
 
@@ -198,6 +205,12 @@ In front of the data, but only just.
 Probably the top line.
 
 =back
+
+=head3 no_line
+
+If set to 1, this stops the line data being stored and, of course, the line is
+not shown.  The module's value is still available to code fragements, though.
+(Default: 0)
 
 =head3 shown
 
@@ -253,4 +266,5 @@ L<Finance::Share::Function> and L<Finance::Share::Line>.
 Also, L<Finance::Share::test> covers writing your own tests.
 
 =cut
+
 

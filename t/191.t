@@ -67,10 +67,11 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 
 my ($nlines, $npages, @files) = $fsm->build();
-is($nlines, 2, 'Number of lines');
+#warn $fsm->show_model_lines;
+is($nlines, 3, 'Number of lines');
 
 #show $fsm, $fsm->{pfsls}, 4;
-my $mark_np = $fsm->{pfsls}[0][0][1]{npoints};
+my $mark_np = $fsm->{ptfsls}[0][1]{npoints};
 is($mark_np, 7, 'Number of points');
 
 

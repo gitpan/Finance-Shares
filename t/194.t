@@ -95,10 +95,10 @@ END
 
 
 my ($nlines, $npages, @files) = $fsm->build();
-is($nlines, 2, 'Number of lines');
+#warn $fsm->show_model_lines;
+is($nlines, 3, 'Number of lines');
 
-#show $fsm, $fsm->{pfsls}, 4;
-my $mark_np = $fsm->{pfsls}[0][0][2]{npoints};
+my $mark_np = $fsm->{ptfsls}[0][2]{npoints};
 is($mark_np, 21, 'Number of points');
 
 my $name = "$filename.out";

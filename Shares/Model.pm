@@ -1,14 +1,15 @@
 package Finance::Shares::Model;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Log::Agent;
 use PostScript::File 1.00 qw(check_file);
 use Finance::Shares::Support qw(
-    $number_regex
+    $number_regex $field_split $field_join
     unique_name
     today_as_string check_dates is_date
-    read_config deep_copy extract_list name_join name_split
+    read_config deep_copy extract_list 
+    name_join name_split
     out out_indent show show_deep
 );
 use Finance::Shares::Chart;
@@ -96,7 +97,8 @@ sub new {
     $o->collect_options( \@_ );
     $o->collect_options( $argv );
    
-    $o->ensure_default('files', $o->{filename} || 'default');
+    #$o->ensure_default('files', $o->{filename} || 'default');
+    $o->ensure_default('files',   {});
     $o->ensure_default('groups',  {});
     $o->ensure_default('samples', {});
     
@@ -136,10 +138,11 @@ sub build {
 		$nlines += $o->build_function($fns);
 	    }
 
-	    out($o, 5, "Model::build tests on page $pp '$pname'");
+	    out($o, 3, "Model::build tests on page $pp '$pname'");
 	    my $tests = $o->{ptests}[$pp];
 	    foreach my $t (@$tests) {
-		$t->build();
+		$nlines += $t->build();
+		$t->finalize();
 	    }
 	}
 	$o->scale_foreign_lines;
@@ -184,6 +187,9 @@ sub build {
     }
     return ($nlines, $npages, @filenames);
 }
+# NB: $nlines is confused.
+# For lines build_function() returns NEW lines;
+# for tests build() returns REFERENCED lines, which may include existing ones.
 
 ###== RESOURCES =============================================================== 
 
@@ -259,16 +265,29 @@ sub find_option {
     return undef;
 }
 
-sub show_option {
-    my ($o, $option) = @_;
-    my $array = $o->{$option};
-    logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
-    my $res = "Options for '$option':\n";
-    for( my $i = 0; $i < $#$array; $i += 2) {
-	$res .= "    $array->[$i] = $array->[$i+1]\n";
-	$res .= show_deep($array->[$i+1], 1) if ref($array->[$i+1]);
+sub add_resource {
+    my ($o, $name, $value, $pp) = @_;
+    my $array = $o->{$name};
+    unless (defined $pp) {
+	$pp = @$array;
+	for (my $i = 0; $i <= $#$array; $i++) {
+	    $pp = $i, last if $array->[$i] eq $value;
+	}
+	out($o, 7, "add_resource($name, $value) at $pp");
     }
-    return $res;
+    
+    $array->[$pp] = $value;
+    return $pp;
+}
+# $value added to end of $name array unless position $pp given
+
+sub find_resource {
+    my ($o, $name, $tag) = @_;
+    my $array = $o->{$name};
+    for( my $i = 0; $i <= $#$array; $i++) {
+	return $i if $array->[$i] eq $tag;
+    }
+    return undef;
 }
 
 sub set_alias {
@@ -279,15 +298,6 @@ sub set_alias {
 sub get_alias {
     my ($o, $short) = @_;
     return ($o->{alias}{$short} || $short);
-}
-
-sub show_aliases {
-    my $o = shift;
-    my $res = "Aliases:\n";
-    foreach my $key (sort keys %{$o->{alias}}) {
-	$res .= "    $key = '$o->{alias}{$key}'\n";
-    }
-    return $res;
 }
 
 sub ensure_default {
@@ -710,15 +720,17 @@ sub create_lines {
 	    my ($fsts, $larray);
 	    my @lines;
 	    foreach my $fqln (@$fullnames) {
-		$larray = $o->create_line($fqln, $pp, $larray);
+		$larray = $o->create_line($fqln, $pp, $larray) unless $o->known_line($fqln);
 		push @lines, $larray;
 	    }
 
 	    # add tests lines onto end of dependent FS::Lines list
-	    ($fsts, $larray) = $o->create_tests( $o->{ptests}[$pp], $pp );
+	    ($fsts, $larray) = $o->create_tests( $o->{ptests}[$pp], $pp, \@lines);
 	    $o->{ptests}[$pp] = $fsts;
 	    $o->{ptfsls}[$pp] = $larray;
-	    push @lines, $larray;
+	    # Uncomment this if test lines aren't displayed automatically.
+	    # BUT, the nlines total will be out :-(
+	    #push @lines, $larray;
 	    
 	    $o->{pfsls}[$pp] = \@lines;
 	}
@@ -787,6 +799,15 @@ sub canonical_names {
 	$fnchart = name_join($f[0], $f[1], $f[2]);
 	$fntag  = $f[3];
 	$fnline = $f[4] || '';
+
+	# fntag may be an alias
+	my $alias = $o->{alias}{$fntag};
+	if ($alias) {
+	    my @g = name_split $alias;
+	    $fntag   = $g[0];
+	    $fnline  = $g[1] || '';
+	}
+
     } else {
 	# relative
 	$fnchart = $page;
@@ -794,12 +815,12 @@ sub canonical_names {
 	$fnline  = $f[1] || '';
 
 	# might be sample/fntag[/line] for single page sample
-	my $alias = $o->get_alias($fntag);
-	if ($alias ne $fntag) {
-	    $fnchart = $alias;
-	    $fntag   = $f[1];
-	    $fnline  = $f[2] || '';
-	}
+#	my $alias = $o->{alias}{$fntag};
+#	if ($alias) {
+#	    $fnchart = $alias;
+#	    $fntag   = $f[1];
+#	    $fnline  = $f[2] || '';
+#	}
 
 	# no need to expand further if page and function known
 	if ($o->find_option('lines', $fntag)) {
@@ -832,7 +853,7 @@ sub canonical_names {
 
     my @list;
     my @samples = $o->match_sample($sample, $xsample);
-    #out($o, 7, "samples: ", join(', ', @samples));
+    #out($o, 1, "samples: ", join(', ', @samples));
     out_indent(1);
     foreach my $sample (@samples) {
 	my @stocks = $o->match_stock($sample, $stock, $xstock);
@@ -1122,8 +1143,8 @@ sub create_value {
 # A suitable lines entry is made and the tag is returned.
 
 sub create_tests {
-    my ($o, $test_opts, $pp) = @_;
-    out($o, 3, "Model::create_tests");
+    my ($o, $test_opts, $pp, $fnlines) = @_;
+    out($o, 3, "Model::create_tests for page $pp");
     out_indent(1);
 
     my %code;
@@ -1134,29 +1155,36 @@ sub create_tests {
 	$code{$tag} = $val if ref($val) eq 'CODE';
     }
 
-    my (@tests, @lines);
+    my (@tests, @lines, %hash, @array);
+    # note all lines already known to model
+    foreach my $ar (@$fnlines) {
+	foreach my $fsl (@$ar) {
+	    $hash{$fsl}++;
+	}
+    }
+    
     foreach my $tag (@$test_opts) {
-	my (@mk1, @li1);
-	my $t = $o->find_option('tests', $tag);
+	my (@mkA, %mkH, @lnA, %lnH);	# ensure unique line numbers within each test
+	my $t = deep_copy $o->find_option('tests', $tag);
 	next unless $t;
 	my $ref = ref $t;
 	if ($ref eq 'HASH') {
-	    $t->{before} = $o->prepare_eval($tag, $t->{before}, $pp, \@mk1, \@li1);
-	    $t->{during} = $o->prepare_eval($tag, $t->{during}, $pp, \@mk1, \@li1);
-	    $t->{after}  = $o->prepare_eval($tag, $t->{after}, $pp, \@mk1, \@li1);
-	    push @tests, $o->create_test($tag, $t->{before}, $t->{during}, $t->{after}, $pp, \@mk1, \@li1, \%code);
+	    $t->{before} = $o->testprep_eval($tag, 0, $t->{before} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    $t->{during} = $o->testprep_eval($tag, 1, $t->{during} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    $t->{after}  = $o->testprep_eval($tag, 0, $t->{after}  || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    push @tests, $o->create_test($tag, $t->{verbose}, $t->{before}, $t->{during}, $t->{after}, $pp, \@mkA, \@lnA, \%code);
 	} elsif ($ref eq '') {
-	    $t = $o->prepare_eval($tag, $t, $pp, \@mk1, \@li1);
-	    push @tests, $o->create_test($tag, undef, $t, undef, $pp, \@mk1, \@li1, \%code);
+	    $t = $o->testprep_eval($tag, 1, "$t" || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    push @tests, $o->create_test($tag, undef, undef, $t, undef, $pp, \@mkA, \@lnA, \%code);
 	}
-	push @lines, @li1;
+	push @lines, @lnA;		# collect lines so Model knows to draw them
     }
 
-    my (%hash, @array);
-    foreach my $linex (@lines) {
-	unless ($hash{$linex}) {	# remove duplicates
-	    $hash{$linex}++;
-	    push @array, $linex;	# maintain order given
+    # identify new lines referenced in tests
+    foreach my $fsl (@lines) {
+	unless ($hash{$fsl}) {
+	    $hash{$fsl}++;
+	    push @array, $fsl;	# maintain order given
 	}
     }
 
@@ -1164,79 +1192,116 @@ sub create_tests {
     return (\@tests, \@array);
 }
 
-sub prepare_eval {
-    my ($o, $tag, $str, $pp, $ms, $ls) = @_;
-    out($o, 6, "prepare_eval: tag=$tag, str=$str");
-    my $page = $o->{pname}[$pp];
-
-    # identify $word type entries and remember lines referenced
-    my %vars;			# map tag to accessing code
-    my (@lines, %lhash);	# list of unique FS::Lines
-    my (@marks, %mhash);	# list of mark functions
+sub testprep_eval {
+    my ($o, $tag, $during, $str, $pp, $mkA, $mkH, $lnA, $lnH) = @_;
+    out($o, 6, "testprep_eval: tag=$tag, str=$str");
+    out_indent(1);
+    my $pname = $o->{pname}[$pp];
+    my %vars;	# map tag to accessing code
     
-    while ($str =~ /\$(\w+)/g) {
-	my $tag = $1;
-	$tag = $o->get_alias($tag);
-	my @f = name_split $tag;
-	my $entry = $o->find_option('lines', $f[0]);
-	next unless $entry;
-	my @fqlns = $o->canonical_names($tag, $page);
-	next unless @fqlns;
-	my $larray = $o->create_line($fqlns[0], $pp);
-	next unless $larray;
+    while ($str =~ /([\$\@])([^\s,;\)\}\]]+)/g) {
+	my $vtype = $1;
+	my $given = "$1$2";
+	#warn "given = $given\n";
+	my @subs;
+	my @lines = $o->canonical_names($2, $pname);
 	
-	foreach my $fsl (@$larray) {
-	    # this is nth unique line tag
-	    my $uname = $fsl->name;
-	    my $n = $lhash{$uname};
-	    unless (defined $n) {
-		push @lines, $fsl;
-		$n = $lhash{$uname} = $#lines;
-	    }
+	my $abort = 0;
+	foreach my $line (@lines) {
+	    my @f = name_split($line);
+	    my $entry = $o->find_option('lines', $f[3]);
+	    #warn "tag=$f[3], entry=", $entry || '<undef>', "\n";
+	    $abort++, last unless $entry;
+	    my $larray = $o->create_line($line, $pp);
+	    $abort++, last unless $larray;
 
-	    if ($entry->{function} eq 'mark') {
-		my $mark = $fsl->function;
-		unless ($mhash{$mark}) {
-		    push @marks, $mark;
-		    $mhash{$mark}++;
+	    foreach my $fsl (@$larray) {
+		my $uname = $fsl->name;
+		#warn "fsl=$uname\n";
+		my $n = $lnH->{$uname};
+		unless (defined $n) {
+		    push @$lnA, $fsl;
+		    $n = $lnH->{$uname} = $#$lnA;
 		}
-		$fsl->{data} = [];
-		$vars{$1} = "_l_->[$n]{data}";
-	    } else {
-		$vars{$1} = "_l_->[$n]{data}[\$i]";
+		if ($entry->{function} eq 'mark') {
+		    $fsl->is_mark(1);
+		    my $mark = $fsl->function;
+		    unless ($mkH->{$mark}) {
+			push @$mkA, $mark;
+			$mkH->{$mark}++;
+		    }
+		    $fsl->{data} = [];
+		    if ($during) {
+			push @subs, "\$_l_->[$n]{data}";
+		    } else {
+			out($o, 1, "ERROR: '$given'.  Marks only work in 'during' test phase");
+		    }
+
+		} else {
+		    if ($during) {
+			push @subs, "\$_l_->[$n]{data}[\$i]";
+		    } else {
+			push @subs, "\$_l_->[$n]";
+		    }
+		}
 	    }
+	}
+	
+	unless ($abort) {
+	    $vars{$given} = ($vtype eq '@') ? '(' . join(',', @subs) . ')' : $subs[0];
+	    #warn "\$vars{$given} = $vars{$given}\n";
 	}
     }
 
     # replace line refs with code to access them
     while( my ($var, $val) = each %vars ) {
-	$str =~ s/\$$var/\$$val/g;
+	$var =~ s/\$/\\\$/g;
+	$var =~ s/\@/\\\@/g;
+	$var =~ s/\*/\\\*/g;
+	$var =~ s/\./\\\./g;
+	$var =~ s/$field_join/$field_split/g;
+	#warn "var=$var, val=$val";
+	$str =~ s/$var/$val/g;
     }
-    $str =~ s/mark\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/mark(\$_v_->[$1], \$i, \$_l_->[$1]$2)/g;
-    $str =~ s/call\(([^\),]*)([^\)]*)\)/call(\$_c_->{$1}$2)/g;
-    #warn "str=$str";
     
-    push @$ms, @marks;
-    push @$ls, @lines;
-
+    #warn "original str=$str\n";
+    $str =~ s/value\(\s*\$_l_->\[(\d+)\]\{data\}\[\$i\]([^\)]*)\)/value(\$_l_->[$1]$2)/g;
+    $str =~  s/mark\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/mark(\$_v_->[$1], \$i, \$_l_->[$1]$2)/g;
+    $str =~ s/call\(([^\),]*)([^\)]*)\)/call(\$_c_->{$1}$2)/g;
+    #warn "substituted str=$str\n";
+    
+    out_indent(-1);
     return $str;
 }
 
 sub create_test {
-    my ($o, $tag, $before, $during, $after, $pp, $marks, $lines, $code) = @_;
+    my ($o, $tag, $verbose, $before, $during, $after, $pp, $marks, $lines, $code) = @_;
 
     # create test object for this code string
     my $test = new Finance::Shares::test(verbose => $o->{verbose});
     $test->add_parameters(
-	id     => $tag,
-	fsc    => $o->{pfsc}[$pp],
-	before => $before,
-	during => $during,
-	after  => $after,
-	line   => $lines,
-	mark   => $marks,
-	code   => $code,
+	id      => $tag,
+	fsc     => $o->{pfsc}[$pp],
+	verbose => defined($verbose) ? $verbose : $o->{verbose},
+	before  => $before,
+	during  => $during,
+	after   => $after,
+	line    => $lines,
+	mark    => $marks,
+	code    => $code,
     );
+
+    # collect dependent lines
+    my @deps;
+    foreach my $line (@$lines) {
+	push @deps, $line unless $line->is_mark;
+    }
+	
+    # set dependencies
+    foreach my $mark (@$marks) {
+	$mark->{test} = $test;
+	$mark->{line} = [ \@deps ];
+    }
 
     return $test;
 }
@@ -1255,12 +1320,17 @@ sub lead_times {
 	    my $name = $o->{pname}[$pp];
 	    my $max = 0;
 	    my $fnlines = $o->{pfsls}[$pp];
+	    my %visited;
 	    foreach my $ar (@$fnlines) {
-		my $line = $ar->[0];
-		next unless defined $line;
-		my $fn = $line->function;
-		my $lead = $fn->longest_lead_time();
-		$max = $lead if $lead > $max;
+		for (my $ln = 0; $ln <= $#$ar; $ln++) {
+		    my $fsl = $ar->[$ln];
+		    my $fn  = $fsl->function;
+		    unless ($visited{$fn}) {
+			$visited{$fn}++;
+			my $lead = $fn->longest_lead_time();
+			$max = $lead if $lead > $max;
+		    }
+		}
 	    }
 	    out($o, 6, "lead_time for page '$name' is $max");
 	    my $data  = $o->{pfsd}[$pp];
@@ -1270,7 +1340,7 @@ sub lead_times {
     }
     out_indent(-1);
 }
-## lead_times()
+# lead_times()
 #
 # Before:   All objects must have been built.
 # Process:  Each page object is visited along every function
@@ -1296,6 +1366,8 @@ sub fetch_data {
 
 sub build_function {
     my ($o, $array) = @_;
+    out($o, 3, "Model::build_function");
+    out_indent(1);
     
     my $line_count = 0;
     foreach my $fsl (@$array) {
@@ -1304,7 +1376,7 @@ sub build_function {
 	
 	my $fn = $fsl->function;
 	if ($fn->{built}) {
-	    out($o, 6, "Model::build_line '$name' already built");
+	    out($o, 7, "Model::build_line '$name' already built");
 	    next;
 	}
 
@@ -1318,12 +1390,14 @@ sub build_function {
 	
 	$fn->build;
 	$fn->finalize;
-	$line_count++;
+	$line_count += $fn->lines;
 	out($o, 6, "built '$name', $line_count line(s)");
     }
+
+    out_indent(-1);
     return $line_count;
 }
-## build_line( array )
+# build_line( array )
 #
 # array     An array ref holding Finance::Shares::Line 
 #	    objects to be built
@@ -1352,48 +1426,6 @@ sub scale_foreign_lines {
 }
 
 ###== SUPPORT METHODS ========================================================= 
-
-sub add_resource {
-    my ($o, $name, $value, $pp) = @_;
-    my $array = $o->{$name};
-    unless (defined $pp) {
-	$pp = @$array;
-	for (my $i = 0; $i <= $#$array; $i++) {
-	    $pp = $i, last if $array->[$i] eq $value;
-	}
-	out($o, 7, "add_resource($name, $value) at $pp");
-    }
-    
-    $array->[$pp] = $value;
-    return $pp;
-}
-# $value added to end of $name array unless position $pp given
-
-sub find_resource {
-    my ($o, $name, $tag) = @_;
-    my $array = $o->{$name};
-    for( my $i = 0; $i <= $#$array; $i++) {
-	return $i if $array->[$i] eq $tag;
-    }
-    return undef;
-}
-
-sub show_resource {
-    my ($o, $name) = @_;
-    my $array = $o->{$name};
-    my $res = "Array '$name':\n";
-    for( my $i = 0; $i <= $#$array; $i++) {
-	my $entry = $array->[$i];
-	$res .= "   $i ";
-	if (ref($entry) eq 'ARRAY') {
-	    $res .= join(', ', @$entry);
-	} else {
-	    $res .= $entry;
-	}
-	$res .= "\n";
-    }
-    return $res;
-}
 
 sub null_value {
     return $_[0]->{null};
@@ -1430,17 +1462,6 @@ sub declare_known_function {
     $o->{known_fns}{$fname} = $fsfn;
 }
 
-sub show_known_functions {
-    my $o = shift;
-    my $res = "Known functions:\n";
-    my @keys = sort keys %{$o->{known_fns}};
-    foreach my $key (@keys) {
-	my $fsfn = $o->{known_fns}{$key};
-	$res .= "    $key => $fsfn\n";
-    }
-    return $res;
-}
-
 sub known_line {
     my ($o, $lname) = @_;
     return $o->{known_lines}{$lname};
@@ -1453,6 +1474,60 @@ sub declare_known_line {
     $o->{known_lines}{$lname} = $fsl;
 }
     
+###== DEBUG METHODS =========================================================== 
+
+sub show_option {
+    my ($o, $option) = @_;
+    my $array = $o->{$option};
+    logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
+    my $res = "Options for '$option':\n";
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	$res .= "    $array->[$i] = $array->[$i+1]\n";
+	$res .= show_deep($array->[$i+1], 1) if ref($array->[$i+1]);
+    }
+    return $res;
+}
+# Returns string for printing
+
+sub show_resource {
+    my ($o, $name) = @_;
+    my $array = $o->{$name};
+    my $res = "Array '$name':\n";
+    for( my $i = 0; $i <= $#$array; $i++) {
+	my $entry = $array->[$i];
+	$res .= "   $i ";
+	if (ref($entry) eq 'ARRAY') {
+	    $res .= join(', ', @$entry);
+	} else {
+	    $res .= $entry;
+	}
+	$res .= "\n";
+    }
+    return $res;
+}
+# Returns a string for printing
+
+sub show_aliases {
+    my $o = shift;
+    my $res = "Aliases:\n";
+    foreach my $key (sort keys %{$o->{alias}}) {
+	$res .= "    $key = '$o->{alias}{$key}'\n";
+    }
+    return $res;
+}
+
+sub show_known_functions {
+    my $o = shift;
+    my $res = "Known functions:\n";
+    my @keys = sort keys %{$o->{known_fns}};
+    foreach my $key (@keys) {
+	my $fsfn = $o->{known_fns}{$key};
+	$res .= "    $key => $fsfn\n";
+    }
+    return $res;
+}
+# Returns a string for printing
+
 sub show_known_lines {
     my $o = shift;
     my $res = "Known lines:\n";
@@ -1463,6 +1538,43 @@ sub show_known_lines {
     }
     return $res;
 }
+# Returns a string for printing
+
+sub show_model_lines {
+    my $o = shift;
+    
+    my $res = '';
+    my $files = $o->{fname};
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	$res .= "file '$o->{fname}[$fp]':\n";
+	my $pages = $o->{fpages}[$fp];
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    $res .= "  page '$o->{pname}[$pp]':\n";
+	    $res .= "    lines \$o->{pfsls}:\n";
+	    my $funcs = $o->{pfsls}[$pp];
+	    for (my $fn = 0; $fn <= $#$funcs; $fn++) {
+		my $array = $funcs->[$fn];
+		for (my $ln = 0; $ln <= $#$array; $ln++) {
+		    my $fsl = $array->[$ln];
+		    my $linename = $fsl->name;
+		    $res .= "      [$pp][$fn][$ln] $linename\n";
+		}
+	    }
+	    $res .= "    tests \$o->{ptfsls}:\n";
+	    my $array = $o->{ptfsls}[$pp];
+	    for (my $ln = 0; $ln <= $#$array; $ln++) {
+		my $fsl = $array->[$ln];
+		my $linename = $fsl->name;
+		$res .= "      [$pp][$ln] $linename\n";
+	    }
+	    $res .= "\n";
+	}
+    }
+
+    return $res;
+}
+# Map x-y-z in $fsm->{pfsls}[x][y][z] to Finance::Shares::Line objects
+# Returns a string for printing
 
 ###== SUPPORT FUNCTIONS ======================================================= 
 
@@ -2280,8 +2392,17 @@ following, allowing 'mov' to be used instead.
 	mov => 'moving_average',
     ],
 
-Remember that any number of resource blocks may be used as they are merged
-together.
+This facility allows you to refer to the price data as C<close> for example,
+instead of C<data/close> as it should be.  The built-in mappings are
+
+    open    => 'data/open',
+    high    => 'data/high',
+    low	    => 'data/low',
+    close   => 'data/close',
+    volume  => 'data/volume'
+
+As with the others, any number of resource blocks may be used as they are merged
+together.  Where there are duplicates the last entry is used.
 
 =over
 

@@ -1,5 +1,5 @@
 package Finance::Shares::undersold;
-our $VERSION = 1.00;
+our $VERSION = 1.01;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period $default_line_style
@@ -230,10 +230,10 @@ its normal range.  The underlying gradient line can be hidden or visible, and
 the cutoff point specified as either a number of standard deviations or
 a percentage of the price range.
 
-To get the line to appear, there must be an entry within the B<lines> block of
-a L<Finance::Shares::Model> specification. This hash ref must have a B<function>
-field with the value C<undersold>.  
-The entry's tag must then appear in the C<line> field of a B<sample>.
+To be any use, there must be a L<Finance::Shares::Model> specification B<lines>
+entry that has a B<function> field declaring the module's name.  Then the
+entry's tag must be used by a B<sample> in some way.  This may be either
+directly in a B<line> field, or by referring to it within a B<test>.
 
 The main options include B<period>, B<acceptable> and B<gradient>.
 

@@ -1,3 +1,4 @@
+CHANGES
 MANIFEST			This list of files
 Makefile.PL
 README
@@ -24,6 +25,8 @@ Shares/less_equal.pm
 Shares/less_than.pm
 Shares/lowest.pm
 Shares/mark.pm
+Shares/maximum.pm
+Shares/minimum.pm
 Shares/momentum.pm
 Shares/moving_average.pm
 Shares/multiline_mean.pm
@@ -31,6 +34,8 @@ Shares/on_balance_volume.pm
 Shares/oversold.pm
 Shares/percent_band.pm
 Shares/rate_of_change.pm
+Shares/sample_mean.pm
+Shares/standard_deviation.pm
 Shares/test.pm
 Shares/undersold.pm
 Shares/value.pm
@@ -130,12 +135,20 @@ t/223-roc.data
 t/223.t
 t/223.warn
 t/230.data
-t/230.ps
 t/230.t
 t/231.data
 t/231.t
 t/232.data
 t/232.t
+t/240.t
+t/241.t
+t/242-high.data
+t/242-low.data
+t/242.t
+t/243.out
+t/243.t
+t/244.data
+t/244.t
 t/boc.csv
 t/egg.csv
 t/lgen.csv
