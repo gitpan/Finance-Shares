@@ -4,10 +4,10 @@ use warnings;
 use Test::More;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
 use PostScript::File          1.00 qw(check_file);
-use Finance::Shares::Sample   0.12 qw(line_id);
-use Finance::Shares::Chart    0.14;
-use Finance::Shares::Averages 0.12;
-use Finance::Shares::Bands    0.13;
+use Finance::Shares::Sample qw(line_id);
+use Finance::Shares::Chart;
+use Finance::Shares::Averages;
+use Finance::Shares::Bands;
 
 my $name = 't/fn02-envelope';
 my $source = 't/04-arm.csv';

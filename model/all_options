@@ -1,10 +1,104 @@
 #!/usr/bin/perl
-# This file lists all the keys that can be used in a model recipe.
-# They are listed as an aide memoire - no recommendations implied.
+# This file is NOT SUITABLE for running as a model.
+# It lists all the keys available as an aide memoire.  
 # See the appropriate man page for explanations.
 
-# A model recipe is a perl script which returns a list of keys and values.
-# Note the commas seperating the very long last (and possibly only) statement.
+# Model specifications are perl scripts returning a list of keys and values.
+# Where dimensions are needed, think font pt sizes.  All colours can be grey
+# scale (0.3) or RGB [1, 0.6, 0].
+
+### Preparation
+
+# Ensure file compiles - useful for tracking syntax errors
+use PostScript::Graph::Style;
+
+# First, it is often useful to declare a few values that may be referred to more
+# than once.  These are perl statements, so terminate with a semi-colon.
+my $bgnd_colour = [1, 0.95, 0.95 ];
+
+my $seq = new PostScript::Graph::Sequence;
+$seq->auto('color');
+$seq->setup('color', [
+	[0.5,0,0], [1,0,0], [1,1,0], [0.5,0.5,0], [0,1,0],
+	[0,0.5,0], [0,0.5,0.5], [0,0,1], [0.5,0,0.5]
+    ]);
+    
+my $line_style = {
+    sequence => $seq,
+    same     => 0,		# i.e. outline same as bgnd
+    line => {
+	color	     => [0, 1, 0],
+	inner_color  => [1, 1, 0],
+	outer_color  => 0.4,
+	dashes	     => [3, 3],
+	inner_dashes => [5, 2, 5, 10],
+	outer_dashes => [],
+	width	     => 1,
+	inner_width  => 1.25,
+	outer_width  => 1.5,
+    },
+    point => {
+	size         => 8,
+	shape        => 'diamond',  # plus, cross, dot, square, diamond,
+				    # norht, south, east, west
+	color	     => [0, 1, 0],
+	inner_color  => [1, 1, 0],
+	outer_color  => 0,
+	width	     => 2,
+	inner_width  => 2,
+	outer_width  => 2.5,
+	x_offset     => 0,
+	y_offset     => 4,
+    },
+};
+
+my $bar_style = {
+    auto => 'none',
+    bar => {
+	color	     => [0, 1, 0],
+	inner_color  => [1, 1, 0],
+	outer_color  => 0,
+	width	     => 2,
+	inner_width  => 2,
+	outer_width  => 2.5,
+    },
+};
+
+my $signal_style = {
+    same => 0, 
+    auto => 'none', 
+    point => { 
+	shape => 'north',
+	size => 10,
+	y_offset => -12,
+	color => [0.5, 0.6, 1],
+	width => 2,
+    },
+};
+
+# The 'print_values' signal needs an open file to write to
+my $values_file = 'values.txt',
+our $values_fh;
+open($values_fh, '>>', $values_file) or die "Can't write to '$values_file' : $!";
+
+# The 'custom' signal needs a callback function in this format
+sub custom_func {
+    my ($id, $date, $value, @args) = @_;
+    # do something useful
+}
+    
+### The Model Specification
+
+# It is a list, so commas are used as seperators.  sources, files and charts
+# form a natural first group.
+
+# These are settings for Finance::Shares::Model
+cgi_file   => 'filename',
+directory  => '~/results',
+verbose    => 3,
+show_lines => 1,
+
+### Sources
 
 sources => [
     # Options for a Finance::Shares::MySQL object
@@ -26,8 +120,19 @@ sources => [
     
     # This source reads all the quotes in a CSV file
     file1 => 'source.csv',
+
+    # The data can be specified directly
+    raw_data => [
+	[2002-04-12,1061.50,1072.00,1053.00,1055.89,1542382],
+	[2002-04-15,1092.00,1092.20,1048.00,1055.00,1388423],
+	[2002-04-16,1068.00,1076.00,1060.00,1073.00,1983333],
+	[2002-04-17,1068.00,1086.00,1068.00,1079.00,1695014],
+	[2002-04-18,1085.00,1099.00,1075.00,1077.00,2408899],
+    ]
 ],
 
+
+### Files
 
 files => [
     # Options for the PostScript::File object which collects the charts
@@ -47,8 +152,8 @@ files => [
 	reencode    => 'ISOLatin1Encoding',
 	font_suffix => '-iso',
 	order	    => 'ascend',
-	title	    => 'My Title',		# only within PostScript file
-	version	    => 1.2,			# only within PostScript file
+	title	    => 'My Title',	# only within PostScript file
+	version	    => 1.2,		# only within PostScript file
 	
 	dir      => '~/postscript',
 	# file option replaced by the key to this hash
@@ -68,10 +173,478 @@ files => [
     
     # This postscript file will be saved as 'epsfile.epsf'
     epsfile => {
-	eps	 => 1,				# only for single charts
+	eps	 => 1,			# only for single charts
 	height	 => 600,
 	width	 => 450,
     },
 ],
 
+### Charts
+
+charts => [
+    # Principally Finance::Shares::Chart options;
+    # some implemented by PostScript::Graph::Paper,
+    # PostScript::Graph::Key and PostScript::Graph::Style
+    chart1 => {
+	png => 1,
+	ghostscript => 'gs',
+	dots_per_inch => 75,
+	bgnd_outline => 0,
+	background => [0.90, 0.95, 0.99],
+	reverse => 1,
+	heading => 'My Chart',
+	
+	prices => {
+	    # as cycles, plus
+	    point => {
+		shape        => 'stock2',   # stock, close, candle, stock2, close2, candle2
+		color	     => [0, 1, 0],
+		inner_color  => [1, 1, 0],
+		outer_color  => 0,
+		width	     => 2,
+		inner_width  => 2,
+		outer_width  => 2.5,
+	    },
+	},
+	
+	volumes => {
+	    # as cycles, plus
+	    bar => {
+		color	     => [0, 1, 0],
+		inner_color  => [1, 1, 0],
+		outer_color  => 0,
+		width	     => 2,
+		inner_width  => 2,
+		outer_width  => 2.5,
+	    },
+	},
+	
+	cycles => {
+	    percent => 25,
+	    show_dates => 1,
+	    #sequence => $seq,
+	    layout => {
+		spacing       => 3,
+		top_margin    => 8,
+		bottom_margin => 2,
+	    },
+	    y_axis => {
+		title       => 'wavy things',
+		color       => 0.4,	# default axis line color
+		heavy_color => [0.4, 0.4, 0.9],
+		mid_color   => [0.6, 0.6, 0.8],
+		light_color => [0.8, 0.8, 1],
+		heavy_width => 1,
+		mid_width   => 0.666,
+		light_width => 0.333,
+		mark_min    => 0,
+		mark_max    => 5,
+		label_gap   => 30,
+		si_shift    => 2,	# 2 = count in 100's
+	    }
+	},
+	
+	tests => {
+	    # as cycles
+	},
+	
+	x_axis => {
+	    show_lines  => 1,
+	    show_weekday=> 1,
+	    show_day    => 1,
+	    show_month  => 1,
+	    show_year   => 1,
+	    changes_only=> 0,
+	    title       => 'wavy things',
+	    color       => 0.4,		# default axis line color
+	    heavy_color => [0.4, 0.4, 0.9],
+	    mid_color   => [0.6, 0.6, 0.8],
+	    heavy_width => 1,
+	    mid_width   => 0.666,
+	    mark_min    => 0,
+	    mark_max    => 5,
+	},
+	
+	key => {
+	    background    => 0.9,
+	    outline_color => [0.5, 0.5, 0.2],
+	    outline_wdith => 0.8,
+	    spacing       => 4,
+	    horz_spacing  => 4,
+	    vert_spacing  => 6,
+	    icon_height   => 12,
+	    icon_width    => 40,
+	    text_width    => 72,
+	    glyph_ratio   => 0.5,	# fine-tune text fitting
+	    text_font => {
+		size => 10,
+		color => 0,
+		font => 'Courier',
+	    },
+	    title => 'My Key',
+	    title_font => {
+		# as text_font
+	    },
+	},
+	
+	heading_font => {
+	    font => 'Times-Bold',	# see PostScript::File for list
+	    size => 12,
+	    color => [0, 0, 0.7],
+	},
+	normal_font => {
+	    # as heading_font
+	},
+    },
+],
+
+# Now we get to the meat - functions and tests.  The functions are provided by
+# several files, so they will be grouped that way.  Each key is a user-chosen
+# string which can be used elsewhere to refer to the function created from the
+# associated parameters.  Here I have used the short form of the function name.
+
+
+### Functions
+
+functions => [
+    ## From Finance::Shares::Averages ...
+    avg => {
+	function => 'simple_average',
+	graph    => 'prices',		# prices, volumes, cycles, tests
+	line     => 'close',		# any function or test key, plus
+					# open, high, low, close, volume
+	period   => 10,
+	strict   => 0,
+	style    => $line_style,
+	key      => '10 day moving average',
+    },
+    wgt => {
+	function => 'weighted_average',
+	# as avg
+    },
+    exp => {
+	function => 'exponential average',
+	# as avg
+    },
+
+    ## From Finance::Shares::Bands ...
+    env => {
+	function => 'envelope',
+	graph    => 'prices',
+	line     => 'close',
+	percent  => 3,
+	strict   => 0,
+	style    => $line_style,
+	key      => '+/- 3%',
+    },
+    boll => {
+	function => 'bollinger_band',
+	graph    => 'prices',
+	line     => 'close',
+	period   => 20,
+	sd       => 1.8,
+	strict   => 0,
+	style    => $line_style,
+	key      => 'narrowed boll band',
+    },
+    chan => {
+	function => 'channel',
+	graph    => 'prices',
+	line     => 'close',
+	period   => 30,
+	strict   => 0,
+	style    => $line_style,
+	key      => '30 day high/low',
+    },
+
+    ## From Finance::Shares::Momentum ...
+    mom => {
+	function => 'momentum',		# today - (today-5)
+	graph    => 'prices',
+	line     => 'close',
+	period   => 5,
+	strict   => 0,
+	scaled   => 1,
+	style    => $bar_style,
+	key      => '5 day price diff',
+    },
+    roc => {
+	function => 'ratio',		# today/(today-5)
+	# as mom
+    },
+    grad => {
+	function => 'gradient',		# (today - yesterday) averaged
+	# as mom
+    },
+    
+    rise => {
+	function => 'rising',
+	graph    => 'prices',
+	line     => 'close',
+	period   => 5,
+	smallest => 5,
+	strict   => 0,
+	scaled   => 1,
+	style    => $line_style,
+	key      => 'avgd prices',
+	gradfn   => 'gradient',
+	gradient => $line_style,
+	cutoff   => $line_style,
+	weight   => 100,
+	decay    => 0.9,
+	ramp     => -10,
+	min      => 0,
+	max      => 100,
+    },
+    fall => {
+	function => 'falling',
+	# as rise
+    },
+    over => {
+	function => 'oversold',
+	graph    => 'prices',
+	line     => 'close',
+	period   => 5,
+	sd       => 2.25,
+	strict   => 0,
+	scaled   => 1,
+	style    => $line_style,
+	key      => 'avgd prices',
+	gradfn   => 'gradient',
+	gradient => $line_style,
+	cutoff   => $line_style,
+	weight   => 100,
+	decay    => 0.9,
+	ramp     => -10,
+	min      => 0,
+	max      => 100,
+    },
+    under => {
+	function => 'undersold',
+	# as over
+    },
+    ext => {
+	function => 'extend',		# adds period after event
+	graph    => 'prices',
+	line     => 'close',
+	period   => 5,
+	smallest => 50,
+	strict   => 0,
+	scaled   => 1,
+	style    => $line_style,
+	key      => 'keep trigger',
+	cutoff   => $line_style,
+	weight   => 100,
+	decay    => 0.9,
+	ramp     => -10,
+	min      => 0,
+	max      => 100,
+    },
+    
+    obv => {
+	function => 'on_balance_volume',
+	period   => 5,
+	strict   => 0,
+	scaled   => 1,
+	style    => $line_style,
+	key      => 'OBV',
+	gradient => $line_style,
+    },
+    adx => {
+	function => 'direction',
+	direction=> 0,
+	period   => 5,
+	strict   => 0,
+	scaled   => 1,
+	style    => $line_style,
+	key      => 'ADX',
+	average  => $line_style,
+    },
+],
+
+### Tests
+
+tests => [
+    gt => {
+	test    => 'gt',			# gt, lt, ge le eq ne
+	graph1  => 'prices',
+	line1   => 'avg',
+	graph2  => 'prices',
+	line2   => 'close',
+	graph   => 'test',
+	shown   => 1,
+	style   => $line_style,
+	key     => 'Some test',
+	weight  => 100,
+	decay   => 0.9,
+	ramp    => -10,
+	signals => [qw(buy sell)],
+    },
+    lt => {
+	test    => 'lt',
+	# as gt
+    },
+    ge => {
+	test    => 'ge',
+	# as gt
+    },
+    le => {
+	test    => 'le',
+	# as gt
+    },
+    eq => {
+	test    => 'eq',
+	# as gt
+    },
+    ne => {
+	test    => 'ne',
+	# as gt
+    },
+
+    and => {
+	test    => 'and',
+	graph1  => 'prices',
+	line1   => 'avg',
+	graph2  => 'prices',
+	line2   => 'close',
+	graph   => 'test',
+	shown   => 1,
+	style   => $line_style,
+	key     => 'Some test',
+	logical => 1,
+	weight  => 100,
+	decay   => 0.9,
+	ramp    => -10,
+	signals => [qw(buy sell)],
+    },
+    or => {
+	test    => 'or',
+	# as and
+    },
+
+    not => {
+	test    => 'not',
+	graph1  => 'prices',
+	line1   => 'avg',
+	graph   => 'test',
+	shown   => 1,
+	style   => $line_style,
+	key     => 'Some test',
+	logical => 1,
+	divide  => 50,
+	weight  => 100,
+	decay   => 0.9,
+	ramp    => -10,
+	signals => [qw(buy sell)],
+    },
+    test => {
+	test    => 'test',
+	# as and
+    },
+
+    sum => {
+	test    => 'sum',
+	graph1  => 'prices',
+	line1   => 'avg',
+	graph2  => 'prices',
+	line2   => 'close',
+	graph   => 'test',
+	shown   => 1,
+	style   => $line_style,
+	key     => 'Some test',
+	weight  => 100,
+	decay   => 0.9,
+	ramp    => -10,
+	signals => [qw(buy sell)],
+    },
+    diff => {
+	test    => 'diff',
+	# as sum
+    },
+    min => {
+	test    => 'min',
+	# as sum
+    },
+    max => {
+	test    => 'max',
+	# as sum
+    },
+];
+
+### Signals
+
+signals => [
+    mark => [ 'mark', {
+	graph => 'prices',
+	line  => 'close',
+	value => 500,
+	key   => 'mark signal',
+	style => $signal_style,
+	shown => 1,
+    }],
+    buy => [ 'mark_buy', {
+	# as mark
+    }],
+    sell => [ 'mark_sell', {
+	# as mark
+    }],
+    msg => [ 'print', 
+	'Some message'
+    ],
+    values => [ 'print_values', {
+	message => '$date,open,high,low,close,volume', 
+	lines => {
+	    open   => 'prices::opening price',
+	    high   => 'prices::highest price',
+	    low    => 'prices::lowest price',
+	    close  => 'prices::closing price',
+	    volume => 'volumes::volume',
+	},
+	masks => {
+	    open   => '%6.2f',
+	    high   => '%6.2f',
+	    low    => '%6.2f',
+	    close  => '%6.2f',
+	    volume => '10d',
+	},
+	file => $values_fh,
+    }],
+    mysig => [ 'custom', \&custom_func,
+	# own arguments here, passed to @args
+    ],
+];
+
+# Now all the resources are defined, we are now in a position to define settings
+# for particular samples.  Groups of settings can be specified together.
+
+### Groups
+
+groups => [
+    group1 => {
+	# any samples settings
+    },
+    group2 => {
+	# any samples settings
+    },
+],
+
+### Samples
+
+samples => [
+    # See Finance::Shares::Sample and Finance::Shares::Model
+    # the sample keys are not refered to, so can be anything
+    one => {
+	symbol     => 'MSFT',
+	start_date => '2003-01-01',
+	end_date   => '2003-06-30',
+	dates_by   => 'weekdays',	    # quotes, weekdays, weeks, months
+	page       => 'MSFT',
+	source     => 'mysql',
+	file       => 'filename',
+	chart      => 'chart1',
+	functions  => [qw(avg env mom rise obv)],
+	tests      => [qw(gt and not sum)],
+	groups     => [qw(group1)],
+   },
+],
 

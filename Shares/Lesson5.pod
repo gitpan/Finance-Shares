@@ -178,19 +178,18 @@ the signal, then add a 'signal' key to it:
 
     $fsm->test(
 	...
-	signal => 'buyme',
+	signals => [ 'buyme' ],
     );
 
 There should now be blue arrows marking where the stock price has bounced from the 500p resistance line.
-
-Several signals can be triggered by the same test by declaring the value as an array ref.
+Several signals can be triggered by the same test by adding more to the list.
 
     $fsm->add_signal('buyme', 'mark_buy');
     $fsm->add_signal('say', 'print', 'Bounced from 500p');
 
     $fsm->test(
 	...
-	signal => [ 'buyme', 'say' ],
+	signals => [ 'buyme', 'say' ],
     );
 
 Now the same event causes a message to be printed on the console, too.

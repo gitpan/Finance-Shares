@@ -4,8 +4,8 @@ use warnings;
 use Test::More;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
 use PostScript::File        1.00 qw(check_file);
-use Finance::Shares::Sample 0.12;
-use Finance::Shares::Chart  0.14;
+use Finance::Shares::Sample;
+use Finance::Shares::Chart;
 
 my $name = 't/ch02-lines';
 my $source = 't/02-boc.csv';
@@ -78,6 +78,7 @@ my $fsc = new Finance::Shares::Chart(
     file => $pf,
     sample => $fss,
     test => $test,
+    png => 1,
     dots_per_inch => 72,
     smallest => 4,
     background => [1, 1, 0.9],
@@ -137,8 +138,8 @@ if ($test) {
 $fsc->output($name);
 
 ### finish
-my $psfile = check_file("$name.ps");
-ok(-e $psfile, 'PostScript file created');
+my $psfile = check_file("$name.png");
+ok(-e $psfile, 'PNG file created');
 
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# the chart looks different?
 warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";

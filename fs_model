@@ -2,61 +2,40 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use Pod::Usage;
 use PostScript::File          1.00 qw(check_file);
 use PostScript::Graph::Style  1.00;
+use Finance::Shares::Sample   0.14;
 use Finance::Shares::Chart    0.12 qw(deep_copy);
 use Finance::Shares::Model    0.12;
 use Finance::Shares::Averages 0.12;
 use Finance::Shares::Bands    0.13;
 use Finance::Shares::Momentum 0.02;
 
-#use TestFuncs qw(show_deep);
-
 our $help;
-our $file    = '';
+our $model   = '';
+our $codes   = '';
+our $fetch   = '';
+our $verbose = '-1';
 our $indiv;
 our $same;
-our $model   = '';
 our $none;
-our $codes   = '';
-our $verbose = '-1';
-our $usage   = <<END;
-Usage:
-    $0 --help
-    $0 [ options ] [ codes ]
-
-'options' can be any of the following but must include
-a model specification.  See the Finance::Shares::Model
-manpage for details of the file format.
-
-  -m <file> | --model=<file>   Model specification
-  -c <file> | --codes=<file>   Source for stock codes
-  -v <lvl>  | --verbose=<lvl>  Level 0, 1 or 2
-  -i        | --individual     Output as seperate charts
-  -n        | --nocharts       Only fetch quotes
-  -s	    | --same           Same chart name as 'codes'
-  -f <file> | --file=<file>    Name (single) output file
-
-'codes' are a list of Yahoo stock symbols such as
-    MSFT BA.L 12126.PA
-
-END
-
+our $file    = '';
 our $cmdline = join(' ', 'fs_model', @ARGV);
 
 GetOptions(
     'help|h'       => \$help,
-    'file|f=s'     => \$file,
-    'individual|i' => \$indiv,
-    'same|s'       => \$same,
     'model|m=s'    => \$model,
     'codes|c=s'    => \$codes,
+    'fetch|f=s'    => \$fetch,
     'verbose|v=s'  => \$verbose,
+    'individual|i' => \$indiv,
+    'same|s'       => \$same,
     'nocharts|n'   => \$none,
+    'output|o=s'   => \$file,
 ) or $help = 1;
-print $usage and exit if $help;
-print $usage and exit unless $model;
-undef $verbose if $verbose < 0;
+pod2usage(-verbose => 1) if $help;
+pod2usage(-verbose => 1) unless $model;
 
 ### Read codes file
 our @codes;
@@ -141,8 +120,9 @@ foreach my $id (keys %$sample_hash) {
 set_resource($hash, 'files', $file_hash, $file_order);
 set_resource($hash, 'samples', $sample_hash, $sample_order);
 set_resource($hash, 'groups', $group_hash, $group_order);
-$hash->{verbose} = $verbose unless defined $hash->{verbose};
-#print "Finance::Shares::Model options...\n", show_deep($hash, 3);
+$hash->{verbose} = $verbose if $verbose >= 0;
+$hash->{fetch}   = $fetch   unless $hash->{fetch};
+#print "Finance::Shares::Model options...\n", show_deep($hash, 333);
 
 if (%$sample_hash) {
     our $fsm = new Finance::Shares::Model($hash);
@@ -236,11 +216,13 @@ a model specification.  See the Finance::Shares::Model
 manpage for details of the file format.
 
   -m <file> | --model=<file>   Model specification
-  -c <file> | --codes=<file>  Source for stock codes
-  -v <lvl>  | --verbose=<lvl>  Level 0, 1 or 2
+  -c <file> | --codes=<file>   Source for stock codes
+  -f <mode> | --fetch=<mode>   online/fetch/cache/offline
+  -v <lvl>  | --verbose=<lvl>  0=off, 2=more, 3+=debug
   -i        | --individual     Output as seperate charts
-  -n        | --nocharts       Suppress chart output
-  -f <file> | --file=<file>    Name (single) output file
+  -n        | --nocharts       Only fetch quotes
+  -s	    | --same           Same chart name as 'codes'
+  -o <file> | --output=<file>  Name (single) output file
 
 'codes' are a list of Yahoo stock symbols such as
     MSFT BA.L 12126.PA
@@ -266,7 +248,12 @@ here.
 The format of the file is fairly flexible.  Stock symbols may be in upper or lower case, seperated by spaces,
 commas or on their own lines.  Anything after a '#' is ignored, as are blank lines.
 
-=item --file=<filename>
+=item --fetch=<mode>
+
+This overrides any model option controlling how quotes are obtained.  It must be one of 'online', 'fetch', 'cache'
+or 'offline'.  See L<Finance::Shares::MySQL> dor details.
+
+=item --output=<filename>
 
 A script option forcing all charts into the file called F<E<lt>nameE<gt>.ps>.
 
@@ -275,12 +262,18 @@ A script option forcing all charts into the file called F<E<lt>nameE<gt>.ps>.
 This script option forces all charts into their own seperate files.  The file names are constructed from the
 sample's symbol, start and end dates.
 
+=item --same
+
+This affects the name of the output file if there is only one, yet C<output> has not been given.  If the stock
+symbols come from a C<codes> file the output file takes the same name, otherwise the (single) stock code on the
+command line provides the name.
+
 =item --nocharts
 
-Giving this script option prevents any charts being constructed.  It can be used to fetch quotes but as it runs
-the model but discards the results it is less heavy-handed to use B<fs_fetch> instead.
+Giving this script option prevents any charts being constructed.  It can be used to fetch quotes.  However, as it
+runs the model but discards the results it is less heavy-handed to use B<fs_fetch> instead.
 
-=item --verbose
+=item --verbose=<lvl>
 
 Gives some control over the number of messages sent to STDERR during the process.
 

@@ -108,12 +108,12 @@ $fsm->add_signal('buyme', 'mark_buy', undef, {
 $fsm->add_signal('showme', 'print');
 
 $fsm->test(
-    graph1 => 'prices', line1 => 'close',
-    graph2 => 'prices', line2 => $v500,
-    test   => 'gt',
-    graph  => 'signals', style => $pstyle,
-    weight => 60, decay => 0.9,
-    signal => [ 'buyme', 'showme' ],
+    graph1  => 'prices', line1 => 'close',
+    graph2  => 'prices', line2 => $v500,
+    test    => 'gt',
+    graph   => 'tests', style => $pstyle,
+    weight  => 60, decay => 0.9,
+    signals => [ 'buyme', 'showme' ],
 );
 
 $fsc->output($stock);

@@ -2,12 +2,9 @@ package Finance::Shares::Model;
 our $VERSION = 0.16;
 use strict;
 use warnings;
-use Carp;
-use PostScript::File	     1.00;
-use Finance::Shares::Sample  0.12 qw(line_id call_function %function);
-use Finance::Shares::Chart   0.14 qw(deep_copy);
-
-#use TestFuncs qw(show_deep);
+use PostScript::File	     1.00 qw(check_file);
+use Finance::Shares::Sample  0.14 qw(line_id call_function %function);
+use Finance::Shares::Chart   0.17 qw(deep_copy);
 
 our %testfunc;
 $testfunc{gt} = \&test_gt;
@@ -60,22 +57,19 @@ our $points_margin = 0.02;	# logical 0/1 is mark_range -/+ points_margin * mark_
 
 =head1 NAME
 
-Finance::Shares::Model - Apply tests to stock quotes
+Finance::Shares::Model - Apply tests to series of stock quotes
 
 =head1 SYNOPSIS
 
     use Finance::Shares::Model;
 
-Two ways to use this module.  Either all the data can be given to the constructor, with the model run
+There are two ways to use this module.  Either all the data can be given to the constructor, with the model run
 immediately, or tests can be administered piece by piece in a script.
 
 These two approaches are illustrated here.  Both draw circles around the volume where a day's highest price is
 more than 3% above the previous closing price.
 
 =head2 Packaged model
-
-    use Finance::Shares::Model;
-    use Finance::Shares::Bands;
 
     my $fsm = new Finance::Shares::Model(
 	sources => [
@@ -151,11 +145,10 @@ more than 3% above the previous closing price.
 
     use Finance::Shares::Model;
     use Finance::Shares::MySQL;
-    use PostScript::File;
     use Finance::Shares::Sample;
-    use Finance::Shares::Chart;
-
     use Finance::Shares::Bands;
+    use Finance::Shares::Chart;
+    use PostScript::File;
     
     my $sql = new Finance::Shares::MySQL(...);
     my $psf = new PostScript::File(...);
@@ -202,7 +195,6 @@ L<Finance::Shares::Samples> together and applies tests to them all.  The tests u
 modules such as L<Finance::Shares::Averages>, and the results are displayed on a L<Finance::Shares::Chart>.
 
 Either the Finance::Shares::Model constructor is passed no options or it is passed details of the whole model.
-The latter format is covered under the L<CONSTRUCTOR> options.
 
 If the constructor has no options, nothing will happen until B<add_sample> has been called at least once (and
 B<add_signals> if signals are used in the tests).  Tests are applied to all samples, which don't need to
@@ -210,69 +202,16 @@ have anything in common with each other.  However, if the date ranges are comple
 be better to run seperate models.  This is because the Model's date range covered by each of the tests is
 made from all dates in all samples.
 
-=head2 The tests
+=head2 Model specification
 
-The tests currently available are:
-
-    gt	    1st line moves above 2nd
-    lt	    1st moves below 2nd
-    ge	    1st moves above or touches 2nd
-    le	    1st moves below or touches 2nd
-    eq	    1st touches 2nd
-    ne	    1st doesn't touch 2nd
-    min	    Smallest of 1st and 2nd
-    max	    Largest of 1st and 2nd
-    sum	    1st + 2nd
-    diff    1st - 2nd
-    and	    Logical 1st AND 2nd
-    or	    Logical 1st OR 2nd
-    not	    Logical NOT 1st
-    test    Logical value of 1st
-
-Tests produce data lines in the standard format.  This means that data, functions and tests can be used
-interchangeably.  Tests can all be shown on any graph (or hidden).  Wherever a 'line' is expected, it can be
-a data, function or test line.  I think a circular reference is not possible because of the declaration order, but
-it would be a Very Bad Thing (TM) so be aware of the possibility.
-
-B<not> and B<test> are unary, only working on the first line given.  The line values are converted to digital
-form, taking one of two values.  On the tests graph, these are 0 and the weight given to the test (up to 100).
-Other graphs have suitable minimum and maximum values depending on the Y axis scale.
-
-B<test> might be considered as B<not(not(...))>.  It uses a C<divide> value to convert the source line to 'on' or
-'off'.  This can be further conditioned by having this value decay over time.  Another use of B<test> is to
-trigger signals on pseudo-test functions like C<rising> or C<undersold>.
-
-All the logical tests (and, or, not and test) can be performed for their signals only if the C<logical> option is
-set.
-
-=head2 The signals
-
-The results lines are analog in that they can take a range of values.  Indeed they can be made to decrease over
-time.  But at any particular time they have a level or B<state>.  Signals, on the other hand, are a form of
-output that is inherently digital - either it has been invoked or it hasn't.  All tests can have zero or more
-signals associated with them which are invoked when some critical B<change> of state happens, like when one line
-crosses over another.  Currently the following signals are available:
-
-    mark	    Places a mark on a graph
-    mark_buy	    Draws a blue up arrow
-    mark_sell	    Draws a red down arrow
-    print_values    Write function/test values to a file
-    print	    Print a message on the console
-    custom	    Invoke a user defined callback
-
-
-=head1 CONSTRUCTOR
-
-A model can be specified completely in the option hash given to B<new()>, so the whole process is very simple:
-
-    my $fsm = new Finance::Shares::Model(
-	    # model specified here
-	);
-    $fsm->output();
+If the constructor has any options, it is assumed to be the full specification and the model is normally run
+immediately.  This specification can either be coded into a script as constructor options,
+or it can be a file passed to the script C<fs_model>.  See L<fs_model> for more details.  A full list of keys that
+may be found in the package directory under F<model/all_options> while F<model/minimal> shows what is essential.
 
 The specification consists of eight resources: sources, files, charts, functions, tests, signals, groups and
 samples.  If the name is plural, it should refer to an array holding several named hashes each describing one of
-them.
+them.  A singular name indicates the default settings used throughout and given the name 'default'.
 
 Example 1
 
@@ -282,8 +221,7 @@ Example 1
 	vol5 => {...},
     ],
 
-B<new()> will accept either a list of key/value pairs or a hash ref containing them, so each specification would
-normally be terminated by a comma.
+These are part of a list of key/value pairs, so each specification would normally be terminated by a comma.
 
 The key/value pairs are a named group of settings, typically used to constuct an object.  The name can be used
 anywhere else in the model specification; whenever that object needs referred to.
@@ -303,13 +241,11 @@ Example 2
     ],
 
 In an array, the first entry is treated as the default and is used where that resource is not specified.
-Alternatively, the resource can be singular, in which case those are the default settings used throughout and
-given the name 'default'.
 
 Example 3
 
     file => {
-	paper => 'A4',
+	paper     => 'A4',
 	landscape => 1,
     },
 
@@ -318,7 +254,7 @@ Here, the file takes on the name 'default', so would be saved as F<default.ps>.
 Notice that the singular resource name must refer to a hash.  There is no singular item 'signal' as individual
 signals are specified as arrays and not hashes.
 
-=head2 Sources
+=head3 Sources
 
 A C<source> entry is anything that can be passed to the Finance::Shares::Sample option of the same name.  So this
 could be one of the following.
@@ -363,7 +299,7 @@ Example 4
 	test => 'test_file.csv',
     ],
 
-=head2 Files
+=head3 Files
 
 Each hash ref holds options for creating a PostScript::File object.  It will be created once and any charts using
 it will be added on a new page.
@@ -412,7 +348,7 @@ default (and it happens to have a name).
 Where the default has been declared as a C<file> (singular) resource hash, it has no explicit name, so will be
 stored in a file called F<default.ps>.
 
-=head2 Charts
+=head3 Charts
 
 These are Finance::Shares::Chart options.  It is probably a good idea to pre-define repeated elements (e.g.
 colours, styles) and use the perl variables as values in the hash or sub-hashes.  See L<Finance::Shares::Chart>
@@ -421,6 +357,7 @@ for full details, but these top level sub-hash keys may be used in a chart resou
     prices	    volumes
     cycles	    tests
     x_axis	    key
+    png		    ghostscript
     dots_per_inch   reverse
     bgnd_outline    background
     heading_font    normal_font
@@ -451,7 +388,7 @@ The B<samples> hashes may have a field, 'page' which is assigned here.
 
 =back
 
-=head2 Functions
+=head3 Functions
 
 This array ref lists all the functions known to the model.  Like the other resources, they may or may not be used.
 However, unlike the others, the sub-hashes are not all the same format.  The only requirement is that they have an
@@ -490,7 +427,7 @@ holding L<PostScript::Graph::Style> options.
 
 If the C<function> (singular) version is used, the function defined there takes on the name 'default'.
 
-=head2 Tests
+=head3 Tests
 
 See L</test> for details of the keys allowed in these named sub-hashes:
 
@@ -536,7 +473,7 @@ resources, but calling the signal 'good_vol' and the test 'high_vol' makes the e
 
 If the C<test> (singular) version is used, the test defined there takes on the name 'default'.
 
-=head2 Signals
+=head3 Signals
 
 Only the plural C<signals> version is available.  The named entries are array refs and not hash refs like all the
 others.  They list the parameters for the B<add_signal> method.  See L</add_signal>.
@@ -573,7 +510,7 @@ The second entry may be omitted if it would be C<undef>.  The third is often a h
 handler, although this may be different for custom signals.  See L</print_values> for an explanation of the
 C<record> signal entries.
 
-=head2 Samples
+=head3 Samples
 
 A model may run tests and evaluate functions for several samples.  This is where the individual samples are
 specified, and there must be at least one.  The order is significant in that it affects how the charts are added
@@ -581,7 +518,6 @@ to the file(s).  The sub-hash entries include options for creating a L<Finance::
 
     start_date	    end_date
     symbol	    dates_by
-    mode
 
 There are, however, some significant additions.
 
@@ -662,7 +598,7 @@ Example 10
 
 The default source, file and chart entries are assumed.
 
-=head2 Groups
+=head3 Groups
 
 To avoid repetition it is possible to name a collection of B<samples> settings which are used together.  If
 a groups (or group) resource exists, the default group will be used in every sample that doesn't have a 'group'
@@ -713,6 +649,70 @@ the same dates but the chart using the 'inc_signals' specification will be writt
 
 =cut
 
+=head2 The tests
+
+The tests currently available are:
+
+    gt	    1st line moves above 2nd
+    lt	    1st moves below 2nd
+    ge	    1st moves above or touches 2nd
+    le	    1st moves below or touches 2nd
+    eq	    1st touches 2nd
+    ne	    1st doesn't touch 2nd
+    min	    Smallest of 1st and 2nd
+    max	    Largest of 1st and 2nd
+    sum	    1st + 2nd
+    diff    1st - 2nd
+    and	    Logical 1st AND 2nd
+    or	    Logical 1st OR 2nd
+    not	    Logical NOT 1st
+    test    Logical value of 1st
+
+Tests produce data lines in the standard format.  This means that data, functions and tests can be used
+interchangeably.  Tests can all be shown on any graph (or hidden).  Wherever a 'line' is expected, it can be
+a data, function or test line.  I think a circular reference is not possible because of the declaration order, but
+it would be a Very Bad Thing (TM) so be aware of the possibility.
+
+B<not> and B<test> are unary, only working on the first line given.  The line values are converted to digital
+form, taking one of two values.  On the tests graph, these are 0 and the weight given to the test (up to 100).
+Other graphs have suitable minimum and maximum values depending on the Y axis scale.
+
+B<test> might be considered as B<not(not(...))>.  It uses a C<divide> value to convert the source line to 'on' or
+'off'.  This can be further conditioned by having this value decay over time.  Another use of B<test> is to
+trigger signals on pseudo-test functions like C<rising> or C<undersold>.
+
+All the logical tests (and, or, not and test) can be performed for their signals only if the C<logical> option is
+set.
+
+=head2 The signals
+
+The results lines are analog in that they can take a range of values.  Indeed they can be made to decrease over
+time.  But at any particular time they have a level or B<state>.  Signals, on the other hand, are a form of
+output that is inherently digital - either it has been invoked or it hasn't.  All tests can have zero or more
+signals associated with them which are invoked when some critical B<change> of state happens, like when one line
+crosses over another.  Currently the following signals are available:
+
+    mark	    Places a mark on a graph
+    mark_buy	    Draws a blue up arrow
+    mark_sell	    Draws a red down arrow
+    print_values    Write function/test values to a file
+    print	    Print a message on the console
+    custom	    Invoke a user defined callback
+
+
+=head1 CONSTRUCTOR
+
+A model can be specified completely in the option hash given to B<new()>, so the whole process is very simple:
+
+    my $fsm = new Finance::Shares::Model(
+	    # model specified here
+	);
+    $fsm->output();
+
+The specification format is described in L</Recipes>.
+    
+=cut
+
 sub new {
     my $class = shift;
     my $opt = {};
@@ -735,7 +735,9 @@ sub new {
     };
     bless( $o, $class );
 
+    ## Defaults for top-level options
     $o->{cgi_file}   = $opt->{cgi_file} || 'STDOUT';
+    $o->{fetch}      = $opt->{fetch};  
     $o->{verbose}    = defined($opt->{verbose})    ? $opt->{verbose}    : 1;  
     $o->{show_lines} = defined($opt->{show_lines}) ? $opt->{show_lines} : 0;  
     $o->{dir}        = $opt->{directory};
@@ -780,7 +782,7 @@ sub new {
 =head2 new( [ options ] )
 
 C<options> can be a hash ref or a list of hash keys and values.  Most of the top level keys are outlined above.
-However, there are a few general ones controlling how this module behaves.
+However, there are a few others described here which control how the module behaves.
 
 =over 4
 
@@ -792,6 +794,11 @@ Specify the name of the C<file> or C<files> hash to be printed to STDOUT rather 
 =item directory
 
 If the file names are not absolute paths, they will be placed in this directory.  (Default: undef)
+
+=item show_lines
+
+This is provided to assist debugging.  Setting this to 1 makes the model print out all the lines it knowns, sample
+by sample.  (Default: 0)
 
 =item run
 
@@ -834,10 +841,10 @@ sub run {
 	my $sname = $h0->{source} || $o->{defsource};
 	push @args, %$h0, (source => $o->{sources}{$sname});
 	my $h = deep_copy( { @args } );
-	#print "Model::run sample=$id\n", show_hash($h);
 	
 	if (ref $h->{source} eq 'HASH') {
 	    $h->{source}{verbose} = $o->{verbose} unless defined $h->{source}{verbose};
+	    $h->{source}{mode}    = $o->{fetch} if $o->{fetch};	    # cmdline overrides model spec
 	}
 	my $fss;
 	eval {    
@@ -1136,10 +1143,14 @@ sub output {
 	die "There is no PostScript::File for '$filename'\n" unless ref($psf) eq 'PostScript::File';
 	my $pages = 0;
 	my $sample;
+	my $png = 0;
+	my $ghostscript;
 	foreach my $fsc (@{$o->{fsc}{$filename}}) {
 	    $psf->newpage() if $pages++;
 	    $o->out(3, "Building chart '" . $fsc->title() . "'");
 	    $fsc->build_chart($psf);
+	    $png = 1 if $fsc->png();
+	    $ghostscript = $fsc->ghostscript();
 	    $sample = $fsc->sample()->id();
 	}
 	if ($pages) {
@@ -1151,8 +1162,18 @@ sub output {
 		    my ($symbol, $start, $days, $end) = $sample =~ /([^\(]+)\(([^,]+),([^,]+),([^\)]+)/;
 		    $filename = "${symbol}_${days}_${start}_to_${end}";
 		}
-		$o->out(2, "Saving '". ($dir ? "$dir/" : '') . "$filename.ps'");
-		$psf->output($filename, $dir);
+		if ($png) {
+		    $o->out(2, "Saving '". ($dir ? "$dir/" : '') . "$filename.png'");
+		    $psf->output($filename, $dir);
+		    my $psfile  = "$filename.ps";
+		    my $pngfile = check_file("$filename.png", $dir);
+		    my @cmd = qq(cat $psfile | $ghostscript -q -dBATCH -sDEVICE=png16m -sOutputFile=$pngfile -);
+		    system @cmd;
+		    unlink $psfile;
+		} else {
+		    $o->out(2, "Saving '". ($dir ? "$dir/" : '') . "$filename.ps'");
+		    $psf->output($filename, $dir);
+		}
 	    }
 	}
     }
@@ -2142,7 +2163,7 @@ sub value_range {
     } else {
 	my $gmin = $s->{$graph}{min};
 	my $gmax = $s->{$graph}{max};
-	#confess "min/max not defined for $graph" unless defined $gmin and defined $gmax;
+	warn "min/max not defined for $graph\n" unless defined $gmin and defined $gmax;
 	my $margin = ($gmax - $gmin) * $points_margin;
 	$min = $gmin - $margin;
 	$max = $gmax + $margin;

@@ -4,7 +4,7 @@ our $VERSION = 0.15;
 package Finance::Shares::Sample;
 use strict;
 use warnings;
-use Finance::Shares::Sample 0.12 qw(%period %function %functype line_id);
+use Finance::Shares::Sample 0.14 qw(%period %function %functype line_id);
 
 $function{envelope}       = \&envelope;
 $function{bollinger_band} = \&bollinger_band;

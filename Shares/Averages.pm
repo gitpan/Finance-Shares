@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 package Finance::Shares::Sample;
-use Finance::Shares::Sample 0.12 qw(%period %function %functype);
+use Finance::Shares::Sample 0.14 qw(%period %function %functype);
 
 $function{simple_average}      = \&simple_average;
 $function{weighted_average}    = \&weighted_average;

@@ -23,35 +23,11 @@ can apply several tests to several samples.  When the tests are run signals may 
 interesting situations.  The intention is to use these signals to drive a simulated portfolio which can be used in
 analysing risk.
 
-=head2 Tutorial
-
-There are always two paths, aren't there?  A broad road and the one less travelled.
-
-L<Finance::Shares::CGI> provides a graphical user interface with lots of help and explanation alongside all the
-options.  Is it the 'easy' route?  I don't know.  It's certainly harder to set up than a script.  But it's
-probably easier to explore if you prefer windows.  I'm not going to describe how to use the CGI interface, but
-here are a few hints.
-
-There is a 'run' button at the bottom of the B<Model> page.  You will need to set up a B<Sample> specifying
-the stock and dates you're interested in.  The next step would be to add a B<Function> or two like a 7 day moving
-average or 30 day highest/lowest values.  Adding a B<Test> on those functions will mark buy or sell signals,
-depending on what you've chosen.  After that, it's just a matter of seeing what the different options do.
-
-The trouble with the CGI route is that that's all you learn.  You can only explore the paths provided and you have
-to start learning all over again if you want to try anything original for yourself.  But it does give you some
-idea of how the land lies.
-
-The tutorials attempts to guide you along the more adventurous path.  They cover much the same ground, but
-hopefully you will then feel more confident about experimenting for yourself when you have seen some scripts
-working.  The lessons available can be listed with the command line:
-
-    man -k Finance::Shares::Lesson
-
 =head2 Preparation
 
-However you wish to work, you need mysql working on your system with the test database that comes as standard.
-The tests and tutorials that come with this package (and Finance::Shares::CGI) expect a user called 'test' with
-'test' as the password.
+Whether you intend to explore the GUI interface, Model recipes or the tutorial, you need mysql working on
+your system with the test database that comes as standard.  The tests and tutorials that come with this package
+(and Finance::Shares::CGI) expect a user called 'test' with 'test' as the password.
 
 To set this up, as root, fire up the mysql client and declare the user:
 
@@ -68,6 +44,42 @@ S< > mysql> B<grant all privileges on test.* to 'test'>
 
 B<NOTE:> There is always a database called 'test', so you don't need to create it.  However, if you've chosen to
 use a different name (db_name) you will need to give the command C<create database db_name;> as well.
+
+=head2 GUI Interface
+
+If you are new to these modules, it might be worth looking at L<Finance::Shares::CGI>.  It provides a graphical
+user interface with lots of help and explanation alongside all the options.  The installation is a bit
+more difficult as the cgi scripts have to be copied to your chosen destination manually.  Also be aware that it
+may not work with versions later than F<Finance-Shares-0.07>.  However, it's probably easier to explore if you
+prefer windows.  I'm not going to describe how to use the CGI interface, but here are a few hints.
+
+There is a 'run' button at the bottom of the B<Model> page.  You will need to set up a B<Sample> specifying
+the stock and dates you're interested in.  The next step would be to add a B<Function> or two like a 7 day moving
+average or 30 day highest/lowest values.  Adding a B<Test> on those functions will mark buy or sell signals,
+depending on what you've chosen.  After that, it's just a matter of seeing what the different options do.
+
+=head2 Model recipes
+
+A script, F<fs_model> should be available on your system.  Try it out with either
+
+    fs_model --help
+    man fs_model
+
+This runs from 'recipe' files; descriptions of the model comprising mainly hash keys and values.  The package
+directories F<model> and F<stock> have some example recipes and code lists.  The file F<model/all_options> is not
+intended to be run, but is provided as a reference to show what is available.
+
+=head2 Tutorial
+
+The trouble with the GUI and recipe approaches is that that's all you learn.  You can only explore the paths provided and you have
+to start learning all over again if you want to try anything original for yourself.  But it does give you some
+idea of how the land lies.
+
+The lessons attempt to introduce the concepts behind the interface, and how the modules work.  Hopefully you will
+then feel more confident about experimenting for yourself when you have seen some scripts working.  The lessons
+available on your system can be listed with the command line:
+
+    man -k Finance::Shares::Lesson
 
 All the lesson scripts are found in the 'tutorial' directory of the Finance::Shares package.  Exercises that are
 a little more challenging are marked with an asterisk (*).
@@ -100,6 +112,9 @@ F<chart.png>.
 
     gs -q -dBATCH -sDEVICE=png16m \
 	-sOutputFile=chart.png chart.ps
+
+Ghostscript is freely available from Artifex Software, at L<http://ghostscript.com> or from the Free Software
+Foundation at L<ftp://mirror.cs.wisc.edu/pub/mirrors/ghost/gnu/current/>.
 
 Note that B<gs> will also work as a filter.  PostScript might take a bit more work than producing graphs directly,
 but all the advantages of vector graphics are maintained.  As well as producing the generic printer format,

@@ -9,9 +9,7 @@ use PostScript::Graph::Key   1.00;
 use PostScript::Graph::Paper 1.00;
 use PostScript::Graph::Style 1.00;
 use PostScript::Graph::XY    0.04;
-use Finance::Shares::Sample  0.12 qw(ymd_from_string day_of_week);
-
-#use TestFuncs qw(show show_deep show_lines);
+use Finance::Shares::Sample  0.14 qw(ymd_from_string day_of_week);
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(deep_copy);
@@ -50,6 +48,8 @@ Finance::Shares::Chart - Draw stock quotes on a PostScript graph
 	file	=> $psf,
 	sample	=> $fss,
 		
+	png           => 1,
+	ghostscript   => 'gswin32c',
 	dots_per_inch => 72,
 	background    => [1, 1, 0.9],
 	bgnd_outline  => 1,
@@ -324,6 +324,13 @@ printer's capabilities.  (Default: 300)
 This can be either a PostScript::File object or a hash ref holding parameters suitable for creating one.  The
 default is to set up a landscape A4 page with half inch margins.
 
+=item ghostscript
+
+This sets the name of the ghostscript interpreter to use, e.g. 'gswin32' for Windows.  (Default: 'gs')
+
+Ghostscript is freely available from Artifex Software, at L<http://ghostscript.com> or from the Free Software
+Foundation at L<ftp://mirror.cs.wisc.edu/pub/mirrors/ghost/gnu/current/>.
+
 =item glyph_ratio
 
 Generating PostScript is a one-way process.  It is not possible to find out how much space will be taken up by
@@ -387,6 +394,11 @@ The normal colour format: either a grey value or an array ref holding [<red>,<gr
 
 An optional string used as the PostScript page 'number'.  Although this may be anything many programs expect this
 to be short like a page number, with no spaces.
+
+=item png
+
+If set to 1, the file is output in Portable Network Graphic rather than PostScript format.
+For this to work, the program C<ghostscript> must be installed.  See also the C<ghostscript> option.
 
 =item prices
 
@@ -614,10 +626,20 @@ See L<PostScript::Graph::Style> for details concerning sequences and styles.
 =cut
     
 sub output {
-    my ($o, @args) = @_;
+    my ($o, $filename, $directory) = @_;
     $o->build_chart() unless $o->{built};
 
-    return $o->{pf}->output(@args);
+    if ($o->{png}) {
+	$o->{pf}->output($filename, $directory);
+	my $psfile  = "$filename.ps";
+	my $gs      = $o->ghostscript;
+	my $pngfile = check_file("$filename.png", $directory);
+	my @cmd = qq(cat $psfile | $gs -q -dBATCH -sDEVICE=png16m -sOutputFile=$pngfile -);
+	system @cmd;
+	unlink $psfile;
+    } else {
+	return $o->{pf}->output($filename, $directory);
+    }
 }
 
 =head2 output( [filename [, directory]] )
@@ -959,6 +981,27 @@ Example
     $pf->output($filename);
 
 
+
+=cut
+
+sub png {
+    return shift->{png};
+}
+
+=head2 png()
+
+Return true if the chart is to be output as a Portable Network Graphics file.
+
+=cut
+
+sub ghostscript {
+    my $o = shift;
+    return defined($o->{ghostscript}) ? $o->{ghostscript} : 'gs'; 
+}
+
+=head2 ghostscript()
+
+Return the ghostscript interpreter that would be used to output a Portable Network Graphics file.
 
 =cut
 

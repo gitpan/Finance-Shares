@@ -4,9 +4,9 @@ use warnings;
 use Test::More tests => 11;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
 use PostScript::File          1.00 qw(check_file);
-use Finance::Shares::Averages 0.12;
-use Finance::Shares::Chart    0.14;
-use Finance::Shares::Sample   0.12 qw(line_id);
+use Finance::Shares::Averages;
+use Finance::Shares::Chart;
+use Finance::Shares::Sample qw(line_id);
 
 my $name = 't/fn01-averages';
 my $source = 't/05-boc.csv';

@@ -1,16 +1,15 @@
 package Finance::Shares::Sample;
-our $VERSION = 0.14;
+our $VERSION = 0.15;
 use strict;
 use warnings;
 use Exporter;
 use Date::Calc qw(Today Date_to_Days Add_Delta_Days Delta_Days Day_of_Week);
 use Text::CSV_XS;
 use PostScript::Graph::Style 1.00;
-use Finance::Shares::MySQL   1.04;
-
-#use TestFuncs qw(show show_deep show_lines);
+use Finance::Shares::MySQL   1.05;
 
 our @ISA = qw(Exporter);
+our @EXPORT = qw(show_deep);
 our @EXPORT_OK = qw(%period %function %functype
 		    line_id call_function
 		    today_as_string string_from_ymd ymd_from_string
@@ -436,18 +435,15 @@ then
 =cut
 
 sub value {
-    my $o = shift;
+    my ($o, %a) = @_;
     die "No Finance::Shares::Sample object\n" unless ref($o) eq 'Finance::Shares::Sample';
-    my %a = (
-	graph	=> 'prices',
-	value	=> 0,
-	strict	=> 0,
-	shown	=> 1,
-	style	=> undef,
-	@_);
-	
+    $a->{graph} = 'prices' unless defined $a->{graph};
+    $a->{value} = 0	   unless defined $a->{value};
+    $a->{shown} = 1	   unless defined $a->{shown};
+    # also style
+
     my $id = line_id('value', $a{value});
-    my $key = defined $a{key} ? $a{key} : "$a{value}";
+    my $key = defined $a{key} ? $a{key} : $a{value};
     my $data = {
 	$o->{start} => $a{value},
 	$o->{end}   => $a{value},
@@ -465,15 +461,6 @@ C<options> are in key/value format using the following keys.
 
 =over 8
 
-=item strict
-
-If 1, return undef if the average period is incomplete.  If 0, return the best value so far.  (Default: 0)
-
-=item shown
-
-A flag controlling whether the function is graphed.  0 to not show it, 1 to add the line to the named C<graph>.
-(Default: 1)
-
 =item graph
 
 A string indicating the graph for display: one of prices, volumes, cycles or tests.  (Default: 'prices')
@@ -481,6 +468,16 @@ A string indicating the graph for display: one of prices, volumes, cycles or tes
 =item value
 
 The Y value indicating the line.
+
+=item shown
+
+A flag controlling whether the function is graphed.  0 to not show it, 1 to add the line to the named C<graph>.
+(Default: 1)
+
+=item style
+
+A hash ref holding settings suitable for the PostScript::Graph::Style object used when drawing the line.
+By default lines and points are plotted, with each line in a slightly different style.  (Default: undef)
 
 =back
 
@@ -926,40 +923,6 @@ tests.  If none are specified, all known lines are returned.
 
 =cut
 
-sub show_lines {
-    my ($s, @graphs) = @_;
-    @graphs = qw(prices volumes cycles tests) unless @graphs;
-    my $res = "Sample " . $s->id() . "\n";
-    foreach my $graph (@graphs) {
-	my @lines = values %{$s->{lines}{$graph}};
-	@lines = sort { $a->{order} <=> $b->{order} } @lines;
-	$res .= "$graph lines... [shown id order (n pts) style]\n";
-	foreach my $h (@lines) {
-	    my $id = $h->{id};
-	    my $show = $h->{shown} || 0;
-	    my $order = $h->{order} || 0;
-	    my $n = keys %{$h->{data}} || 0;
-	    my $style = $h->{style};
-	    my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
-	    $res .= "    $show $id $order ($n pts) $sid\n";
-	}
-    }
-    return $res;
-}
-
-=head2 show_lines( [graphs] )
-
-Prints the information on all known lines.  C<graphs> is a list comprising zero or more of prices, volumes, cycles
-and tests.  If omitted, all graphs with any lines are shown.
-
-Returns a string which may be displayed with B<warn> or B<print>.
-
-Example
-
-    warn "MyModule:666\n", $sample->show_lines;
-
-=cut
-
 sub line_by_key {
     my ($o, $full_id) = @_;
     return $o->{lines}{by_key}{lc $full_id};
@@ -1234,6 +1197,171 @@ sub day_of_week {
 Returns 1=Monday, ... 7=Sunday.
 
 =cut
+
+=head1 DEBUGGING
+
+=cut
+
+sub out {
+    my ($o, $lvl, @args) = @_;
+    print STDERR @args, "\n" if $lvl <= $o->{verbose};
+}
+
+=head2 out(lvl, msg)
+
+Send a message to STDERR if the verbosity setting is greater than or equal to C<lvl>.  C<msg> is just passed to
+C<print>, so it can be a string or a list.
+
+=cut
+
+sub show_lines {
+    my ($s, @graphs) = @_;
+    @graphs = qw(prices volumes cycles tests) unless @graphs;
+    my $res = "Sample " . $s->id() . "\n";
+    foreach my $graph (@graphs) {
+	my @lines = values %{$s->{lines}{$graph}};
+	@lines = sort { $a->{order} <=> $b->{order} } @lines;
+	$res .= "$graph lines... [shown id order (n pts) style]\n";
+	foreach my $h (@lines) {
+	    my $id = $h->{id};
+	    my $show = $h->{shown} || 0;
+	    my $order = $h->{order} || 0;
+	    my $n = keys %{$h->{data}} || 0;
+	    my $style = $h->{style};
+	    my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
+	    $res .= "    $show $id $order ($n pts) $sid\n";
+	}
+    }
+    return $res;
+}
+
+=head2 show_lines( [graphs] )
+
+Prints the information on all known lines.  C<graphs> is a list comprising zero or more of prices, volumes, cycles
+and tests.  If omitted, all graphs with any lines are shown.
+
+Returns a string which may be displayed with B<warn> or B<print>.
+
+Example
+
+    warn "MyModule:666\n", $sample->show_lines;
+
+=cut
+
+sub show_deep {
+    my ($var, $min, $sep) = @_;
+    my $ref = ref($var);
+    if ($ref eq 'HASH') {
+	return show_hash($var, $min, $sep);
+    } elsif ($ref eq 'ARRAY') {
+	return show_array($var, $min, $sep);
+    } else {
+	return $var;
+    }
+}
+	
+=head2 show_deep( var [, min [, sep]] )
+
+B<NOTE> this is an exported function, not a method.
+
+Recursively dumps hash or array refs, returning a string which may be displayed with
+e.g. B<warn>.
+
+=over 8
+
+=item var
+
+The scalar variable to be printed.
+
+=item min
+
+A limit to the depth printed out.
+
+=item sep
+
+String used to seperate entries (between pairs, not within them).
+
+=back
+
+Example
+
+    warn "MyModule:666\n", show_deep($h, 2);
+
+might produce something like the following, with 2 levels (chart1, and background etc.).  Deeper arrays and hashes
+are not expanded.
+    
+    {chart1=>
+      {background=>ARRAY(0x87573cc),
+      dots_per_inch=>75, invert=>1, 
+      key=>HASH(0x87547a4)}
+    
+=cut
+
+sub show_hash {
+    my ($h, $min, $sep, $depth) = @_;
+    $min = -1   unless defined $min;
+    $sep = ', ' unless defined $sep;
+    $depth = 0  unless defined $depth;
+    return $h unless $min;
+    my $res = '';
+    if ($h and ref($h) eq 'HASH') {
+	$res .= "\n" . ('  ' x ($depth)) if $depth;
+	$res .= "{";
+	my $entry = 0;
+	foreach my $k (sort keys %$h) {
+	    my $v = $h->{$k};
+	    my $key   = defined($k) ? $k : '<undef>';
+	    my $value = defined($v) ? $v : '<undef>';
+	    $res .= $sep if $entry;
+	    $res .= "$key=>";
+	    if (ref($value) eq 'HASH') {
+		$res .= show_hash($value, $min-1, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } elsif (ref($value) eq 'ARRAY') {
+		$res .= show_array($value, $min-1, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } else {
+		$res .= $value;
+	    }
+	    $entry = 1;
+	}
+	$res .= "}\n";
+    } else {
+	$res = $h;
+    }
+    return $res;
+}
+
+sub show_array {
+    my ($ar, $min, $sep, $depth) = @_;
+    $min = -1   unless defined $min;
+    $sep = ', ' unless defined $sep;
+    $depth = 0 unless defined $depth;
+    return $ar unless $min;
+    my $res = '';
+    if ($ar and ref($ar) eq 'ARRAY') {
+	$res .= "\n" . ('  ' x ($depth)) if $depth;
+	$res .= "[";
+	my $entry = 0;
+	foreach my $v (@$ar) {
+	    my $value = defined($v) ? $v : '<undef>';
+	    $res .= $sep if $entry;
+	    if (ref($value) eq 'HASH') {
+		$res .= show_hash($value, $min-1, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } elsif (ref($value) eq 'ARRAY') {
+		$res .= show_array($value, $min-1, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } else {
+		$res .= $value;
+	    }
+	    $entry = 1;
+	}
+	$res .= "]\n";
+    }
+    return $res;
+}
+
 
 =head1 BUGS
 

@@ -1,0 +1,138 @@
+#!/usr/bin/perl
+# This example shows how to output multiple samples to multiple files
+# Notice how sources, files etc are all plural and refer to arrays
+
+my $data_colour = [0.3, 0.7, 0.7 ];
+my $bgnd_colour = [0.95,0.95,1   ];
+my $light_blue  = [0,   0.7, 1   ];
+
+my $seq1 = new PostScript::Graph::Sequence;
+$seq1->setup('color', [[0.5,0,0], [1,0,0], [1,1,0], [0.5,0.5,0], [0,1,0], [0,0.5,0], [0,0.5,0.5], [0,0,1], [0.5,0,0.5]]);
+$seq1->auto(qw(color));
+
+### Styles
+my $fn_style = {
+    sequence => $seq1,
+    line => {
+	width => 1.25,
+	outer_color => 0.4,
+    },
+};
+
+my $bar_style = {
+    sequence => $seq1,
+    bar => {
+	width => 1.25,
+	outer_color => 0.4,
+    },
+};
+
+my $light_bars = {
+    auto => 'none',
+    same => 1,
+    bar => {
+	width => 1.25,
+	inner_color => [1.0, 0.8, 0.6],
+	outer_color => 0.4,
+    },
+};
+
+### Model
+verbose => 3,
+
+source => {
+    user     => 'test',
+    password => 'test',
+    database => 'test',
+    mode     => 'offline',
+    #mode     => 'fetch',
+},
+
+file => {
+    landscape => 1,
+},
+
+charts => [
+    default => {
+	dots_per_inch => 75,
+	background => $bgnd_colour,
+	invert => 1,
+	x_axis => {
+	    mid_width => 0,
+	    mid_color => $bgnd_colour,
+	},
+	key => {
+	    background => $bgnd_colour,
+	    text_width => 70,
+	    glyph_ratio => 0.45,
+	},
+	prices => {
+	    percent => 30,
+	    points => {
+		shape => 'stock2',
+		inner_color => [0.3, 0.7, 0.7],
+		width => 1.5,
+	    },
+	},
+	volumes => {
+	    percent => 30,
+	    bars => {
+		color => $data_colour,
+		width => 1,
+	    },
+	},
+	cycles => {
+	    percent => 40,
+	},
+    },
+],
+
+functions => [
+    wgt => {
+	function => 'wgt',
+	period   => 5,
+	style	 => $fn_style,
+    },
+    mm => {
+	function => 'momentum',
+	style    => $light_bars,
+    },
+    adx => {
+	function => 'adx',
+	dir      => 1,
+	period   => 5,
+	style	 => $fn_style,
+	scaled   => 1,
+    },
+    grad => {
+	function => 'gradient',
+	period   => 5,
+	style	 => $fn_style,
+    },
+    mv => {
+	function => 'momentum',
+	period   => 5,
+	graph    => 'volumes',
+	line     => 'volume',
+	style	 => $fn_style,
+	strict   => 1,
+	scaled   => 1,
+    },
+    mv2 => {
+	function => 'gradient',
+	period   => 5,
+	graph    => 'cycles',
+	line     => 'mv',
+	style	 => $fn_style,
+	strict   => 1,
+	scaled   => 1,
+    },
+],
+
+sample => {
+    dates_by   => 'weekdays',
+    start_date => '2003-01-01',
+    #end_date   => '2003-05-28',
+    functions  => [qw(wgt mm mv mv2)],
+},
+

@@ -1,11 +1,3 @@
-
-change process_log to summerize by weeks
-should function handlers automatically determine dest graph, as CGI::process_graph?
-
-Overview
-    3rd way? using fs_model script with model specs
-    Depreciate CGI
-
 Model
     eq etc should have a margin of error
     summary chart with functions for highest, average and lowest values for all samples
@@ -13,7 +5,6 @@ Model
 
 Sample
     line data would be better stored as $s->{prices}{lines}{id}... instead of $s->{lines}{prices}{id}...
-    sample by alldays and weekdays too, to handle gaps in yahoo's data
 
 Bands
     'shown' should allow high/low/both/none.
@@ -29,7 +20,6 @@ Chart
     
 Key
     Line height calculations assume 1 icon per text; not true when wrapped
-    Font settings should be sub-hashes with name/size/color
 
 Paper
     ps_functions xdrawstock belongs in Chart::ps_functions
@@ -38,37 +28,6 @@ Paper
 Style
     There should be a 'no edge' option for lines as well as points, to prevent double-drawing slowness
     'outer_width' should be consistent across bars, lines and shapes
-
-Trends
-    seperate rising/falling trends
-    give date -> return which trend line or undef
-    Not realistic lines - overhaul required
-    e.g. include error range for slopes that count
-
-admin
-    script to delete user (and all lines in all tables with that userid)
-
-init.pl
-    Chart: background colour, graph percentages
-    Style: add x_offset, y_offset
-
-menu.pl
-    add 'change user settings' page
-    add login option (needs top level redirect from login.pl)
-    
-interface.pl
-    truncate history if it gets too long?
-    remember last name visited on each page?
-    add user-specific stock names?
-    validation not working! (needs to be done in JavaScript)
-    '<< Click this' msg if no list
-    functions: no 'Submit' unless Function chosen
-
-chart.pl
-    Chart 'width' and 'edge contrast' should apply to Volume bars too.
-    Cannot output more than one Sample
-    process_fnline doesn't check for circular refs.
-    Draw signals last so they are always on top
 
 
 packages
@@ -89,7 +48,7 @@ packages
 
 
     DBIx::Namespace (package)	         rmtsb
-    DBIx::Namespace		    0.04*
+    DBIx::Namespace		    0.04
 
     PostScript::File (package)	         
     PostScript::File		    1.00
@@ -102,13 +61,13 @@ packages
     PostScript::Graph::XY	    0.04 
     
     Finance::Shares (package)	    0.10
-    Finance::Shares::MySQL	    1.04*
+    Finance::Shares::MySQL	    1.05
     Finance::Shares::Sample	    0.14
-    Finance::Shares::Chart	    0.16*
+    Finance::Shares::Chart	    0.17
     Finance::Shares::Model	    0.15
-    Finance::Shares::Averages	    0.12*
-    Finance::Shares::Bands	    0.14*
-    Finance::Shares::Momentum	    0.05*
+    Finance::Shares::Averages	    0.13
+    Finance::Shares::Bands	    0.15
+    Finance::Shares::Momentum	    0.06
     Finance::Shares::Overview
     Finance::Shares::Lesson1
     tutorial/01fetch.pl
@@ -130,24 +89,4 @@ packages
     fs_fetch_csv		    0.01
     fs_list_tables		    0.01
     fs_model			    0.02
-    fs_reset_size		    0.01
-
-    Finance::Shares::CGI (package)  0.06
-    Finance::Shares::CGI	    0.11
-    make_index			    0.04
-    shares.pl			    0.03
-    menu.pl			    0.05
-    init.pl			    0.09
-    drop.pl			    0.03
-    fetch.pl			    0.03
-    list.pl			    0.03
-    prefs.pl			    0.03
-    interface.pl		    0.06
-    chart.pl			    0.06
-    run.pl			    0.03
-    strip_cgi
-
-    
-    Finance::Shares::Oscillators
-    Finance::Shares::Portfolio
 

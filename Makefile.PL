@@ -1,12 +1,13 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
-    NAME	=> 'Finance::Shares',
-    VERSION	=> '0.90',
-    ABSTRACT	=> 'Collecting and tracking share prices',
-    AUTHOR      => 'Christopher Willmot <chris@willmot.org>',
-    NORECURS    => 1,
-    PREREQ_PM	=> { 
+    NAME	  => 'Finance::Shares',
+    VERSION	  => '0.91',
+    ABSTRACT      => 'Applying tests to share quotes',
+    AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
+    NORECURS      => 1,
+    PREREQ_PM	  => { 
 	#'Test::More'		    => 0,
+	'Pod::Usage'		    => 0,
 	'Date::Calc'                => 0,
 	'Text::CSV_XS'              => 0,
 	'LWP::UserAgent'            => 0,

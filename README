@@ -1,9 +1,12 @@
-Finance::Shares
-===============
+Finance::Shares 0.91
+====================
 
 This collection of modules provides a toolkit for developing stock market
 strategies.  There is an introduction, Finance::Shares::Overview and a tutorial
 introducing the modules, starting with Finance::Shares::Lesson1.
+
+As indicated by the version number, this suite is near a major version change.
+Most development work now is on version 1.
 
 
 INSTALLATION
@@ -23,6 +26,7 @@ DEPENDENCIES
 In addition to the standard perl distribution, these others are also required.
 They can all be found on CPAN (http://www.cpan.org)
 
+    Pod::Usage
     Test::More
     Date::Calc
     Text::CSV_XS
@@ -46,8 +50,9 @@ fs_model
     page, but see also Finance::Shares::Model.  Try:
     
 	man fs_model
-	fs_model --model=model/01-multiple
-	fs_model --model=model/05-minimal --stocks=stock/misc3
+	fs_model --help
+	fs_model --model=model/multiple
+	fs_model --model=model/minimal --codes=stock/misc3
 
 fs_fetch
     A script to fetch quotes from the internet.  It assumes the mysql database
@@ -83,13 +88,8 @@ fs_drop_table
 
 	fs_drop_table Known::Family::Table
 
-fs_reset_size
-    Used in conjunction with the t/*.t tests.  The size of the output files are
-    monitored as a quick check whether the chart has changed.  Once you have
-    inspected the charts and are happy with them, this script will update the
-    tests with the new file sizes.  Use as:
-
-	$ fs_reset_size t/*.t
+[fs_reset_size has been dropped - running the test twice resets the file
+size error.]
 
 TestFuncs.pm
     This module is only used by the t/*.t tests.
@@ -100,8 +100,8 @@ COPYRIGHT AND LICENCE
 
 Copyright (C) 2002 Christopher P Willmot.  All rights reserved.
 
-This work is published under the Artistic licence accompanying the Perl
-distribution which may be found at http://www.perl.org.  
+This work is published under the same terms as Perl itself, which may be found
+at http://www.perl.org.  
 
 There is no warranty whatsoever.  Use at your own risk.  Just because it is here
 and is documented does not mean that it is fit for any purpose implied by the

@@ -4,10 +4,8 @@ use strict;
 use warnings;
 
 package Finance::Shares::Sample;
-use Finance::Shares::Sample 0.12 qw(call_function %period %function %functype);
-use Finance::Shares::Averages 0.12;
-
-#use TestFuncs 'show_deep';
+use Finance::Shares::Sample   0.14 qw(call_function %period %function %functype);
+use Finance::Shares::Averages 0.13;
 
 $function{momentum}  = \&momentum;
 $function{ratio}     = \&ratio;
@@ -494,6 +492,7 @@ Being a specialized function, there are fewer options. See L</DESCRIPTION> for e
    shown	scaled
    style	key
    strict	gradient
+   period
 
 The direction of movement is more significant than the raw numbers.  So it is usually scaled or passed to
 B<rising> or B<falling>.
@@ -507,7 +506,7 @@ sub direction {
     $a->{strict}  = 1	  unless defined $a->{strict};
     $a->{shown}   = 1	  unless defined $a->{shown};
     $a->{scaled}  = 1	  unless defined $a->{scaled};
-    $a->{dir}     = 0	  unless defined $a->{dir};
+    $a->{direction} = 0	  unless defined $a->{direction};
     $a->{period}  = 0     unless defined $a->{period};
     $a->{average} = 'avg' unless defined $a->{average};
     #$a->{style} = undef
@@ -525,9 +524,9 @@ sub direction {
 	    my $pclose = $dclose->{$pdate};
 	    my $hi_pc  = $dhigh->{$date} - $pclose;
 	    my $pc_lo  = $pclose - $dlow->{$date};
-	    if ($a->{dir} > 0) {
+	    if ($a->{direction} > 0) {
 		$level = ($hi_pc > $pc_lo) ? 1 : 0;
-	    } elsif ($a->{dir} < 0) {
+	    } elsif ($a->{direction} < 0) {
 		$level = ($hi_pc >= $pc_lo) ? 0 : -1;
 	    } else {
 		$level = ($hi_pc > $pc_lo) ? 1 : -1;
@@ -537,13 +536,13 @@ sub direction {
 	$pdate = $date;
     }
 
-    my $id = line_id('direction', $a->{dir});
+    my $id = line_id('direction', $a->{direction});
     my $key;
     if ($a->{key}) {
 	$key = $a->{key};
-    } elsif ($a->{dir} > 0) {
+    } elsif ($a->{direction} > 0) {
 	$key .= 'upward direction';
-    } elsif ($a->{dir} < 0) {
+    } elsif ($a->{direction} < 0) {
 	$key .= 'downward direction';
     } else {
 	$key .= 'average direction';
@@ -575,7 +574,7 @@ are moving.  Option keys include:
 
 =over 8
 
-=item dir
+=item direction
 
 Standing for 'direction', this determines the type of line produced.  (Default: 0)
 

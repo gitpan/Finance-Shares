@@ -1,86 +1,78 @@
-HOWTO Write Finance::Shares Modules
-===================================
+HOWTO Write a Finance::Shares function module
+=============================================
 
-[The intent here is to describe how to write additional functions.  For now, I'm
-just collecting notes.  But they might be better than nothing.]
+Functions are all methods of a Finance::Shares::Sample object but, thanks to
+Perl's flexibility, they don't have to be in the same file.  The start of your
+module file should look like this:
 
-Defined names
--------------
+    package Finance::Shares::MyModule;
+    our $VERSION = 0.01;
+    use strict;
+    use warnings;
 
-Method addresses are stored in three hashes, keyed by the short or long names
-listed below.
+    package Finance::Shares::Sample;
+    use Finance::Shares::Sample qw(%function);
 
-    Finance::Shares::Sample::function
-    Finance::Shares::Model::testfunc
-    Finance::Shares::Model::sigfunc
+There will be one method which is the access point for the Finance::Shares
+function you are writing.  That code ref must be declared in %function.  There
+should be a short and a long name.
 
-Additional hashes which are likely to be needed are:
+    $function{my_calculation} = \&my_calc_function
+    $function{calc}           = \&my_calc_function
 
-    Finance::Shares::Sample::functype
-    Finance::Shares::Sample::period
-    Finance::Shares::Model::testpre
-    Finance::Shares::Model::testname
+You are free to use whatever parameters you need, but they should be
+in key-value format and be consistent with existing modules if possible.
 
-The methods' corresponding types (stored in Sample hash '%functype') group
-identical expected parameter lists.  't' and 's' are reserved for Tests and
-Signals, should they be added to the same namespace in future.
+It is recommended that defaults are set AFTER the parameters are read:
+(Remember that '$self' is a Finance::Shares::Sample object.)
 
-	Module	    Type    Short and long name
-	---------------------------------------
-	Averages    a	    avg	    simple_average
-	Averages    a	    wgt	    weighted_average
-	Averages    a	    exp	    exponential_average
-	Bands	    b	    boll    bollinger
-	Bands	    c	    chan    channel
-	Bands	    e	    env	    envelope
-	Momentum    d	    adx	    direction
-	Momentum    m	    mom	    momentum
-	Momentum    m	    roc	    ratio
-	Momentum    m	    grad    gradient
-	Momentum    n	    rise    rising
-	Momentum    n	    fall    falling
-	Momentum    n	    over    oversold
-	Momentum    n	    under   undersold
+    sub my_calc_function {
+	my $self = shift;
+	my $args = { @_ };
+	$args->{period} = 5 unless defined $args->{period};
+	$args->{strict} = 1 unless defined $args->{strict};
+    }
 
-	Sample	    x	    open
-	Sample	    x	    high
-	Sample	    x	    low
-	Sample	    x	    close
-	Sample	    y	    volume
+Although neater, this code will fail.  If the list of parameters is assigned
+elsewhere, 'undef' values will not take on the default.  Consider the following.
 
-	Model	    (t)	    gt
-	Model	    (t)	    lt
-	Model	    (t)	    ge
-	Model	    (t)	    le
-	Model	    (t)	    eq
-	Model	    (t)	    ne
-	Model	    (t)	    min
-	Model	    (t)	    max
-	Model	    (t)	    diff
-	Model	    (t)	    sum
-	Model	    (t)	    and
-	Model	    (t)	    or
-	Model	    (t)	    not
-	Model	    (t)	    test
+    sub my_func {
+	my $self = shift;
+	my $args = {
+	    period = 5,
+	    strict = 1,
+	    shown  = 1,
+	    @_,
+	};
+	...
+    }
 
-	Model	    (s)	    mark
-	Model	    (s)	    buy	    mark_buy
-	Model	    (s)	    sell    mark_sell
-	Model	    (s)	    print
-	Model	    (s)	    values  print_values
-	Model	    (s)	    custom
+    my $period = 21;
+    my $strict;
+
+    my @input = ( period => $period, strict => $strict );
+    $sample->my_func( @input );
+
+'shown' will have the value 1 from the defaults and 'period' will take the 21
+passed in.  However, 'strict' will be undef and not 1.  Shame, but there it is.
 
 
-Function methods are called like this:
+Your method should call Finance::Shares::Sample's add_line() and return the
+identifier(s) you gave it/them.  The data add_line() expects is a hash keyed by
+date, with the values (possibly undefined) associated with each.  See value() in
+Finance::Shares::Sample for a simple outline.
+
+
+Your method will be called with code like this:
 
     use Finance::Shares::Sample qw(call_function %function);
 
     my $sample    = new Finance::Shares::Sample(...);
     my @args      = ( period => 5, strict => 1 );
 
-    my $id = call_function( \%function, 'simple_average', $sample, @args );
-    my @id = call_function( \%function, 'channel',        $sample, @args );
+    my $id = call_function( \%function, 'my_calculation', $sample, @args );
+    my @id = call_function( \%function, 'calc',           $sample, @args );
 
-Functions can generate more than one line, these identifiers can be obtained by
-calling in list context.
+Note that functions can generate more than one line, and these identifiers can
+be obtained by calling in list context.
 

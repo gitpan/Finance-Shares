@@ -40,17 +40,8 @@ my $style = {
 };
 
 ### Function lines
-#my $up = $fss->direction(
-#    dir    => 1,
-#    period => 0,
-#    style  => $style,
-#    shown  => 1,
-#    strict => 1,
-#    scaled => 1,
-#);
-
 my $up5 = $fss->direction(
-    dir    => 1,
+    direction => 1,
     period => 10,
     style  => $style,
     shown  => 1,
@@ -59,7 +50,7 @@ my $up5 = $fss->direction(
 );
 
 my $down = $fss->direction(
-    dir    => -1,
+    direction => -1,
     period => 0,
     style  => $style,
     shown  => 1,
@@ -67,26 +58,8 @@ my $down = $fss->direction(
 #    scaled => 1,
 );
 
-#my $down5 = $fss->direction(
-#    dir    => -1,
-#    period => 5,
-#    style  => $style,
-#    shown  => 1,
-#    strict => 1,
-#    scaled => 1,
-#);
-
-#my $avg = $fss->direction(
-#    dir    => 0,
-#    period => 0,
-#    style  => $style,
-#    shown  => 1,
-#    strict => 1,
-#    scaled => 1,
-#);
-
 my $avg5 = $fss->direction(
-    dir    => 0,
+    direction => 0,
     period => 5,
     style  => $style,
     shown  => 1,
