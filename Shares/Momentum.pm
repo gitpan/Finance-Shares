@@ -1,12 +1,12 @@
 package Finance::Shares::Momentum;
-our $VERSION = 0.04;
+our $VERSION = 0.05;
 use strict;
 use warnings;
 
 package Finance::Shares::Sample;
-use Finance::Shares::Sample 0.12 qw(%period %function %functype);
+use Finance::Shares::Sample 0.12 qw(call_function %period %function %functype);
 
-#use TestFuncs qw(show_hash show_array show_lines);
+#use TestFuncs qw(show show_deep show_lines);
 
 $function{momentum}  = \&momentum;
 $function{ratio}     = \&ratio;
@@ -235,6 +235,7 @@ sub momentum {
     $s->scale($data) if $a{scaled};
 
     $s->add_line( 'cycles', $id, $data, $key, $a{style}, $a{shown} );
+
     return $id;
 }
 
@@ -320,96 +321,29 @@ of the differences from the previous 5 and subsiquent 5 days, where they exist.
 sub rising {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
-    my %a = @_;
-    $a{strict} = 0	  unless defined $a{strict};
-    $a{shown}  = 1	  unless defined $a{shown};
-    $a{scaled} = 1	  unless defined $a{scaled};
-    $a{graph}  = 'prices' unless defined $a{graph};
-    $a{line}   = 'close'  unless defined $a{line};
-    $a{period} = 10	  unless defined $a{period};
-    #$a{style} = undef
-    #$a{key}   = undef
-    $a{weight} = 100	  unless defined $a{weight};
-    $a{decay}  = 1	  unless defined $a{decay};
-    $a{ramp}   = 0	  unless defined $a{ramp};
-    $a{smallest} = 0	  unless defined $a{smallest};
-    #$a{cutoff}   = undef
-    #$a{gradient} = undef
+    my $a = test_args(@_);
+    my $lb = $s->choose_line($a->{graph}, $a->{line}, 1);
+    die "No $a->{graph} line with id '$a->{line}'\n" unless $lb;
+    my $data = ensure_gradient( $s, $a );
     
-    my ($gshown, $gstyle);
-    if (defined $a{gradient}) {
-	if (ref $a{gradient} eq 'HASH' or ref $a{gradient} eq 'PostScript::Graph::Style') {
-	    $gstyle = $a{gradient};
-	    $gshown = 1;
-	} else {
-	    $gshown = $a{gradient};
-	}	
-    }
-
-    my ($cshown, $cstyle);
-    if (defined $a{cutoff}) {
-	if (ref $a{cutoff} eq 'HASH' or ref $a{cutoff} eq 'PostScript::Graph::Style') {
-	    $cstyle = $a{cutoff};
-	    $cshown = 1;
-	} else {
-	    $cshown = $a{cutoff};
-	}	
-    }
-
-    my $lb = $s->choose_line($a{graph}, $a{line}, 1);
-    die "No $a{graph} line with id '$a{line}'\n" unless $lb;
-    
-    my $id = line_id('gradient', $a{period}, $a{line});
-    my $base = $s->choose_line('cycles', $id, 1);
-    unless ($base) {
-	my $grad = $s->gradient(
-	    graph  => $a{graph},
-	    line   => $a{line},
-	    period => $a{period},
-	    scaled => 0,
-	    shown  => $gshown,
-	    style  => $gstyle,
-	);
-	$base = $s->choose_line('cycles', $grad);
-    }
-    my $data = $base->{data};
-    $a{min} = 0 unless defined $a{min};
-    $a{max} = $a{weight} unless defined $a{max};
-    $a{max} = 100 if $a{max} > 100;
-
     my $prev;
-    my $level = $a{min};
-    my $cutoff = $a{smallest};
-    my %res;
+    my $level = $a->{min};
+    my $cutoff = $a->{smallest};
+    my $res = {};
     foreach my $date (sort keys %$data) {
-	my $value = $data->{$date};
-	my $cond = $value > $cutoff;
+	my $cond = ($data->{$date} > $cutoff);
 	if (not defined($prev) or $cond != $prev) {
-	    $level = $cond ? $a{max} : $a{min};
+	    $level = $cond ? $a->{max} : $a->{min};
 	} else {
-	    my $lvl = $level - $a{min};
-	    $lvl = $lvl*$a{decay} + $a{ramp};
-	    $level = $lvl + $a{min};
+	    $level = condition( $a, $level );
 	}
-	$res{$date} = $level;
+	$res->{$date} = $level;
 	$prev = $cond;
     }
-    
-    if (%res) {
-	$id = line_id('rising',$a{line});
-	my $key = $lb->{key} . ' is rising';
-	$s->add_line('tests', $id, \%res, $key, $a{style}, $a{shown}) if %res;
-	
-	$key = 'rising cutoff at ' . sprintf('%.2f', $cutoff);
-	$s->value(
-	    graph => 'cycles', 
-	    value => $cutoff,
-	    key => $key,
-	    shown => $cshown,
-	    style => $cstyle,
-	) if $cshown;
-    }
-
+   
+    my $line_key  = $lb->{key} . ' is rising';
+    my $level_key = 'rising cutoff at ' . sprintf('%.2f', $cutoff);
+    my $id = create_lines($s, $a, $res, 'rising', $line_key, $level_key, $cutoff);
     return $id;
 }
 
@@ -423,96 +357,30 @@ line is sufficiently positive.
 sub falling {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
-    my %a = @_;
-    $a{strict} = 0	  unless defined $a{strict};
-    $a{shown}  = 1	  unless defined $a{shown};
-    $a{scaled} = 1	  unless defined $a{scaled};
-    $a{graph}  = 'prices' unless defined $a{graph};
-    $a{line}   = 'close'  unless defined $a{line};
-    $a{period} = 10	  unless defined $a{period};
-    #$a{style} = undef
-    #$a{key}   = undef
-    $a{weight} = 100	  unless defined $a{weight};
-    $a{decay}  = 1	  unless defined $a{decay};
-    $a{ramp}   = 0	  unless defined $a{ramp};
-    $a{smallest} = 0	  unless defined $a{smallest};
-    #$a{cutoff}   = undef
-    #$a{gradient} = undef
-    
-    my ($gshown, $gstyle);
-    if (defined $a{gradient}) {
-	if (ref $a{gradient} eq 'HASH' or ref $a{gradient} eq 'PostScript::Graph::Style') {
-	    $gstyle = $a{gradient};
-	    $gshown = 1;
-	} else {
-	    $gshown = $a{gradient};
-	}	
-    }
-
-    my ($cshown, $cstyle);
-    if (defined $a{cutoff}) {
-	if (ref $a{cutoff} eq 'HASH' or ref $a{cutoff} eq 'PostScript::Graph::Style') {
-	    $cstyle = $a{cutoff};
-	    $cshown = 1;
-	} else {
-	    $cshown = $a{cutoff};
-	}	
-    }
-
-    my $lb = $s->choose_line($a{graph}, $a{line}, 1);
-    die "No $a{graph} line with id '$a{line}'\n" unless $lb;
-    
-    my $id = line_id('gradient', $a{period}, $a{line});
-    my $base = $s->choose_line('cycles', $id, 1);
-    unless ($base) {
-	my $grad = $s->gradient(
-	    graph  => $a{graph},
-	    line   => $a{line},
-	    period => $a{period},
-	    scaled => 0,
-	    shown  => $gshown,
-	    style  => $gstyle,
-	);
-	$base = $s->choose_line('cycles', $grad);
-    }
-    my $data = $base->{data};
-    $a{min} = 0 unless defined $a{min};
-    $a{max} = $a{weight} unless defined $a{max};
-    $a{max} = 100 if $a{max} > 100;
+    my $a = test_args(@_);
+    my $lb = $s->choose_line($a->{graph}, $a->{line}, 1);
+    die "No $a->{graph} line with id '$a->{line}'\n" unless $lb;
+    my $data = ensure_gradient( $s, $a );
 
     my $prev;
-    my $level = $a{min};
-    my $cutoff = $a{smallest} > 0 ? -$a{smallest} : $a{smallest};
-    my %res;
+    my $level = $a->{min};
+    my $cutoff = $a->{smallest} > 0 ? -$a->{smallest} : $a->{smallest};
+    my $res = {};
     foreach my $date (sort keys %$data) {
 	my $value = $data->{$date};
 	my $cond = $value < $cutoff;
 	if (not defined($prev) or $cond != $prev) {
-	    $level = $cond ? $a{max} : $a{min};
+	    $level = $cond ? $a->{max} : $a->{min};
 	} else {
-	    my $lvl = $level - $a{min};
-	    $lvl = $lvl*$a{decay} + $a{ramp};
-	    $level = $lvl + $a{min};
+	    $level = condition( $a, $level );
 	}
-	$res{$date} = $level;
+	$res->{$date} = $level;
 	$prev = $cond;
     }
     
-    if (%res) {
-	$id = line_id('falling',$a{line});
-	my $key = $lb->{key} . ' is falling';
-	$s->add_line('tests', $id, \%res, $key, $a{style}, $a{shown}) if %res;
-	
-	$key = 'falling cutoff at ' . sprintf('%.2f', $cutoff);
-	$s->value(
-	    graph => 'cycles', 
-	    value => $cutoff,
-	    key => $key,
-	    shown => $cshown,
-	    style => $cstyle,
-	) if $cshown;
-    }
-
+    my $line_key  = $lb->{key} . ' is falling';
+    my $level_key = 'falling cutoff at ' . sprintf('%.2f', $cutoff);
+    my $id = create_lines($s, $a, $res, 'falling', $line_key, $level_key, $cutoff);
     return $id;
 }
 
@@ -526,63 +394,11 @@ line is sufficiently negative.
 sub oversold {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
-    my %a = @_;
-    $a{strict} = 0	  unless defined $a{strict};
-    $a{shown}  = 1	  unless defined $a{shown};
-    $a{scaled} = 1	  unless defined $a{scaled};
-    $a{graph}  = 'prices' unless defined $a{graph};
-    $a{line}   = 'close'  unless defined $a{line};
-    $a{period} = 10	  unless defined $a{period};
-    #$a{style} = undef
-    #$a{key}   = undef
-    $a{weight} = 100	  unless defined $a{weight};
-    $a{decay}  = 1	  unless defined $a{decay};
-    $a{ramp}   = 0	  unless defined $a{ramp};
-    $a{sd}     = 2.00	  unless defined $a{sd};
-    #$a{cutoff}   = undef
-    #$a{gradient} = undef
+    my $a = test_args(@_);
+    my $lb = $s->choose_line($a->{graph}, $a->{line}, 1);
+    die "No $a->{graph} line with id '$a->{line}'\n" unless $lb;
+    my $data = ensure_gradient( $s, $a );
     
-    my ($gshown, $gstyle);
-    if (defined $a{gradient}) {
-	if (ref $a{gradient} eq 'HASH' or ref $a{gradient} eq 'PostScript::Graph::Style') {
-	    $gstyle = $a{gradient};
-	    $gshown = 1;
-	} else {
-	    $gshown = $a{gradient};
-	}	
-    }
-
-    my ($cshown, $cstyle);
-    if (defined $a{cutoff}) {
-	if (ref $a{cutoff} eq 'HASH' or ref $a{cutoff} eq 'PostScript::Graph::Style') {
-	    $cstyle = $a{cutoff};
-	    $cshown = 1;
-	} else {
-	    $cshown = $a{cutoff};
-	}	
-    }
-
-    my $lb = $s->choose_line($a{graph}, $a{line}, 1);
-    die "No $a{graph} line with id '$a{line}'\n" unless $lb;
-    
-    my $id = line_id('gradient', $a{period}, $a{line});
-    my $base = $s->choose_line('cycles', $id, 1);
-    unless ($base) {
-	my $grad = $s->gradient(
-	    graph  => $a{graph},
-	    line   => $a{line},
-	    period => $a{period},
-	    scaled => 0,
-	    shown  => $gshown,
-	    style  => $gstyle,
-	);
-	$base = $s->choose_line('cycles', $grad);
-    }
-    my $data = $base->{data};
-    $a{min} = 0 unless defined $a{min};
-    $a{max} = $a{weight} unless defined $a{max};
-    $a{max} = 100 if $a{max} > 100;
-
     my $sum2 = 0;
     my $total = 0;
     my $count = 0;
@@ -594,103 +410,35 @@ sub oversold {
     }
     my $mean = $total/$count;
     my $sd = sqrt( $sum2/$count - $mean*$mean );
-    my $cutoff = $mean + $a{sd}*$sd;
+    my $cutoff = $mean + $a->{sd}*$sd;
     
     my $prev;
-    my $level = $a{min};
-    my %res;
+    my $level = $a->{min};
+    my $res = {};
     foreach my $date (sort keys %$data) {
-	my $value = $data->{$date};
-	my $cond = $value > $cutoff;
+	my $cond = $data->{$date} > $cutoff;
 	if (not defined($prev) or $cond != $prev) {
-	    $level = $cond ? $a{max} : $a{min};
+	    $level = $cond ? $a->{max} : $a->{min};
 	} else {
-	    my $lvl = $level - $a{min};
-	    $lvl = $lvl*$a{decay} + $a{ramp};
-	    $level = $lvl + $a{min};
+	    $level = condition( $a, $level );
 	}
-	$res{$date} = $level;
+	$res->{$date} = $level;
 	$prev = $cond;
     }
     
-    if (%res) {
-	$id = line_id('oversold',$a{line});
-	my $key = $lb->{key} . ' is oversold';
-	$s->add_line('tests', $id, \%res, $key, $a{style}, $a{shown});
-	
-	$key = 'oversold cutoff at ' . sprintf('%.2f', $cutoff);
-	$s->value(
-	    %{$a{cutoff}},
-	    graph => 'cycles', 
-	    value => $cutoff,
-	    key => $key,
-	    shown => $cshown,
-	    style => $cstyle,
-	) if $cshown;
-    }
-
+    my $line_key  = $lb->{key} . ' is oversold';
+    my $level_key = 'oversold cutoff at ' . sprintf('%.2f', $cutoff);
+    my $id = create_lines($s, $a, $res, 'oversold', $line_key, $level_key, $cutoff);
     return $id;
 }
 
 sub undersold {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
-    my %a = @_;
-    $a{strict} = 0	  unless defined $a{strict};
-    $a{shown}  = 1	  unless defined $a{shown};
-    $a{scaled} = 1	  unless defined $a{scaled};
-    $a{graph}  = 'prices' unless defined $a{graph};
-    $a{line}   = 'close'  unless defined $a{line};
-    $a{period} = 10	  unless defined $a{period};
-    #$a{style} = undef
-    #$a{key}   = undef
-    $a{weight} = 100	  unless defined $a{weight};
-    $a{decay}  = 1	  unless defined $a{decay};
-    $a{ramp}   = 0	  unless defined $a{ramp};
-    $a{sd}     = 2.00	  unless defined $a{sd};
-    #$a{cutoff}   = undef
-    #$a{gradient} = undef
-    
-    my ($gshown, $gstyle);
-    if (defined $a{gradient}) {
-	if (ref $a{gradient} eq 'HASH' or ref $a{gradient} eq 'PostScript::Graph::Style') {
-	    $gstyle = $a{gradient};
-	    $gshown = 1;
-	} else {
-	    $gshown = $a{gradient};
-	}	
-    }
-
-    my ($cshown, $cstyle);
-    if (defined $a{cutoff}) {
-	if (ref $a{cutoff} eq 'HASH' or ref $a{cutoff} eq 'PostScript::Graph::Style') {
-	    $cstyle = $a{cutoff};
-	    $cshown = 1;
-	} else {
-	    $cshown = $a{cutoff};
-	}	
-    }
-
-    my $lb = $s->choose_line($a{graph}, $a{line}, 1);
-    die "No $a{graph} line with id '$a{line}'\n" unless $lb;
-    
-    my $id = line_id('gradient', $a{period}, $a{line});
-    my $base = $s->choose_line('cycles', $id, 1);
-    unless ($base) {
-	my $grad = $s->gradient(
-	    graph  => $a{graph},
-	    line   => $a{line},
-	    period => $a{period},
-	    scaled => 0,
-	    shown  => $gshown,
-	    style  => $gstyle,
-	);
-	$base = $s->choose_line('cycles', $grad);
-    }
-    my $data = $base->{data};
-    $a{min} = 0 unless defined $a{min};
-    $a{max} = $a{weight} unless defined $a{max};
-    $a{max} = 100 if $a{max} > 100;
+    my $a = test_args(@_);
+    my $lb = $s->choose_line($a->{graph}, $a->{line}, 1);
+    die "No $a->{graph} line with id '$a->{line}'\n" unless $lb;
+    my $data = ensure_gradient( $s, $a );
 
     my $sum2 = 0;
     my $total = 0;
@@ -703,43 +451,29 @@ sub undersold {
     }
     my $mean = $total/$count;
     my $sd = sqrt( $sum2/$count - $mean*$mean );
-    my $cutoff = $mean - $a{sd}*$sd;
+    my $cutoff = $mean - $a->{sd}*$sd;
     
     my $prev;
-    my $level = $a{min};
-    my %res;
+    my $level = $a->{min};
+    my $res = {};
     foreach my $date (sort keys %$data) {
-	my $value = $data->{$date};
-	my $cond = $value < $cutoff;
+	my $cond = $data->{$date} < $cutoff;
 	if (not defined($prev) or $cond != $prev) {
-	    $level = $cond ? $a{max} : $a{min};
+	    $level = $cond ? $a->{max} : $a->{min};
 	} else {
-	    my $lvl = $level - $a{min};
-	    $lvl = $lvl*$a{decay} + $a{ramp};
-	    $level = $lvl + $a{min};
+	    $level = condition( $a, $level );
 	}
-	$res{$date} = $level;
+	$res->{$date} = $level;
 	$prev = $cond;
     }
     
-    if (%res) {
-	$id = line_id('undersold',$a{line});
-	my $key = $lb->{key} . ' is undersold';
-	$s->add_line('tests', $id, \%res, $key, $a{style}, $a{shown});
-	
-	$key = 'undersold cutoff at ' . sprintf('%.2f', $cutoff);
-	$s->value(
-	    %{$a{cutoff}},
-	    graph => 'cycles', 
-	    value => $cutoff,
-	    key => $key,
-	    shown => $cshown,
-	    style => $cstyle,
-	) if $cshown;
-    }
-
+    my $line_key  = $lb->{key} . ' is undersold';
+    my $level_key = 'undersold cutoff at ' . sprintf('%.2f', $cutoff);
+    my $id = create_lines($s, $a, $res, 'undersold', $line_key, $level_key, $cutoff);
     return $id;
 }
+
+### SUPPORT METHODS
 
 sub calc_momentum {
     my ($s, $strict, $hash, $period) = @_;
@@ -872,9 +606,105 @@ sub scale {
     $s->{cycles}{max} =  100 unless defined($max) and $max >  100;
 }
 
+### SUPPORT FUNCTIONS
+
+sub test_args {
+    my $a = { @_ };
+
+    $a->{strict} = 0	  unless defined $a->{strict};
+    $a->{shown}  = 1	  unless defined $a->{shown};
+    $a->{scaled} = 1	  unless defined $a->{scaled};
+    $a->{graph}  = 'prices' unless defined $a->{graph};
+    $a->{line}   = 'close'  unless defined $a->{line};
+    $a->{period} = 10	  unless defined $a->{period};
+    #$a->{style} = undef
+    #$a->{key}   = undef
+    $a->{function} = 'gradient' unless defined $a->{function};
+    $a->{weight} = 100	  unless defined $a->{weight};
+    $a->{decay}  = 1	  unless defined $a->{decay};
+    $a->{ramp}   = 0	  unless defined $a->{ramp};
+    $a->{smallest} = 0	  unless defined $a->{smallest};
+    $a->{sd}     = 2.00	  unless defined $a->{sd};
+    #$a->{cutoff}   = undef
+    #$a->{gradient} = undef
+
+    $a->{min} = 0 unless defined $a->{min};
+    $a->{max} = $a->{weight} unless defined $a->{max};
+    $a->{max} = 100 if $a->{max} > 100;
+
+    return $a;
+}
+ 
+sub shown_style {
+    my $opt = shift;
+    my $shown = 0;
+    my $style;
+    if (defined $opt) {
+	if (ref $opt eq 'HASH' or ref $opt eq 'PostScript::Graph::Style') {
+	    $style = $opt;
+	    $shown = 1;
+	} else {
+	    $shown = $opt;
+	}	
+    }
+    return ($shown, $style);
+}
+
+sub ensure_gradient {
+    my ($s, $a) = @_;
+    my ($gshown, $gstyle) = shown_style( $a->{gradient} );
+    
+    my $id = line_id($a->{function}, $a->{period}, $a->{line});
+    my $base = $s->choose_line('cycles', $id, 1);
+    unless ($base) {
+	my @args = (
+	    graph  => $a->{graph},
+	    line   => $a->{line},
+	    period => $a->{period},
+	    scaled => 0,
+	    shown  => $gshown,
+	    style  => $gstyle,
+	);
+	my $grad = call_function( \%function, $a->{function}, $s,@args );
+	$base = $s->choose_line('cycles', $grad);
+    }
+    
+    return $base->{data};
+}
+
+sub condition {
+    my ($a, $level) = @_;
+    my $lvl = $level - $a->{min};
+    $lvl = $lvl*$a->{decay} + $a->{ramp};
+    return $lvl + $a->{min};
+}
+
+sub create_lines {
+    my ($s, $a, $res, $fn, $line_key, $level_key, $level) = @_;
+    my ($cshown, $cstyle) = shown_style( $a->{cutoff} );
+
+    my $id;
+    if (%$res) {
+	$id = line_id($fn, $a->{line});
+	$s->add_line('tests', $id, $res, $line_key, $a->{style}, $a->{shown});
+	
+	$s->value(
+	    graph => 'cycles', 
+	    value => $level,
+	    key   => $level_key,
+	    shown => $cshown,
+	    style => $cstyle,
+	) if $cshown;
+    }
+
+    return $id;
+}
+
 =head1 BUGS
 
-Please report those you find to the author.
+The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 

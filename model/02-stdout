@@ -63,7 +63,7 @@ my $test_style = {
 	volumes => {
 	    percent => 0,
 	},
-	signals => {
+	tests => {
 	    percent => 40,
 	},
     },
@@ -93,7 +93,7 @@ my $test_style = {
 	    graph1 => 'prices', line1 => 'fast',
 	    test   => 'le',
 	    graph2 => 'prices', line2 => 'medium',
-	    graph  => 'signals',
+	    graph  => 'tests',
 	    style  => $test_style,
 	    signal => 'sell',
 	},

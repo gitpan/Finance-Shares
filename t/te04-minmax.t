@@ -164,20 +164,6 @@ my $combi2 = $fsm->test(
 );
 ok( $fss->choose_line('tests', $combi2, 1), 'combi2 line' );
 
-### Change line order
-my $lines = $fss->lines();
-my (@front, @back, @rest);
-foreach my $line (@$lines) {
-    if ($line->{id} =~ /^signal/) { 
-	push @front, $line;
-    } elsif ($line->{key} =~ /^\d+/) {
-	push @front, $line;
-    } else {
-	push @rest, $line;
-    }
-}
-@$lines = (@back, @rest, @front);
-
 ### Draw chart
 my $fsc = new Finance::Shares::Chart(
     sample => $fss,
@@ -186,12 +172,14 @@ my $fsc = new Finance::Shares::Chart(
     },
     prices => {
 	percent => 40,
+	reverse => 1,
     },
     volumes => {
 	percent => 20,
     },
     tests => {
 	percent => 40,
+	reverse => 1,
     },
 );
 

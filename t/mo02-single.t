@@ -42,6 +42,8 @@ my $test_style = {
 
 ### Model
 my $fsm = new Finance::Shares::Model(
+    verbose => 0,
+
     ## sources
     source => 't/07-ulvr.csv',
     
@@ -56,7 +58,6 @@ my $fsm = new Finance::Shares::Model(
     chart => {
 	dots_per_inch => 75,
 	background => $bgnd_colour,
-	invert => 1,
 	x_axis => {
 	    mid_width => 0,
 	    mid_color => $bgnd_colour,
@@ -76,6 +77,7 @@ my $fsm = new Finance::Shares::Model(
 	},
 	tests => {
 	    percent => 40,
+	    reverse => 1,
 	},
     },
     

@@ -1,9 +1,8 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.15;
+our $VERSION = 0.16;
 use strict;
 use warnings;
 use Exporter;
-use Carp;
 use PostScript::File	     1.00 qw(check_file str);
 use PostScript::Graph::Bar   0.03;
 use PostScript::Graph::Key   1.00;
@@ -11,6 +10,8 @@ use PostScript::Graph::Paper 1.00;
 use PostScript::Graph::Style 1.00;
 use PostScript::Graph::XY    0.04;
 use Finance::Shares::Sample  0.12 qw(ymd_from_string day_of_week);
+
+#use TestFuncs qw(show show_deep show_lines);
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(deep_copy);
@@ -183,7 +184,7 @@ sub new {
 	$o->{pf} = new PostScript::File( $pf );
     }
     ## Ensure Sample known
-    carp 'No Finance::Shares::Sample' unless $o->{sample} and ref($o->{sample}) eq 'Finance::Shares::Sample';
+    warn 'No Finance::Shares::Sample' unless $o->{sample} and ref($o->{sample}) eq 'Finance::Shares::Sample';
     $o->{sample}->chart($o);
     
     ## Defaults for common X axes
@@ -607,11 +608,6 @@ sub build_chart {
     $o->{pf}->set_page_label( $o->{page} ) if defined $o->{page};
     my $t = $o->{test};	    # may be undef or 0
 
-    if ($o->{invert}) {
-	my $lines = $s->lines();
-	@$lines = sort { -($a->{order} <=> $b->{order}) } @$lines;
-    }
-
     ## open dictionaries
     PostScript::Graph::Paper->ps_functions( $o->{pf} );
     PostScript::Graph::Key->ps_functions( $o->{pf} );
@@ -638,6 +634,10 @@ END_INIT
     $o->{totalpc} = 0;
     foreach my $g (@graphs) {
 	my $h = $o->{$g};
+	if ($h->{reverse}) {
+	    my $lines = $s->line_order($g);
+	    @$lines = sort { -($s->{lines}{$g}{$a}{order} <=> $s->{lines}{$g}{$b}{order}) } @$lines if $lines;
+	}
 	my $hidden = (defined $h->{percent} && $h->{percent} == 0);
 	$h->{percent} = 0 unless defined $h->{percent};
 	$h->{visible} = 0;
@@ -680,34 +680,34 @@ END_INIT
 	    my $y = $h->{y_axis};
 	    $y->{high} = $lowest_int unless defined $y->{high};
 	    $y->{low} = $highest_int unless defined $y->{low};
-	    my ($id, $entry);
-	    while( ($id, $entry) = each %{$s->{lines}{$g}} ) {
-		next unless $o->visible($g, $entry);
-		my $style = $entry->{style};
+	    ##   create style
+	    my ($id, $base);
+	    while( ($id, $base) = each %{$s->{lines}{$g}} ) {
+		next unless $o->visible($g, $base);
+		my $style = $base->{style};
 		unless (defined($style) and ref($style) eq 'PostScript::Graph::Style') {
 		    $style = {} unless defined $style;
 		    my $none = (defined($style->{line}) or defined($style->{point}) or defined($style->{bar}));
 		    $style->{line} = {} unless $none;
 		    $style->{point} = {} unless $none;
-		    $style->{label} = $entry->{key};
+		    $style->{label} = $base->{key};
 		    $style->{sequence} = $h->{sequence} unless defined $style->{sequence};
-		    $style = $entry->{style} = new PostScript::Graph::Style( $style ); 
-		    $t->{style}{"${g}_$id"} = $style->id() if $t;
+		    $style = $base->{style} = new PostScript::Graph::Style( $style ); 
 		}
-		#warn "Chart: $g $entry->{key} ", $style->id(), "\n";
+		#warn "build_chart $g id=$id, style=", $style->id(), "\n";
 		unless (defined $h->{line_styles}{$style}) {
-		    $h->{line_styles}{$style} = $entry;	    # multiple styles must appear only once
-		    push @key_labels, $entry->{key};
+		    $h->{line_styles}{$style} = $base;	    # multiple styles must appear only once
+		    push @key_labels, $base->{key};
 		}
 		my $lw   = $style->use_line() ? $style->line_outer_width() : 0;
 		$lwidth  = $lw/2 if ($lw/2 > $lwidth);
 		my $size = $style->use_point() ? $style->point_size() + $lwidth : $lwidth;
 		$maxsize = $size if ($size > $maxsize);
-		my $len	 = length($entry->{key});
+		my $len	 = length($base->{key});
 		$maxlen	 = $len if ($len > $maxlen);
 		# ensure scales fit around each line
-		$y->{low} = $entry->{min} if $entry->{min} < $y->{low};
-		$y->{high} = $entry->{max} if $entry->{max} > $y->{high};
+		$y->{low} = $base->{min} if $base->{min} < $y->{low};
+		$y->{high} = $base->{max} if $base->{max} > $y->{high};
 	    }
 	    
 	    $h->{key} = {} unless defined $h->{key};
@@ -933,29 +933,27 @@ Example
 sub build_lines {
     my ($o, $g) = @_;
     my $s = $o->{sample};
-    my $sl = $s->{lines}{$g};
     my $h = $o->{$g};
-    my $lines = $s->lines();
     return unless $h->{visible};
     my $pgp = $h->{pgp};	# PostScript::Graph::Paper
     my $pgk = $h->{pgk};	# PostScript::Graph::Key
     my $t = $o->{test};		# may be undef, 0 or {...}
     
     my ($cmd, $keylines, $keyouter, $keyinner);
-    foreach my $entry (@$lines) {
-	my $id = $entry->{id};
-	next unless $sl->{$id};
-	next unless $o->visible($g, $entry);
-	my $pgs = $entry->{style};
-	#warn "build_line: ", $s->id(), " $g, $id)\n";
-	croak 'Line style is not a Style' unless ref($pgs) eq 'PostScript::Graph::Style';
+    my $lines = $s->line_order($g);
+    foreach my $id (@$lines) {
+	my $base = $s->{lines}{$g}{$id};
+	next unless $o->visible($g, $base);
+	my $pgs = $base->{style};
+	#warn "build_line ", $s->id(), " $g, $id, ", $pgs->id(), ")\n";
+	die "Line style is not a Style\n" unless ref($pgs) eq "PostScript::Graph::Style";
 	$pgs->background( $pgp->layout_background() );
 	$pgs->write( $o->{pf} );
 
 	if ($pgs->use_bar()) {
 	    ## construct bar data
-	    foreach my $date (sort keys %{$entry->{data}}) {
-		my $y = $entry->{data}{$date};
+	    foreach my $date (sort keys %{$base->{data}}) {
+		my $y = $base->{data}{$date};
 		if (defined $y) {
 		    my $x = $s->{lx}{$date};
 		    if (defined $x) {
@@ -978,8 +976,8 @@ END_BAR
 	    ## construct point data
 	    my $points = "";
 	    my $npoints = -1;
-	    foreach my $date (sort keys %{$entry->{data}}) {
-		my $y = $entry->{data}{$date};
+	    foreach my $date (sort keys %{$base->{data}}) {
+		my $y = $base->{data}{$date};
 		if (defined $y) {
 		    my $x = $s->{lx}{$date};
 		    if (defined $x) {
@@ -1033,7 +1031,7 @@ END_BAR
     }
     foreach my $sdata (@styles) {
 	my $pgs = $sdata->{style};
-	croak 'Not a Style' unless ref($pgs) eq 'PostScript::Graph::Style';
+	die "Not a Style\n" unless ref($pgs) eq "PostScript::Graph::Style";
 	$pgs->background( $pgp->layout_background() );
 	$pgs->write( $o->{pf} );
 	
@@ -1121,7 +1119,7 @@ sub prepare_labels {
     $dsall   = defined($x->{changes_only}) ? ($x->{changes_only} == 0) : 0;
   
     ## Prepare for label creation
-    carp 'No dates' unless @{$s->{dates}};
+    warn 'No dates' unless @{$s->{dates}};
     my @days   = qw(- Mon Tue Wed Thu Fri Sat Sun);
     my @months = qw(- Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
     my (@labels, @dlabels);
@@ -1402,7 +1400,9 @@ copy is returned.
 
 =head1 BUGS
 
-Please report those you find to the author.
+The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 

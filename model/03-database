@@ -77,7 +77,7 @@
 	    graph1 => 'prices', line1 => 'fast',
 	    test   => 'gt',
 	    graph2 => 'prices', line2 => 'medium',
-	    graph  => 'signals',
+	    graph  => 'tests',
 	    signal => 'buy',
 	    shown  => 0,
 	},

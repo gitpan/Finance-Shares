@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More;
+use Test::More tests => 11;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
 use PostScript::File          1.00 qw(check_file);
 use Finance::Shares::Averages 0.12;
@@ -10,8 +10,6 @@ use Finance::Shares::Sample   0.12 qw(line_id);
 
 my $name = 't/fn01-averages';
 my $source = 't/05-boc.csv';
-my $test = {};	    # 0 to stop, {} to collect Chart test data
-plan tests => ($test ? 12 : 11);
 
 ### PostScript::File
 my $pf = new PostScript::File(
@@ -70,7 +68,6 @@ ok( $fss->{lines}{prices}{$expo}, "$expo stored" );
 my $fsc = new Finance::Shares::Chart(
     file => $pf,
     sample => $fss,
-    test => $test,
     dots_per_inch => 72,
     smallest => 12,
     background => [1, 1, 0.9],
@@ -110,10 +107,6 @@ ok($fsc, 'Finance::Shares::Chart created');
 
 ### output
 $fsc->build_chart();
-if ($test) {
-    $fsc->{test}{style}{"prices_$simple"} =~ /^(\d)/;
-    is( $1, $seq->id(), "style's sequence = $1" );
-}
 
 ### finish
 $fsc->output($name);

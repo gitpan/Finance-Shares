@@ -42,6 +42,7 @@ my $style = {
 
 ### Function lines
 my @args = (
+    function => 'gradient',
     period => 10,
     style => $style,
     weight => 100,
@@ -49,9 +50,11 @@ my @args = (
     cutoff => $style,
     gradient => $style,
 );
-my $rising = $fss->rising(@args, smallest => 10);
+
+my $smallest = 10;
+my $rising = $fss->rising(@args, smallest => $smallest);
 ok( $fss->{lines}{tests}{$rising}, "$rising stored" );
-my $falling = $fss->falling(@args, smallest => 10);
+my $falling = $fss->falling(@args, smallest => $smallest);
 ok( $fss->{lines}{tests}{$falling}, "$falling stored" );
 my $oversold = $fss->oversold(@args, sd => 2.00);
 ok( $fss->{lines}{tests}{$oversold}, "$oversold stored" );
@@ -103,7 +106,7 @@ foreach my $g (qw(prices volumes cycles tests)) {
 	$count++;
     };
 }
-is( $count, 15, "$count known lines" );
+is( $count, 14, "$count known lines" );
 
 ### finish
 $fsc->output($name);

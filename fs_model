@@ -4,7 +4,8 @@ use warnings;
 use Getopt::Long;
 use PostScript::File          1.00 qw(check_file);
 use PostScript::Graph::Style  1.00;
-use Finance::Shares::Model    0.12 qw(deep_copy);
+use Finance::Shares::Chart    0.12 qw(deep_copy);
+use Finance::Shares::Model    0.12;
 use Finance::Shares::Averages 0.12;
 use Finance::Shares::Bands    0.13;
 use Finance::Shares::Momentum 0.02;
@@ -533,7 +534,10 @@ would produce charts as the following files, each showing a 3 month moving avera
 
 =head1 BUGS
 
-Yes, there will be many.  Please report those you find to the author.
+Yes, there will be many.
+The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 

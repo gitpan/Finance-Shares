@@ -1,6 +1,11 @@
 Revision history for Perl extension Finance::Shares
 
 Finance::Shares package
+0.10	
+
+0.09
+	man pages should now work
+
 0.07
 	renamed 'signals' graph to 'tests'
 
@@ -47,6 +52,9 @@ Model
 	added 'deep_copy' export function
 
 Momentum
+0.04	Fri May 23 16:06:47 GMT 2003
+	pseudo-tests now handle all slope functions
+
 0.01	Thu May 15 12:35:37 GMT 2003
 
 MySQL

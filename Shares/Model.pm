@@ -1,18 +1,13 @@
 package Finance::Shares::Model;
-our $VERSION = 0.14;
+our $VERSION = 0.15;
 use strict;
 use warnings;
-#use Exporter;
 use Carp;
 use PostScript::File	     1.00;
 use Finance::Shares::Sample  0.12 qw(line_id call_function %function);
 use Finance::Shares::Chart   0.14 qw(deep_copy);
 
-#use TestFuncs qw(show_hash show_array show_lines);
-
-#our @ISA = qw(Exporter);
-#our @EXPORT_OK = qw(%testfunc %testpre %testname %sigfunc 
-#		    value_range condition_signal);
+#use TestFuncs qw(show show_deep show_lines);
 
 our %testfunc;
 $testfunc{gt} = \&test_gt;
@@ -740,7 +735,7 @@ sub new {
     $o->{cgi_file} = $opt->{cgi_file} || 'STDOUT';
     $o->{verbose}  = defined($opt->{verbose})  ? $opt->{verbose}  : 1;  
     $o->{dir}      = $opt->{directory};
-    $o->{delay}    = %$opt ? 1 : 0;
+    $o->{delay}    = %$opt ? 0 : 1;
     $o->{delay}    = ($opt->{run} == 0) if defined $opt->{run};
     
     ## Resources
@@ -755,7 +750,7 @@ sub new {
     
     ## PostScript::File objects
     my $of = $o->{files};
-    croak 'No PostScript files' unless ($of and ref($of) eq 'HASH');
+    die "No PostScript files\n" unless ($of and ref($of) eq 'HASH');
     while( my ($id, $h) = each %$of ) {
 	$o->ensure_psfile( $id, $h );
     }
@@ -818,7 +813,7 @@ sub run {
     
     foreach my $id (@{$o->{sampleord}}) {
 	my $h0 = $o->{samples}{$id};
-	croak "Missing sample hash" unless ref($h0) eq 'HASH';
+	die "Missing sample hash\n" unless ref($h0) eq 'HASH';
 	$o->out(2, "Sample for $h0->{symbol}:") if $h0->{symbol};
 	
 	## sample hash
@@ -850,7 +845,7 @@ sub run {
 	## chart
 	my $filename = $h->{file} || $o->{deffile};
 	my $psf = $o->{psf}{$filename}; 
-	croak "No PostScript::File object named '$filename'" unless $psf;
+	die "No PostScript::File object named '$filename'\n" unless $psf;
 	@args = (
 	    sample => $fss,
 	    file   => $psf,
@@ -909,7 +904,7 @@ sub run {
 
 sub add_sample {
     my ($o, $s) = @_;
-    croak unless $s->isa('Finance::Shares::Sample');
+    die unless $s->isa('Finance::Shares::Sample');
     my $start = $s->start_date();
     my $end   = $s->end_date();
     my $id    = $s->id();
@@ -935,10 +930,10 @@ to keep the date ranges as similar as possible.
 sub add_signal {
     my ($o, $id, $signal, $obj, @args) = @_;
     if ($sigfunc{$signal}) {
-	croak "There is already a signal registered as '$id'" if defined $o->{sigfns}{$id};
+	die "There is already a signal registered as '$id'\n" if defined $o->{sigfns}{$id};
 	$o->{sigfns}{$id} = [ $signal, $obj, @args ];
     } else {
-	croak "Unknown signal function type '$signal'\n";
+	die "Unknown signal function type '$signal'\n";
     }
 }
 
@@ -1126,7 +1121,7 @@ sub output {
 
     my $res = '';
     while( ($filename, $psf) = each %{$o->{psf}} ) {
-	croak "There is no PostScript::File for '$filename'" unless ref($psf) eq 'PostScript::File';
+	die "There is no PostScript::File for '$filename'\n" unless ref($psf) eq 'PostScript::File';
 	my $pages = 0;
 	my $sample;
 	foreach my $fsc (@{$o->{fsc}{$filename}}) {
@@ -1208,7 +1203,7 @@ Most parameters are given when it is registered, but the date and Y value of the
 
 sub signal_mark {
     my ($s, $id, $date, $value, $p) = @_;
-    croak 'Cannot mark buy signal: no date' unless defined $date;
+    die "Cannot mark buy signal: no date\n" unless defined $date;
     $p->{key} = $id unless defined $p->{key};
     $p->{shown} = 1 unless defined $p->{shown};
 
@@ -1225,10 +1220,10 @@ sub signal_mark {
     } elsif (defined $p->{line}) {
 	$p->{graph} = 'prices', $p->{line} = 'close' unless defined $p->{graph};
 	my $vline = $s->choose_line($p->{graph}, $p->{line});
-	croak "Cannot mark buy signal: line '$p->{line}' does not exist on $p->{graph}\n" unless defined $vline;
+	die "Cannot mark buy signal: line '$p->{line}' does not exist on $p->{graph}\n" unless defined $vline;
 	$value = $vline->{data}{$date};
     }
-    croak 'Cannot mark buy signal: no value' unless defined $value;
+    die "Cannot mark buy signal: no value\n" unless defined $value;
     
     # changes here must be reflected in test() patch
     my $graph = $p->{graph} || 'tests';
@@ -1373,7 +1368,7 @@ Note that this is slighty different from all the others - there is no C<undef> (
 
 sub signal_print_values {
     my ($s, $id, $date, $value, $p) = @_;
-    croak 'Cannot print value: no date' unless defined $date;
+    die "Cannot print value: no date\n" unless defined $date;
 
     my $msg = $p->{message};
     $msg = '' unless defined $msg;
@@ -1536,7 +1531,7 @@ Construct a CSV file 'signals.txt'  holding quotes for all the dates when the si
 
 sub signal_custom {
     my ($func, $id, $date, $value, @args) = @_;
-    croak unless ref($func) eq 'CODE';
+    die "Not a CODE reference\n" unless ref($func) eq 'CODE';
     &$func( $id, $date, $value, @args );
 }
 
@@ -1611,8 +1606,8 @@ sub test_sample {
 	my $graph2 = $h->{graph2};
 	$graph2 = $h->{graph1} unless defined $graph2;
 	$base2 = $s->choose_line($graph2, $h->{line2});
-	croak "No $graph2 line with id '$h->{line2}'" unless $base2;
-	croak "Line '$h->{line2}' has no key" unless $base2->{key};
+	die "No $graph2 line with id '$h->{line2}'\n" unless $base2;
+	die "Line '$h->{line2}' has no key\n" unless $base2->{key};
 	$label = (defined $testpre{$h->{test}} ? "$testpre{$h->{test}} " : '') . $base1->{key} . ' ' .
 		 (defined $testname{$h->{test}} ? "$testname{$h->{test}} " : '') . $base2->{key} unless $label;
 	$id = line_id("test_$h->{test}", $h->{graph1}, $h->{line1}, $graph2, $h->{line2}) unless $id;
@@ -2039,7 +2034,7 @@ sub test_test {
 
 sub ensure_psfile {
     my ($o, $filename, $of) = @_;
-    croak 'No filename for ensure_psfile' unless defined $filename;
+    die "No filename for ensure_psfile\n" unless defined $filename;
     
     if (ref($of) eq 'PostScript::File') {
 	$o->{psf}{$filename} = $of;
@@ -2122,6 +2117,7 @@ sub value_range {
     } else {
 	my $gmin = $s->{$graph}{min};
 	my $gmax = $s->{$graph}{max};
+	#confess "min/max not defined for $graph" unless defined $gmin and defined $gmax;
 	my $margin = ($gmax - $gmin) * $points_margin;
 	$min = $gmin - $margin;
 	$max = $gmax + $margin;
@@ -2187,7 +2183,9 @@ sub patch_line {
 
 =head1 BUGS
 
-Please report those you find to the author.
+The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 

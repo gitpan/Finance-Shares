@@ -170,7 +170,6 @@ ok( $fss->choose_line('tests', $or, 1), 'test1 or test2' );
 ### Draw chart
 my $fsc = new Finance::Shares::Chart(
     sample => $fss,
-    invert => 1,
     file => {
 	landscape => 1,
     },
@@ -185,6 +184,7 @@ my $fsc = new Finance::Shares::Chart(
     },
     tests => {
 	percent => 40,
+	reverse => 1,
     },
 );
 

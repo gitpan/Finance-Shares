@@ -1,5 +1,5 @@
 package TestFuncs;
-our $VERSION = '0.01';
+our $VERSION = '0.03';
 use strict;
 #use warnings;
 use Test::Builder;
@@ -11,7 +11,7 @@ use Carp;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(is_same deep_copy
 		    from_csv array_to_sample csv_to_sample sample_to_csv
-		    show show_hash show_array show_lines show_graph_lines
+		    show show_deep show_hash show_array show_lines show_graph_lines
 		    check_filesize
 		);
 
@@ -251,10 +251,46 @@ Returns a string which may be displayed with e.g. B<warn>.
 
 =cut
 
+sub show_deep {
+    my ($var, $min, $sep) = @_;
+    my $ref = ref($var);
+    if ($ref eq 'HASH') {
+	return show_hash($var, $min, $sep);
+    } elsif ($ref eq 'ARRAY') {
+	return show_array($var, $min, $sep);
+    } else {
+	return $var;
+    }
+}
+	
+=head2 show_deep( var [, min [, sep]] )
+
+Recursively dumps hash or array refs, returning a string which may be displayed with e.g. B<warn>.
+
+=over 8
+
+=item var
+
+The scalar variable to be printed.
+
+=item min
+
+A limit to the depth printed out.
+
+=item sep
+
+String used to seperate entries (between pairs, not within them).
+
+=back
+
+=cut
+
 sub show_hash {
-    my ($h, $sep, $depth) = @_;
+    my ($h, $min, $sep, $depth) = @_;
+    $min = -1   unless defined $min;
     $sep = ', ' unless defined $sep;
-    $depth = 0 unless defined $depth;
+    $depth = 0  unless defined $depth;
+    return $h unless $min;
     my $res = '';
     if ($h and ref($h) eq 'HASH') {
 	$res .= "\n" . ('  ' x ($depth)) if $depth;
@@ -267,10 +303,10 @@ sub show_hash {
 	    $res .= $sep if $entry;
 	    $res .= "$key=>";
 	    if (ref($value) eq 'HASH') {
-		$res .= show_hash($value, $sep, $depth+1);
+		$res .= show_hash($value, $min-1, $sep, $depth+1);
 		$res .= ('  ' x ($depth));
 	    } elsif (ref($value) eq 'ARRAY') {
-		$res .= show_array($value, $sep, $depth+1);
+		$res .= show_array($value, $min-1, $sep, $depth+1);
 		$res .= ('  ' x ($depth));
 	    } else {
 		$res .= $value;
@@ -284,17 +320,12 @@ sub show_hash {
     return $res;
 }
 
-=head2 show_hash( hashref )
-
-Output key=>value pairs on a single line.
-Returns a string which may be displayed with e.g. B<warn>.
-
-=cut
-
 sub show_array {
-    my ($ar, $sep, $depth) = @_;
+    my ($ar, $min, $sep, $depth) = @_;
+    $min = -1   unless defined $min;
     $sep = ', ' unless defined $sep;
     $depth = 0 unless defined $depth;
+    return $ar unless $min;
     my $res = '';
     if ($ar and ref($ar) eq 'ARRAY') {
 	$res .= "\n" . ('  ' x ($depth)) if $depth;
@@ -304,10 +335,10 @@ sub show_array {
 	    my $value = defined($v) ? $v : '<undef>';
 	    $res .= $sep if $entry;
 	    if (ref($value) eq 'HASH') {
-		$res .= show_hash($value, $sep, $depth+1);
+		$res .= show_hash($value, $min-1, $sep, $depth+1);
 		$res .= ('  ' x ($depth));
 	    } elsif (ref($value) eq 'ARRAY') {
-		$res .= show_array($value, $sep, $depth+1);
+		$res .= show_array($value, $min-1, $sep, $depth+1);
 		$res .= ('  ' x ($depth));
 	    } else {
 		$res .= $value;
@@ -318,13 +349,6 @@ sub show_array {
     }
     return $res;
 }
-
-=head2 show_hash( hashref )
-
-Output key=>value pairs on a single line.
-Returns a string which may be displayed with e.g. B<warn>.
-
-=cut
 
 sub check_filesize {
     my ($psfile, $pssize) = @_;

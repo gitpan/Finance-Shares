@@ -46,7 +46,7 @@ my $file3 = "$name-3";
 
 ### Model
 my $fsm = new Finance::Shares::Model(
-    verbose => 3,
+    verbose => 0,
 
     ## sources
     sources => [
@@ -92,7 +92,6 @@ my $fsm = new Finance::Shares::Model(
 	default => {
 	    dots_per_inch => 75,
 	    background => $bgnd_colour,
-	    invert => 1,
 	    x_axis => {
 		mid_width => 0,
 		mid_color => $bgnd_colour,
@@ -102,6 +101,7 @@ my $fsm = new Finance::Shares::Model(
 	    },
 	    prices => {
 		percent => 60,
+		reverse => 1,
 		points => {
 		    color => $data_colour,
 		    width => 1.5,

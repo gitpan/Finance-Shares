@@ -86,7 +86,7 @@ my $file2 = '01-multiple-2';
 		    width => 1,
 		},
 	    },
-	    signals => {
+	    tests => {
 		percent => 30,
 	    },
 	},
@@ -150,7 +150,7 @@ my $file2 = '01-multiple-2';
 	    graph1 => 'prices', line1 => 'fast',
 	    test   => 'gt',
 	    graph2 => 'prices', line2 => 'medium',
-	    graph  => 'signals',
+	    graph  => 'tests',
 	    style  => $test_style,
 	    signal => [qw(dummy buy)],
 	    key    => 'rising',

@@ -1,11 +1,10 @@
 package Finance::Shares::Bands;
-our $VERSION = 0.13;
+our $VERSION = 0.14;
 
 package Finance::Shares::Sample;
 use strict;
 use warnings;
 use Finance::Shares::Sample 0.12 qw(%period %function %functype line_id);
-use Carp;
 
 $function{envelope}       = \&envelope;
 $function{bollinger_band} = \&bollinger_band;
@@ -109,7 +108,7 @@ If given this becomes the visual identifier, shown on the Chart key panel.  The 
 
 sub envelope {
     my $s = shift;
-    croak "No Finance::Shares::Sample object" unless ref($s) eq 'Finance::Shares::Sample';
+    die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
 	shown	=> 1,
 	graph	=> 'prices',
@@ -120,7 +119,7 @@ sub envelope {
 	@_);
     
     my $base = $s->{lines}{$a{graph}}{$a{line}};
-    croak "No $a{graph} line with id $a{line}" unless $base;
+    die "No $a{graph} line with id $a{line}\n" unless $base;
     
     ## generate lines
     my (@keys, @values);
@@ -182,7 +181,7 @@ they are returned as a list:
 
 sub bollinger_band {
    my $s = shift;
-    croak "No Finance::Shares::Sample object" unless ref($s) eq 'Finance::Shares::Sample';
+    die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
 	strict	=> 1,
 	shown	=> 1,
@@ -195,7 +194,7 @@ sub bollinger_band {
     $a{period} = 20 if $a{strict} or not $a{period};
     
     my $base = $s->{lines}{$a{graph}}{$a{line}};
-    croak "No $a{graph} line with id $a{line}" unless $base;
+    die "No $a{graph} line with id $a{line}\n" unless $base;
     
     ## generate lines
     my (@keys, @values);
@@ -290,7 +289,7 @@ sub bollinger_single {
 
 sub channel {
     my $s = shift;
-    croak "No Finance::Shares::Sample object" unless ref($s) eq 'Finance::Shares::Sample';
+    die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
 	shown	=> 1,
 	graph	=> 'prices',
@@ -302,7 +301,7 @@ sub channel {
 	@_);
     
     my $base = $s->{lines}{$a{graph}}{$a{line}};
-    croak "No $a{graph} line with id $a{line}" unless $base;
+    die "No $a{graph} line with id $a{line}\n" unless $base;
      
     ## generate lines
     my (@keys, @values);

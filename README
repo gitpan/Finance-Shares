@@ -1,15 +1,3 @@
-!!! CAUTION !!!
-!!!
-!!! These modules are incompatable with Finance::Shares::CGI before v0.06.
-!!! Installing these will break the CGI interface if you have it working.
-!!!
-!!! To keep the CGI working, copy the Finance::Shares modules from perl's
-!!! site-perl tree (e.g. /usr/lib/perl5/site-perl/5.8.0/) into the directory
-!!! holding the cgi scripts (browser.pl, chart.pl etc.)
-!!!
-!!! CAUTION !!!
-
-
 Finance::Shares
 ===============
 
@@ -61,21 +49,6 @@ fs_model
 	fs_model --model=model/01-multiple
 	fs_model --model=model/05-minimal --stocks=stock/misc3
 
-fs_list_tables
-    Shows the mapping between DBIx::Namespace names and their underlying mysql
-    tables.  Change the script so that it matches your database (it assumes
-    'test').  Use as:
-
-	fs_list_tables
-	fs_list_tables Known::Family
-
-fs_drop_table
-    Use this to drop a table used by DBIx::Namespace as it keeps the index
-    synchronized.  Change the script so that it matches your database (it
-    assumes 'test').  Use as:
-
-	fs_drop_table Known::Family::Table
-
 fs_fetch
     A script to fetch quotes from the internet.  It assumes the mysql database
     has been set up correctly.  See Finance::Shares::MySQL.  Try:
@@ -94,6 +67,21 @@ fs_fetch_csv
     
 	fs_fetch_csv --help
 	fs_fetch_csv --stocks=stock/misc3
+
+fs_list_tables
+    Shows the mapping between DBIx::Namespace names and their underlying mysql
+    tables.  Change the script so that it matches your database (it assumes
+    'test').  Use as:
+
+	fs_list_tables
+	fs_list_tables Known::Family
+
+fs_drop_table
+    Use this to drop a table used by DBIx::Namespace as it keeps the index
+    synchronized.  Change the script so that it matches your database (it
+    assumes 'test').  Use as:
+
+	fs_drop_table Known::Family::Table
 
 fs_reset_size
     Used in conjunction with the t/*.t tests.  The size of the output files are

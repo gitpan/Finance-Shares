@@ -1,13 +1,14 @@
 package Finance::Shares::Sample;
-our $VERSION = 0.13;
+our $VERSION = 0.14;
 use strict;
 use warnings;
 use Exporter;
-use Carp;
 use Date::Calc qw(Today Date_to_Days Add_Delta_Days Delta_Days Day_of_Week);
 use Text::CSV_XS;
 use PostScript::Graph::Style 1.00;
 use Finance::Shares::MySQL   1.04;
+
+#use TestFuncs qw(show show_deep show_lines);
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(%period %function %functype
@@ -184,7 +185,7 @@ sub new {
     $o->{dtype}  = defined($opt->{dates_by})   ? $opt->{dates_by}   : 'quotes';
 
     ## fetch and process data
-    carp "'source' must be specified\n" unless defined($opt->{source});
+    warn "'source' must be specified\n" unless defined($opt->{source});
     my $type = ref($opt->{source});
     CASE: {
 	if ($type eq 'Finance::Shares::MySQL') {
@@ -208,7 +209,7 @@ sub new {
     }
    
     ## finish
-    croak "Finance::Shares::Sample has no data\nStopped" unless $o->{close} and %{$o->{close}};
+    die "Finance::Shares::Sample has no data\n" unless $o->{close} and %{$o->{close}};
     
     return $o;
 }
@@ -348,10 +349,10 @@ L<Finance::Shares::MySQL>.  See L<fetch>.
 
 sub add_line {
     my ($o, $graph, $lineid, $data, $key, $style, $show) = @_;
-    croak "No line type\nStopped" unless $graph;
-    croak "No line id\nStopped" unless $lineid;
-    croak "No data for price line\nStopped" unless $data;
-    croak "No key for price line\nStopped" unless $key;
+    die "No line type\n" unless $graph;
+    die "No line id\n" unless $lineid;
+    die "No data for price line\n" unless $data;
+    die "No key for price line\n" unless $key;
     $show = 1 unless defined $show;
     my $min = $highest_int;
     my $max = $lowest_int;
@@ -362,9 +363,10 @@ sub add_line {
     $o->{$graph}{min} = $min if $min < $highest_int and $min < $o->{$graph}{min};
     $o->{$graph}{max} = $max if $max > $lowest_int and $max > $o->{$graph}{max};
     
+    # If these are changed, see interpolate() also
     my $line = $o->{lines}{$graph}{$lineid} = {
-	data  => $data,
 	id    => $lineid,
+	data  => $data,
 	order => $line_count++,
 	key   => $key,
 	style => $style,
@@ -374,7 +376,7 @@ sub add_line {
     };
     my $full_id = lc($graph . '::' . $key);
     $o->{lines}{by_key}{$full_id} = $line;
-    push @{$o->{lines}{order}}, $line;
+    push @{$o->{order}{$graph}}, $lineid;
 
     return $line;
 }
@@ -434,7 +436,7 @@ then
 
 sub value {
     my $o = shift;
-    croak "No Finance::Shares::Sample object" unless ref($o) eq 'Finance::Shares::Sample';
+    die "No Finance::Shares::Sample object\n" unless ref($o) eq 'Finance::Shares::Sample';
     my %a = (
 	graph	=> 'prices',
 	value	=> 0,
@@ -554,55 +556,20 @@ Either set or get the Finance::Shares::Chart displaying this data.
 
 =cut
 
-sub lines {
-    my ($o, $array) = @_;
-    my $old = $o->{lines}{order};
-    $o->{lines}{order} = $array if ref($array) eq 'ARRAY';
-    return $old;
+sub line_order {
+    my ($o, $graph) = @_;
+    return $o->{order}{$graph};
 }
 
-=head2 lines( [arrayref] )
+=head2 line_order( graph )
 
-Set or get an array ref holding all the lines known to the sample so that the display order can be changed.
-They will be displayed by Finance::Shares::Chart in this order (as they were added) unless shuffling this array
-moves lines forward or backward.  See B<add_lines> for the structure of the line data.
+Return an array ref holding the ids of all the lines known to the sample so that the display order can be changed.
+Reassigning the new order to the returned array ref has the effect of altering the order displayed.
 
-Note that this does not affect the key order, which will still show the order they were added.
-    
-Example 1
+The lines will be displayed by Finance::Shares::Chart in this order (as they were added) unless shuffling this
+array moves lines forward or backward.  See B<add_lines> for the structure of the line data.
 
-    my $fss = new Finance::Shares::Sample(...);
-
-    # add several lines
-    $fss->add_line(...);
-    $fss->add_line(...);
-    ...
-
-    my $lines = $fss->lines();
-    @$lines = sort { -($a->{order} <=> $b->{order}) } @$lines
-    
-    my $fsc = new Finance::Shares::Chart(
-	sample => $fss,
-	...
-    );
-    $fsc->output(...);
-    
-The lines will be displayed on the chart in reverse order, showing those added first on top.
-
-Example 2
-
-    my $lines = $fss->lines();
-    my (@front, @back);
-    foreach my $line (@$lines) {
-	if ($line->{id} =~ /^signal/) { 
-	    push @front, $line;
-	} else {
-	    push @back, $line;
-	}
-    }
-    @$lines = (@back, @front);
-
-Here the tests are moved to the front.
+Note that changing this does not affect the key order, which will still show the order they were added.
     
 =cut
 
@@ -658,6 +625,7 @@ sub prepare_dates {
 
     ## extract data
     my (%open, %high, %low, %close, %volume);
+    my $count = 0;
     foreach my $row (@$data) {
 	my ($date, $o, $h, $l, $c, $v) = @$row;
 	$open{$date} = $o;
@@ -665,6 +633,7 @@ sub prepare_dates {
 	$low{$date} = $l;
 	$close{$date} = $c;
 	$volume{$date} = $v if (defined $v);
+	$count++;
     }
 
     ## process dates
@@ -888,15 +857,16 @@ sub prepare_dates {
     }
 
     ## Define data
-    $o->{open}   = \%open;
-    $o->{high}   = \%high;
-    $o->{low}    = \%low;
-    $o->{close}  = \%close;
-    $o->{volume} = \%volume if %volume;
-    $o->{lx}     = \%lx;	# YYYY-MM-DD => x coordinate on chart; keys give definitive list of dates
-    $o->{dates}  = \@dates;	# array where each index x => YYYY-MM-DD
-    $o->{start}  = $dates[0];
-    $o->{end}    = $dates[$#dates];
+    $o->{open}    = \%open;
+    $o->{high}    = \%high;
+    $o->{low}     = \%low;
+    $o->{close}   = \%close;
+    $o->{volume}  = \%volume if %volume;
+    $o->{lx}      = \%lx;	# YYYY-MM-DD => x coordinate on chart; keys give definitive list of dates
+    $o->{dates}   = \@dates;	# array where each index x => YYYY-MM-DD
+    $o->{start}   = $dates[0];
+    $o->{end}     = $dates[$#dates];
+    $o->{nquotes} = $count;
     $o->{lines}{prices}{open} = {
 	shown => 0, order => 1, id => 'open', key => 'Opening price',
 	data => \%open, min => $pmin, max => $pmax };
@@ -993,22 +963,21 @@ Return the highest value used on the given graph, which should be one of prices,
 
     
 sub choose_line {
-    my ($o, $graph, $id, $original) = @_;
+    my ($o, $graph, $id, $nocopy) = @_;
 
     my $full = $o->{lines}{$graph}{"_$id"};
     return $full if $full;
     
     my $given = $o->{lines}{$graph}{$id};
     return undef unless $given;
-    return $given if $original;
-    return $given if keys(%{$given->{data}}) >= @{$o->{dates}};
+    return $given if $nocopy or keys(%{$given->{data}}) >= $o->{nquotes};
 
     return $o->interpolate($graph, $id);
 }
 # Interpolated lines have '_' prepended, and are prefered for tests.
 # Note that the hash values for both keys might point to the same data.
 
-=head2 choose_line( graph, line [, original ] )
+=head2 choose_line( graph, line [, nocopy ] )
 
 Return the data for the identified line.  The data may be checked and any missing values interpolated.
 
@@ -1022,9 +991,9 @@ One of prices, volumes, cycles or tests.
 
 A string identifying the line.
 
-=item original
+=item nocopy
 
-If true, the original (not interpolated) line is returned.
+If true, interpolation is prevented.
 
 =back
 
@@ -1064,13 +1033,18 @@ sub interpolate {
 	    }
 	}
     }
-	
-    $o->{lines}{$graph}{"_$id"} = {
+    
+    # if these are changed, see add_line() also
+    my $line = $o->{lines}{$graph}{"_$id"} = {
 	%$given,
 	id    => "_$id",
 	data  => $res,
 	shown => 0,
     };
+    my $full_id = lc($graph . '::' . $given->{key});
+    $o->{lines}{by_key}{$full_id} = $line;
+
+    return $line;
 }
 
 
@@ -1105,7 +1079,8 @@ sub call_function {
 	    eval {
 		@res = &$fn(@args);
 	    };
-	    croak "error in $name()\n $@" if $@;
+	    die "error in $name()\n $@\n" if $@;
+	    #warn "Sample::call_function returns ", join(',', @res), "\n";
 	    return wantarray ? @res : $res[0];
 	}
     }
@@ -1224,7 +1199,13 @@ Returns 1=Monday, ... 7=Sunday.
 
 =head1 BUGS
 
-Please report those you find to the author.
+Where data is missing from a function or test, it is filled by interpolating.  I don't think this is the right
+behaviour, but haven't got around to changing it yet.  If something looks a bit odd and you suspect this, a
+work-round would be to use 'quotes' for the Sample C<dates_by> value.
+
+The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 
