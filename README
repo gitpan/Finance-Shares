@@ -1,0 +1,102 @@
+Finance::Shares
+===============
+
+This collection of modules provides a toolkit for developing
+stock market strategies.  There is an introduction,
+Finance::Shares::Overview and a tutorial introducing the
+modules, starting with Finance::Shares::Lesson1.
+
+
+INSTALLATION
+============
+
+To install this module type the following:
+
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+
+DEPENDENCIES
+============
+
+In addition to the standard perl distribution, these others
+are also required.  They can all be found on CPAN
+(http://www.cpan.org)
+
+    Test::More
+    Date::Calc
+    Text::CSV_XS
+    LWP::UserAgent
+    DBIx::Namespace 0.03
+    PostScript::File 0.12
+    PostScript::Graph 0.13
+
+
+ADDITIONAL FILES
+================
+
+A number of support scripts are provided in the package.  As
+they are principally used in development they are not
+installed.
+
+fs_list_tables
+    Shows the mapping between DBIx::Namespace names and
+    their underlying mysql tables.  Change the script so
+    that it matches your database (it assumes 'test').  
+    Use as:
+
+	fs_list_tables
+	fs_list_tables Known::Family
+
+fs_drop_table
+    Use this to drop a table used by DBIx::Namespace as it
+    keeps the index synchronized.  Change the script so
+    that it matches your database (it assumes 'test').  
+    Use as:
+
+	fs_drop_table Known::Family::Table
+
+fs_fetch
+    A script to fetch quotes from the internet.  It assumes
+    the mysql database has been set up correctly.  See
+    Finance::Shares::MySQL.  Try:
+
+	fs_fetch --help
+
+fs_fetch_csv
+    This also fetches quotes from the internet, but it can
+    also fetch cached quotes and save them as a CSV file.
+    Try:
+    
+	fs_fetch_csv --help
+
+fs_reset_size
+    Used in conjunction with the t/*.t tests.  The size of
+    the output files are monitored as a quick check whether
+    the chart has changed.  Once you have inspected the
+    charts and are happy with them, this script will update
+    the tests with the new file sizes.  Use as:
+
+	$ fs_reset_size t/*.t
+
+TestFuncs.pm
+    This module is only used by the t/*.t tests.
+
+
+COPYRIGHT AND LICENCE
+=====================
+
+Copyright (C) 2002 Christopher P Willmot.  All rights
+reserved.
+
+This work is published under the Artistic licence
+accompanying the Perl distribution which may be found at
+http://www.perl.org.  
+
+There is no warranty whatsoever.  Use at your own risk.
+Just because it is here and is documented does not mean that
+it is fit for any purpose implied by the code or
+accompanying documentation.  
+

@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+unless (@ARGV) {
+    print "Usage: $0 <test-name-root> ... \n";
+    exit;
+}
+
+my $count = 0;
+foreach my $name (@ARGV) {
+    $name =~ s/\.t$//;
+    my $testfile = "$name.t";
+    my $psfile = "$name.ps";
+    my $tempfile = "$name.temp";
+    next unless (-e $testfile);
+
+    my $size = -s $psfile or warn "Output file '$psfile' doesn't seem to exist\n";
+
+    open(IN, '<', $testfile) or die "Unable to read from '$testfile': $!\n";
+    open(OUT, '>', $tempfile) or die "Unable to write to '$tempfile': $!\n";
+    my $found = 0;
+    while(<IN>) {
+	$found |= s/(-s\s+\$psfile\s+==\s+)\d+/$1$size/;
+	print OUT $_;
+    }
+    close IN;
+    close OUT;
+    unlink($testfile) or die "Unable to unlink '$testfile': $!\n";
+    rename($tempfile, $testfile) or die "Unable to rename '$tempfile' to '$testfile': $!\n";
+    chmod 0755, $testfile;
+    if ($found) {
+	print "$testfile now knows $psfile is $size bytes\n";
+	$count++;
+    }
+}
+print $count, ($count == 1 ? ' file' : ' files'), " updated\n";

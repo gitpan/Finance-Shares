@@ -1,0 +1,19 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+use DBIx::Namespace;
+
+my $table = shift;
+
+my $db = new DBIx::Namespace(
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+    );
+
+my @rows = $db->sql_names($db->table($table));
+foreach my $r (@rows) {
+    my ($name, $table, $level) = @$r;
+    printf '%5s%s%s%s', $table, '  ' x $level, $name, "\n";
+}
+

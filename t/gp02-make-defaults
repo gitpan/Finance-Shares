@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use PostScript::Graph::Paper 0.08;
+
+my $gp = new PostScript::Graph::Paper();
+
+my $file = 'gp02-defaults.t';
+open(OUTFILE, ">", $file) or die "Unable to output file: $!\nStopped";
+select OUTFILE;
+print <<'END_PROLOG';
+#!/usr/bin/perl
+use Test::More tests => 59;
+use PostScript::Graph::Paper 0.08;
+ok(1, 'PostScript::Graph::Paper loaded');
+
+my $gp = new PostScript::Graph::Paper();
+ok($gp, 'PostScript::Graph::Paper created');
+END_PROLOG
+
+print "is(\$gp->layout_left_edge(), ${\($gp->layout_left_edge())}, 'layout_left_edge');\n";
+print "is(\$gp->layout_bottom_edge(), ${\($gp->layout_bottom_edge())}, 'layout_bottom_edge');\n";
+print "is(\$gp->layout_right_edge(), ${\($gp->layout_right_edge())}, 'layout_right_edge');\n";
+print "is(\$gp->layout_top_edge(), ${\($gp->layout_top_edge())}, 'layout_top_edge');\n";
+print "is(\$gp->layout_right_margin(), ${\($gp->layout_right_margin())}, 'layout_right_margin');\n";
+print "is(\$gp->layout_top_margin(), ${\($gp->layout_top_margin())}, 'layout_top_margin');\n";
+print "is(\$gp->layout_spacing(), ${\($gp->layout_spacing())}, 'layout_spacing');\n";
+print "is(\$gp->layout_dots_per_inch(), ${\($gp->layout_dots_per_inch())}, 'layout_dots_per_inch');\n";
+
+print "is(\$gp->layout_heading(), \'${\($gp->layout_heading())}\', 'layout_heading');\n";
+print "is(\$gp->layout_heading_height(), ${\($gp->layout_heading_height())}, 'layout_heading_height');\n";
+print "is(\$gp->layout_key_width(), ${\($gp->layout_key_width())}, 'layout_key_width');\n";
+
+print "is(\$gp->layout_background(), ${\($gp->layout_background())}, 'layout_background');\n";
+print "is(\$gp->layout_color(), ${\($gp->layout_color())}, 'layout_color');\n";
+print "is(\$gp->layout_heavy_color(), ${\($gp->layout_heavy_color())}, 'layout_heavy_color');\n";
+print "is(\$gp->layout_mid_color(), ${\($gp->layout_mid_color())}, 'layout_mid_color');\n";
+print "is(\$gp->layout_light_color(), ${\($gp->layout_light_color())}, 'layout_light_color');\n";
+print "is(\$gp->layout_heavy_width(), ${\($gp->layout_heavy_width())}, 'layout_heavy_width');\n";
+print "is(\$gp->layout_mid_width(), ${\($gp->layout_mid_width())}, 'layout_mid_width');\n";
+print "is(\$gp->layout_light_width(), ${\($gp->layout_light_width())}, 'layout_light_width');\n";
+
+print "is(\$gp->layout_font(), \'${\($gp->layout_font())}\', 'layout_font');\n";
+print "is(\$gp->layout_font_size(), ${\($gp->layout_font_size())}, 'layout_font_size');\n";
+print "is(\$gp->layout_font_color(), ${\($gp->layout_font_color())}, 'layout_font_color');\n";
+print "is(\$gp->layout_heading_font(), \'${\($gp->layout_heading_font())}\', 'layout_heading_font');\n";
+print "is(\$gp->layout_heading_font_size(), ${\($gp->layout_heading_font_size())}, 'layout_heading_font_size');\n";
+print "is(\$gp->layout_heading_font_color(), ${\($gp->layout_heading_font_color())}, 'layout_heading_font_color');\n";
+
+print "is(\$gp->x_axis_low(), ${\($gp->x_axis_low())}, 'x_axis_low');\n";
+print "is(\$gp->x_axis_high(), ${\($gp->x_axis_high())}, 'x_axis_high');\n";
+print "is(\$gp->x_axis_width(), ${\($gp->x_axis_width())}, 'x_axis_width');\n";
+print "is(\$gp->x_axis_height(), ${\($gp->x_axis_height())}, 'x_axis_height');\n";
+print "is(\$gp->x_axis_label_gap(), ${\($gp->x_axis_label_gap())}, 'x_axis_label_gap');\n";
+print "is(\$gp->x_axis_smallest(), ${\($gp->x_axis_smallest())}, 'x_axis_smallest');\n";
+print "is(\$gp->x_axis_title(), \'${\($gp->x_axis_title())}\', 'x_axis_title');\n";
+print "is(\$gp->x_axis_font(), \'${\($gp->x_axis_font())}\', 'x_axis_font');\n";
+print "is(\$gp->x_axis_font_color(), ${\($gp->x_axis_font_color())}, 'x_axis_font_color');\n";
+print "is(\$gp->x_axis_font_size(), ${\($gp->x_axis_font_size())}, 'x_axis_font_size');\n";
+print "is(\$gp->x_axis_mark_min(), ${\($gp->x_axis_mark_min())}, 'x_axis_mark_min');\n";
+print "is(\$gp->x_axis_mark_max(), ${\($gp->x_axis_mark_max())}, 'x_axis_mark_max');\n";
+print "is(\$gp->x_axis_labels_req(), ${\($gp->x_axis_labels_req())}, 'x_axis_labels_req');\n";
+print "is(\$gp->x_axis_rotate(), \'${\($gp->x_axis_rotate())}\', 'x_axis_rotate');\n";
+print "is(\$gp->x_axis_center(), \'${\($gp->x_axis_center())}\', 'x_axis_center');\n";
+print "is(\$gp->x_axis_show_lines(), \'${\($gp->x_axis_show_lines())}\', 'x_axis_show_lines');\n";
+
+print "is(\$gp->y_axis_low(), ${\($gp->y_axis_low())}, 'y_axis_low');\n";
+print "is(\$gp->y_axis_high(), ${\($gp->y_axis_high())}, 'y_axis_high');\n";
+print "is(\$gp->y_axis_width(), ${\($gp->y_axis_width())}, 'y_axis_width');\n";
+print "is(\$gp->y_axis_height(), ${\($gp->y_axis_height())}, 'y_axis_height');\n";
+print "is(\$gp->y_axis_label_gap(), ${\($gp->y_axis_label_gap())}, 'y_axis_label_gap');\n";
+print "is(\$gp->y_axis_smallest(), ${\($gp->y_axis_smallest())}, 'y_axis_smallest');\n";
+print "is(\$gp->y_axis_title(), \'${\($gp->y_axis_title())}\', 'y_axis_title');\n";
+print "is(\$gp->y_axis_font(), \'${\($gp->y_axis_font())}\', 'y_axis_font');\n";
+print "is(\$gp->y_axis_font_color(), ${\($gp->y_axis_font_color())}, 'y_axis_font_color');\n";
+print "is(\$gp->y_axis_font_size(), ${\($gp->y_axis_font_size())}, 'y_axis_font_size');\n";
+print "is(\$gp->y_axis_mark_min(), ${\($gp->y_axis_mark_min())}, 'y_axis_mark_min');\n";
+print "is(\$gp->y_axis_mark_max(), ${\($gp->y_axis_mark_max())}, 'y_axis_mark_max');\n";
+print "is(\$gp->y_axis_labels_req(), ${\($gp->y_axis_labels_req())}, 'y_axis_labels_req');\n";
+print "is(\$gp->y_axis_rotate(), \'${\($gp->y_axis_rotate())}\', 'y_axis_rotate');\n";
+print "is(\$gp->y_axis_center(), \'${\($gp->y_axis_center())}\', 'y_axis_center');\n";
+print "is(\$gp->y_axis_show_lines(), \'${\($gp->y_axis_show_lines())}\', 'y_axis_show_lines');\n";
+
+select STDOUT;
+close OUTFILE;
+

@@ -1,0 +1,6 @@
+Revision history for Perl extension Finance::Shares
+
+0.01  Sun Oct 20 15:42:58 2002
+	- original version; created by h2xs 1.21 with options
+		-X -n Finance::Shares::Model
+

@@ -1,0 +1,97 @@
+=head1 NAME
+
+Finance::Shares::Overview - Outline of Finance::Shares modules
+
+=head1 DESCRIPTION
+
+=head2 Overview
+
+This suite aims to provide a toolbox for analysing prices of shares quoted on the world's stock exchanges.  It
+gets the quotes from L<http://finance.yahoo.com>, storing them in a mysql database.  Calculations and tests may
+then be applied to the data, in an attempt to derive some meaning from the semi-chaos.
+
+Input can be via a web interface L<Finance::Shares::CGI> and the results are output as graphs
+L<Finance::Shares::Chart>.  The processing, supervised by L<Finance::Shares::Model> focuses on applying tests to
+quotes for a company over a range of dates, giving an historical perspective.  Of course, if the date range just
+covers today, the current position is evaluated.  Mostly the tests compare results from calculations applied to
+the price or volume data.  These functions are provided by several modules such as L<Finance::Shares::Averages>
+and L<Finance::Shares::Bands>.
+
+Stock quotes are fetched using L<Finance::Shares::MySQL> and held in a L<Finance::Shares::Sample> object.
+Functions like averages or trend identifiers are applied to these data and the results used in tests.  Each model
+can apply several tests to several samples.  When the tests are run signals may be invoked highlighting
+interesting situations.  The intention is to use these signals to drive a simulated portfolio which can be used in
+analysing risk.
+
+=head2 Design Decisions
+
+Charts are output as a L<PostScript::File>.  Originally this was because I couldn't find any software that
+printed A4 sized charts with enough accuracy and detail to scribble lines on.  In practice, I don't print them
+out nearly as often as they are viewed on screen, but it is good to be able to do both.  This doesn't sit
+particularly well with the web interface, but programs like B<pstill> can convert the output to PDF format easily
+enough, and most browsers can be configured to do something useful with files in application/postscript MIME format.
+
+Another initial impetus was the need to have quotes available offline, and this is still useful.  However, this is
+not essential as the MySQL module can be configured to fetch only (not cache).
+
+Modules for Momentum functions, Oscillator analysis and identification of Support and Resitance trends are planned
+or in development.  These mostly follow John J Murphy's book "Technical Analysis of the Financial Markets".  Also
+planned is a Portfolio module for holding stock positions controlled by signals generated from Models.  It would
+be nice if that could include some risk analysis, but that's crystal ball land.
+
+The CGI interface was added to make the plethora of options a bit more manageable and it does provide a useable
+(if slow) front end.  However this suite was implemented in perl to provide flexible scripting tools.  For
+example, it should be possible to automate a series of tests to quotes for several hundred companies in order to
+identify the stock with the most regular patterns.  I haven't included support for signals in this release because
+I'm still not sure what form the callback function should take.  So if you have any thoughts, do email me.
+
+=head2 Tutorial
+
+There are always two paths, aren't there?
+
+L<Finance::Shares::CGI> provides a graphical user interface with lots of help and explanation alongside all the
+options.  Is it the 'easy' route?  I don't know.  It's certainly harder to set up than a script.  But it's
+probably easier to explore if you prefer windows.  I'm not going to describe how to use the CGI interface, but
+here are a few hints.
+
+There is a 'run' button at the bottom of the B<Model> page.  You will need to set up a B<Sample> specifying
+the stock and dates you're interested in.  The next step would be to add a B<Function> or two like a 7 day moving
+average or 30 day highest/lowest values.  Adding a B<Test> on those functions will mark buy or sell signals,
+depending on what you've chosen.  After that, it's just a matter of seeing what the different options do.
+
+The trouble with the CGI route is that that's all you learn.  You can only explore the paths provided and you have
+to start learning all over again if you want to try anything original for yourself.  But it does give you some
+idea of how the land lies.
+
+The tutorials attempts to guide you along the more adventurous path.  They cover much the same ground, but
+hopefully you will then feel more confident about experimenting for yourself when you have seen some scripts
+working.  The lessons available can be listed with the command line:
+
+    man -k Finance::Shares::Lesson
+
+=head2 Preparation for the tutorials
+
+You need mysql working on your system with the test database that comes as standard.  The user and
+password used in the scripts will also be called 'test'.
+
+As root, fire up the mysql client and declare the user:
+
+S< > # B<mysql>
+  Welcome to the MySQL monitor.  Commands end with ; or \g.
+  Your MySQL connection id is 3 to server version: 3.23.52-Max-log
+
+  Type 'help;' or '\h' for help. Type '\c' to clear the buffer.
+
+S< > mysql> B<grant all privileges on test.* to 'test'>
+      -> B<identified by 'test';>
+
+  Query OK, 0 rows affected (0.15 sec)
+
+B<NOTE:> There is always a database called 'test', so you don't need to create it.  However, if you've chosen to
+use a different name (db_name) you will need to give the command C<create database db_name;> as well.
+
+All the lesson scripts are found in the 'tutorial' directory of the Finance::Shares package.  Exercises that are
+a little more challenging are marked with an asterisk (*).
+
+=cut
+

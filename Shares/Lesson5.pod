@@ -1,0 +1,228 @@
+=head1 NAME
+
+Finance::Shares::Lesson5 - Developing tests
+
+=head1 DESCRIPTION
+
+Now that we've looked at some functions, it's time to try making some sense of them.  The tests available in
+L<Finance::Shares::Model> produce another graph line, but this should be interpreted as confidence that some
+condition exists.  Typically, they are placed on the signals graph.
+
+This script, called F<05tests.pl> can be found in the F<tutorial> directory of the Finance::Shares package.
+
+    #!/usr/bin/perl
+    use strict;
+    use warnings;
+    use Getopt::Long;
+    use Finance::Shares::Sample;
+    use Finance::Shares::Averages;
+    use Finance::Shares::Chart;
+    use Finance::Shares::Model;
+
+    my $help;
+    my $stock = 'ULVR.L';
+    my $dates = 'days';
+    my $start = '2000-10-01';
+    my $end   = '2002-12-31';
+    my $mode  = 'cache';
+    my $usage = <<END;
+    Usage:
+	$0 [ options ]
+
+    where options can be any (or none) of the following:
+      -c <code>  |  --code=<code>    Stock code like 'BA.L'
+      -d <dmw>   | --dates=<dmw>     'days', 'weeks' or 'months'
+      -s <date>  | --start=<date>    First date, as 'YYYY-MM-DD'
+      -e <date>  |   --end=<date>    Last date, as 'YYYY-MM-DD'
+      -m <mode>  |  --mode=<mode>    'cache', 'offline' or 'online'
+      -h         |  --help           Show this help
+    END
+
+    GetOptions (
+	'help|h'    => \$help,
+	'code|c=s'  => \$stock,
+	'dates|d=s' => \$dates,
+	'start|s=s' => \$start,
+	'end|e=s'   => \$end,
+	'mode|m=s'  => \$mode,
+    ) or $help = 1;
+    print $usage and exit if $help;
+
+    # Create MySQL object giving access to the data
+    my $fss = new Finance::Shares::Sample(
+	source => {
+	    user     => 'test',
+	    password => 'test',
+	    database => 'test',
+	},
+
+	mode        => $mode,
+	symbol      => $stock,
+	start_date  => $start,
+	end_date    => $end,
+	dates_by    => $dates,
+    );
+
+    # Create Chart object showing the data
+    my $fsc = new Finance::Shares::Chart(
+	sample          => $fss,
+	background      => [ 1, 1, 0.9 ],
+	bgnd_outline    => 1,
+	dots_per_inch   => 72,
+	file => {
+	    landscape => 1,
+	},
+	x_axis => {
+	    show_lines  => 0,
+	    show_year   => 1,
+	},
+	prices => {
+	    percent => 70,
+	    points => {
+		width => 1.5,
+		color => [ 0.4, 0.4, 0.7 ],
+		shape => 'close',
+	    },
+	},
+	volumes => {
+	    percent => 30,
+	},
+    );
+
+    my $pseq = $fsc->sequence('prices');
+    $pseq->auto( 'blue', 'red', 'green' );
+    my $pstyle = {
+	sequence => $pseq,
+	same => 1,
+	line => {
+	    width => 2,
+	},
+    };
+
+    my $fsm = new Finance::Shares::Model;
+    $fsm->add_sample($fss);
+
+    # place tests here
+
+    $fsc->output($stock);
+    print "$stock quotes from $start to $end saved as $stock.ps\n";
+
+If you run it using the defaults you will see a chart marked with closing prices only.
+
+=over 4
+
+=item 1.
+
+There is a clear support line around 480p, so lets draw it.  Add these lines after the 'place tests here' comment.
+B<value> is a function similar to the averages.  It is how you refer to a value on a chart.
+
+    # place tests here
+    my $v500 = $fss->value(
+	graph => 'prices',
+	value => 500,
+	style => $pstyle,
+    );
+
+All function methods return the line id, stored here in $v500 because we will need it later.
+
+=item 2.
+
+Then add these lines below the value() method.
+
+    $fsm->test(
+	graph1 => 'prices', line1 => 'close',
+	graph2 => 'prices', line2 => $v500,
+	test   => 'gt',
+    );
+
+When the closing prices move above the 500p mark, this test fires as can be seen from the (rather odd) graph.
+
+=item 3.
+
+Let's tidy that up a bit and expire the signal a little.  Add the following keys and values to the B<test>
+method:
+
+    $fsm->test(
+	...
+	graph  => 'signals',
+	style  => $pstyle,
+	weight => 60,
+	decay  => 0.9,
+    );
+
+=item 4.
+
+Instead of the constant line at 500p we can hide it, then mark where the 'buy' points might be.  But first let's
+reinstate the stock marks and hide the 500p line:
+
+    my $fsc = new Finance::Shares::Chart(
+	prices => {
+	    style => {
+		point => {
+		    shape => 'stock',
+    
+    ...
+    
+    my $v500 = $fss->value(
+	...
+	shown => 0,
+    );
+
+=item 5.
+
+The buy points will be placed in response to a signal, triggered when the test evaluates 'true'.  The Model needs
+to be told what signals to use.  The test is then told 'use this one'.  B<BEFORE> the B<test> method, register
+the signal, then add a 'signal' key to it:
+
+    $fsm->add_signal('mark_buy');
+
+    $fsm->test(
+	...
+	signal => 'mark_buy',
+    );
+
+There should now be blue arrows marking where the stock price has bounced from the 500p resistance line.
+
+Several signals can be triggered by the same test by declaring the value as an array ref.
+
+    $fsm->add_signal('mark_buy');
+    $fsm->add_signal('print', 'Bounced from 500p');
+
+    $fsm->test(
+	...
+	signal => [ 'mark_buy', 'print' ],
+    );
+
+Now the same event causes a message to be printed on the console, too.
+
+=item 6.
+
+Control over the appearance of buy and sell signals uses a B<style> hashref in the usual way.  But notice the
+hashref braces added as the third B<add_signal> parameter.
+
+    $fsm->add_signal('mark_buy', undef, {
+	graph => 'signals', 
+	value => 60,
+	key   => 'Best time to buy',
+	style => {
+	    point => {
+		shape => 'circle',
+		size  => 14,
+		color => [0, 1, 0.6],
+	    },
+	},
+    });
+    
+=item 7*.
+
+Change the 'mark_buy' signal so that it shows blue arrows on the prices graph, as before.  But time, have them
+appear at the resistance line created in step 1 (i.e. the $v500 line, not the value '500').  If you've managed it,
+changing 500 to 510 in the B<value> method should shift all the arrows as well as recalculating the test.
+
+=back
+
+L<Finance::Shares::Model> has all the details on tests and signals. L<PostScript::Graph::Style> has most of the
+stuff on setting point styles.
+
+=cut
+

@@ -1,0 +1,92 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+use Finance::Shares::MySQL;
+
+my $help;
+my $start = '2003-01-01';
+my $end   = '2003-03-31';
+my $mode  = 'cache';
+my $file  = '';
+my $user  = 'test';
+my $pwd   = 'test';
+my $dbase = 'test';
+my $debug = 2;
+my $usage = <<END;
+Usage:
+    $0 [ options ] stocks
+
+'options' can be any (or none) of the following:
+  -u <user> |     --user=<user>  User defaults to 'test'
+  -p <pwd>  | --password=<pwd>   Password defaults to 'test'
+  -d <db>   | --database=<db>    Database defaults to 'test'
+  -v <lvl>  |  --verbose=<lvl>   Verbosity level 0, 1 or 2
+  -s <date> |    --start=<date>  First date, as 'YYYY-MM-DD'
+  -e <date> |      --end=<date>  Last date, as 'YYYY-MM-DD'
+  -m <mode> |     --mode=<mode>  'cache', 'offline' or 'online'
+  -f <file> |     --file=<file>  Name of destination CSV file
+  -h        |     --help         Show this help
+
+'stocks' are a list of Yahoo stock codes e.g.
+    MSFT BA.L 12126.PA
+
+The file option is only useful with a single stock. If omitted
+the CSV file is called
+    <code>-<start>-<end>.csv
+
+END
+
+GetOptions (
+    'help|h'       => \$help,
+    'start|s=s'    => \$start,
+    'end|e=s'      => \$end,
+    'mode|m=s'     => \$mode,
+    'file|f=s'     => \$file,
+    'user|u=s'     => \$user,
+    'password|p=s' => \$pwd,
+    'database|d=s' => \$dbase,
+    'verbose|v=s'  => \$debug,
+) or $help = 1;
+print $usage and exit if $help;
+print $usage and exit unless @ARGV and $start and $end and $user and $pwd and $dbase;
+$mode = lc $mode;
+print $usage and exit unless $mode eq 'offline' or $mode eq 'cache' or $mode eq 'online';
+
+# Create MySQL object giving access to the data
+my $db = new Finance::Shares::MySQL(
+    user     => $user,
+    password => $pwd,
+    database => $dbase,
+    debug    => $debug,
+);
+
+# Fetch the data from the internet
+foreach my $stock (@ARGV) {
+    my @data = $db->fetch(
+	symbol     => $stock,
+	start_date => $start,
+	end_date   => $end,
+	mode       => $mode,
+    );
+    
+    warn "No data fetched for $stock\n" and next unless @data;
+    warn "Fetched $stock from $start to $end\n" if $debug;
+
+    my $filename = $file ? $file : "$stock-$start-$end.csv";
+    my $fs;
+    if ($filename) {
+	open ($fs, '>', $filename) or die "Unable to write to '$filename' : $!\n";
+	select $fs;
+    }
+    foreach my $row (@data) {
+	my ($date, $open, $high, $low, $close, $volume) = @$row;
+	printf('%s,%6.2f,%6.2f,%6.2f,%6.2f,%d%s',
+	$date, $open, $high, $low, $close, $volume, "\n");
+    }
+    if ($file) {
+	close $fs;
+	select STDOUT;
+    }
+}
+

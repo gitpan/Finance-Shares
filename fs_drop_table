@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+use DBIx::Namespace;
+
+die "Usage: $0 <table_name>\n" unless $ARGV[1];
+my $database = shift;
+my $table = shift;
+
+my $db = new DBIx::Namespace(
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+    );
+
+my $r1;
+eval {
+    $r1 = $db->delete($table);
+};
+if ($@) {
+    print "Deleting '$table' failed : $@\n";
+} else {
+    print "Deleting '$table' ", $r1 ? "succeeded\n" : "failed\n";
+}
