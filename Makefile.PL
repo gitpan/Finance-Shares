@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	  => 'Finance::Shares',
-    VERSION	  => '1.01',
+    VERSION	  => '1.02',
     ABSTRACT      => 'Applying tests to share quotes',
     AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
     NORECURS      => 1,
@@ -44,6 +44,8 @@ WriteMakefile(
 	'Shares/less_than.pm'		=> '$(INST_LIBDIR)/Shares/less_than.pm',
 	'Shares/lowest.pm'		=> '$(INST_LIBDIR)/Shares/lowest.pm',
 	'Shares/mark.pm'		=> '$(INST_LIBDIR)/Shares/mark.pm',
+	'Shares/maximum.pm'		=> '$(INST_LIBDIR)/Shares/maximum.pm',
+	'Shares/minimum.pm'		=> '$(INST_LIBDIR)/Shares/minimum.pm',
 	'Shares/momentum.pm'		=> '$(INST_LIBDIR)/Shares/momentum.pm',
 	'Shares/moving_average.pm'	=> '$(INST_LIBDIR)/Shares/moving_average.pm',
 	'Shares/multiline_mean.pm'	=> '$(INST_LIBDIR)/Shares/multiline_mean.pm',
@@ -51,6 +53,8 @@ WriteMakefile(
 	'Shares/oversold.pm'		=> '$(INST_LIBDIR)/Shares/oversold.pm',
 	'Shares/percent_band.pm'	=> '$(INST_LIBDIR)/Shares/percent_band.pm',
 	'Shares/rate_of_change.pm'	=> '$(INST_LIBDIR)/Shares/rate_of_change.pm',
+	'Shares/sample_mean.pm'		=> '$(INST_LIBDIR)/Shares/sample_mean.pm',
+	'Shares/standard_deviation.pm'	=> '$(INST_LIBDIR)/Shares/standard_deviation.pm',
 	'Shares/test.pm'		=> '$(INST_LIBDIR)/Shares/test.pm',
 	'Shares/undersold.pm'		=> '$(INST_LIBDIR)/Shares/undersold.pm',
 	'Shares/value.pm'		=> '$(INST_LIBDIR)/Shares/value.pm',
