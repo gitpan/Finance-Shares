@@ -1,9 +1,9 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	=> 'Finance::Shares',
-    VERSION	=> '0.03',
+    VERSION	=> '0.04',
     ABSTRACT	=> 'Collecting and tracking share prices',
-    AUTHOR      => 'Christopher Willmot <chris@willmot.co.uk>',
+    AUTHOR      => 'Christopher Willmot <chris@willmot.org>',
     NORECURS    => 1,
     PREREQ_PM	=> { 
 	#'Test::More'		    => 0,
@@ -11,11 +11,11 @@ WriteMakefile(
 	'Text::CSV_XS'              => 0,
 	'LWP::UserAgent'            => 0,
 	'DBIx::Namespace'           => 0.03,
-	'PostScript::File'	    => 0.12,
+	'PostScript::File'	    => 0.13,
 	'PostScript::Graph::Bar'    => 0.03,
-	'PostScript::Graph::Key'    => 0.10,
-	'PostScript::Graph::Paper'  => 0.10,
-	'PostScript::Graph::Style'  => 0.07,
+	'PostScript::Graph::Key'    => 0.11,
+	'PostScript::Graph::Paper'  => 0.11,
+	'PostScript::Graph::Style'  => 0.08,
 	'PostScript::Graph::XY'	    => 0.04,
     },
     PM	=> {
