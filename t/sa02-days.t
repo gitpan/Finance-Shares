@@ -17,7 +17,7 @@ my $s = new Finance::Shares::Sample(
 );
 ok(1, 'Sample built');
 
-is($s->dates_by, 'days', 'days by default');
+is($s->dates_by, 'quotes', 'quotes by default');
 is($s->start_date, '2001-06-01', 'start date');
 is($s->end_date, '2001-06-05', 'end date');
 is( keys %{$s->{close}}, 3, 'dates counted' );

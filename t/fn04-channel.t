@@ -82,5 +82,5 @@ $fsc->output($name);
 my $psfile = check_file("$name.ps");
 ok(-e $psfile, 'PostScript file created');
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 

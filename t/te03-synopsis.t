@@ -22,10 +22,9 @@ $fsm->add_sample( $fss );
 my $sid = $fss->id();
 ok( $fsm->{samples}{$sid}, 'sample added');
 
-$fsm->add_signal('mark_buy', undef, {
+$fsm->add_signal('circle', 'mark', undef, {
     graph => 'volumes',
     line  => 'volume',
-    key   => 'above envelope',
     style => {
 	point => {
 	    color => [1, 0, 0],
@@ -34,7 +33,7 @@ $fsm->add_signal('mark_buy', undef, {
 	},
     },
 });
-is( @{$fsm->{sigfns}{'mark_buy'}}, 1, 'mark_buy signal added' );
+ok( $fsm->{sigfns}{'circle'}, 'mark_buy signal added' );
 
 my ($high, $low) = $fss->envelope();
 ok( $fss->choose_line('prices', $high, 1), 'high envelope line' );
@@ -44,7 +43,7 @@ my $tline = $fsm->test(
     graph1 => 'prices', line1 => 'high',
     graph2 => 'prices', line2 => $high,
     test   => 'ge',
-    signal => [ 'mark_buy' ],
+    signal => [ 'circle' ],
 );
 ok( $fss->choose_line('prices', $tline, 1), 'test line' );
 
@@ -71,7 +70,7 @@ $fsc->output($name);
 my $psfile = check_file("$name.ps");
 
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 
 
 

@@ -59,14 +59,11 @@ my $pgs = new PostScript::Graph::Style(
 );
 
 ### Function lines
-$fss->simple_average(period => 3, style => $style);
-my $simple = line_id('simple', 3, 'close');
+my $simple = $fss->simple_average(period => 3, style => $style);
 ok( $fss->{lines}{prices}{$simple}, "$simple stored" );
-$fss->weighted_average(period => 10, style => $style);
-my $weighted = line_id('weighted', 10, 'close');
+my $weighted = $fss->weighted_average(period => 10, style => $style);
 ok( $fss->{lines}{prices}{$weighted}, "$weighted stored" );
-$fss->exponential_average(period => 21, style => $pgs);
-my $expo = line_id('expo', 21, 'close');
+my $expo = $fss->exponential_average(period => 21, style => $pgs);
 ok( $fss->{lines}{prices}{$expo}, "$expo stored" );
 
 ### Finance::Shares::Chart
@@ -123,5 +120,5 @@ $fsc->output($name);
 my $psfile = check_file("$name.ps");
 ok(-e $psfile, 'PostScript file created');
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 

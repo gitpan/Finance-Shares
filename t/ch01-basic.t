@@ -24,6 +24,7 @@ ok($pf, 'PostScript::File created');
 my $fss = new Finance::Shares::Sample(
     source => $source,
     symbol => 'SHEL.L',
+    dates_by => 'quotes',
 );
 ok( $fss, 'Finance::Shares::Sample created' );
 is( $fss->start_date,'2002-06-27', 'start date' );
@@ -105,8 +106,8 @@ if ($test) {
     is_same( $test->{prices_count}, $test->{volumes_count}, 'prices/volumes count' );
     is_same( $test->{prices_ymin},  389.48, 'prices ymin',  $accuracy );
     is_same( $test->{prices_ymax},  525.14, 'prices ymax',  $accuracy );
-    is_same( $test->{volumes_ymin}, 204.98, 'volumes ymin', $accuracy );
-    is_same( $test->{volumes_ymax}, 298.12, 'volumes ymax', $accuracy );
+    is_same( $test->{volumes_ymin}, 219.98, 'volumes ymin', $accuracy );
+    is_same( $test->{volumes_ymax}, 300.11, 'volumes ymax', $accuracy );
 }
 
 ### finish
@@ -115,5 +116,5 @@ ok(-e $psfile, 'PostScript file created');
 ok(-s $psfile > 9999, 'basic PostScript written');
 
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 

@@ -6,11 +6,12 @@ use Test::Builder;
 use Data::Dumper;
 use Exporter;
 use Text::CSV_XS;
+use Carp;
 
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(is_same
+our @EXPORT_OK = qw(is_same deep_copy
 		    from_csv array_to_sample csv_to_sample sample_to_csv
-		    show show_hash show_lines show_graph_lines
+		    show show_hash show_array show_lines show_graph_lines
 		    check_filesize
 		);
 
@@ -211,11 +212,22 @@ Writes out Finance::Shares::Sample data so that it can be read by B<from_csv>.
 =cut
 
 sub show_lines {
-    my ($s) = @_;
+    my ($s, @graphs) = @_;
+    @graphs = qw(prices volumes cycles signals) unless @graphs;
     my $res = '';
-    my ($k, $h);
-    while( ($k, $h) = each %{$s->{lines}} ) {
-	$res .= show_graph_lines($k, $h);
+    foreach my $graph (@graphs) {
+	my @lines = values %{$s->{lines}{$graph}};
+	@lines = sort { $a->{order} <=> $b->{order} } @lines;
+	$res .= "$graph lines...\n" if @lines;
+	foreach my $h (@lines) {
+	    my $id = $h->{id};
+	    my $show = $h->{shown} || 0;
+	    my $order = $h->{order} || 0;
+	    my $n = keys %{$h->{data}} || 0;
+	    my $style = $h->{style};
+	    my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
+	    $res .= "    $show $id ($n pts) $order $sid\n";
+	}
     }
     return $res;
 }
@@ -226,21 +238,6 @@ Prints the ids of all known lines.
 Returns a string which may be displayed with e.g. B<warn>.
 
 =cut
-
-sub show_graph_lines {
-    my ($graph, $lines) = @_;
-    my $res = "$graph lines...\n";
-    my ($id, $h);
-    while( ($id, $h) = each %$lines ) {
-	my $show = $h->{show} || 0;
-	my $n = keys %{$h->{data}} || 0;
-	my $style = $h->{style};
-	my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
-	$res .= "    $show $id ($n) $sid\n";
-    }
-    return $res;
-}
-
 
 sub show {
     $Data::Dumper::Indent = 1;
@@ -255,14 +252,69 @@ Returns a string which may be displayed with e.g. B<warn>.
 =cut
 
 sub show_hash {
-    my $h = shift;
+    my ($h, $sep, $depth) = @_;
+    $sep = ', ' unless defined $sep;
+    $depth = 0 unless defined $depth;
     my $res = '';
-    foreach my $k (sort keys %$h) {
-	my $v = $h->{$k};
-	my $key   = defined($k) ? $k : '<undef>';
-	my $value = defined($v) ? $v : '<undef>';
-	$res .= ', ' if $res;
-	$res .= "$key=>$value";
+    if ($h and ref($h) eq 'HASH') {
+	$res .= "\n" . ('  ' x ($depth)) if $depth;
+	$res .= "{";
+	my $entry = 0;
+	foreach my $k (sort keys %$h) {
+	    my $v = $h->{$k};
+	    my $key   = defined($k) ? $k : '<undef>';
+	    my $value = defined($v) ? $v : '<undef>';
+	    $res .= $sep if $entry;
+	    $res .= "$key=>";
+	    if (ref($value) eq 'HASH') {
+		$res .= show_hash($value, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } elsif (ref($value) eq 'ARRAY') {
+		$res .= show_array($value, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } else {
+		$res .= $value;
+	    }
+	    $entry = 1;
+	}
+	$res .= "}\n";
+    } else {
+	$res = $h;
+    }
+    return $res;
+}
+
+=head2 show_hash( hashref )
+
+Output key=>value pairs on a single line.
+Returns a string which may be displayed with e.g. B<warn>.
+
+=cut
+
+sub show_array {
+    my ($ar, $sep, $depth) = @_;
+    $sep = ', ' unless defined $sep;
+    $depth = 0 unless defined $depth;
+    my $res = '';
+    if ($ar and ref($ar) eq 'ARRAY') {
+	$res .= "\n" . ('  ' x ($depth)) if $depth;
+	$res .= "[";
+	my $entry = 0;
+	foreach my $v (@$ar) {
+	    my $value = defined($v) ? $v : '<undef>';
+	    $res .= $sep if $entry;
+	    if (ref($value) eq 'HASH') {
+		$res .= show_hash($value, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } elsif (ref($value) eq 'ARRAY') {
+		$res .= show_array($value, $sep, $depth+1);
+		$res .= ('  ' x ($depth));
+	    } else {
+		$res .= $value;
+	    }
+	    $entry = 1;
+	}
+	$res .= "]\n";
     }
     return $res;
 }

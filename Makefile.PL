@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	=> 'Finance::Shares',
-    VERSION	=> '0.04',
+    VERSION	=> '0.05',
     ABSTRACT	=> 'Collecting and tracking share prices',
     AUTHOR      => 'Christopher Willmot <chris@willmot.org>',
     NORECURS    => 1,
@@ -11,13 +11,14 @@ WriteMakefile(
 	'Text::CSV_XS'              => 0,
 	'LWP::UserAgent'            => 0,
 	'DBIx::Namespace'           => 0.03,
-	'PostScript::File'	    => 0.13,
+	'PostScript::File'	    => 1.00,
 	'PostScript::Graph::Bar'    => 0.03,
-	'PostScript::Graph::Key'    => 0.11,
-	'PostScript::Graph::Paper'  => 0.11,
-	'PostScript::Graph::Style'  => 0.08,
+	'PostScript::Graph::Key'    => 1.00,
+	'PostScript::Graph::Paper'  => 1.00,
+	'PostScript::Graph::Style'  => 1.00,
 	'PostScript::Graph::XY'	    => 0.04,
     },
+    EXE_FILES => [ 'fs_model' ],
     PM	=> {
 	'Shares/Averages.pm'	=> '$(INST_LIBDIR)/Shares/Averages.pm',
 	'Shares/Bands.pm'   	=> '$(INST_LIBDIR)/Shares/Bands.pm',

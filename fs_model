@@ -1,0 +1,556 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+use PostScript::File 0.11 qw(check_file);
+use PostScript::Graph::Style;
+use Finance::Shares::Model qw(deep_copy);
+use Finance::Shares::Averages;
+use Finance::Shares::Bands;
+use Finance::Shares::Momentum;
+
+use TestFuncs qw(show_hash show_array);
+
+our $help;
+our $file    = '';
+our $indiv;
+our $model   = '';
+our $none;
+our $stocks  = '';
+our $verbose = 2;
+our $usage   = <<END;
+Usage:
+    $0 --help
+    $0 [ options ] [ stocks ]
+
+'options' can be any of the following but must include
+a model specification.  See the Finance::Shares::Model
+manpage for details of the file format.
+
+  -m <file> | --model=<file>   Model specification
+  -c <file> | --stocks=<file>  Source for stock codes
+  -v <lvl>  | --verbose=<lvl>  Level 0, 1 or 2
+  -i        | --individual     Output as seperate charts
+  -n        | --nocharts       Suppress chart output
+  -f <file> | --file=<file>    Name (single) output file
+
+'stocks' are a list of Yahoo stock symbols such as
+    MSFT BA.L 12126.PA
+
+
+END
+
+GetOptions(
+    'help|h'       => \$help,
+    'file|f=s'     => \$file,
+    'individual|i' => \$indiv,
+    'model|m=s'    => \$model,
+    'stocks|c=s'   => \$stocks,
+    'verbose|v=s'  => \$verbose,
+    'nocharts|n'   => \$none,
+) or $help = 1;
+print $usage and exit if $help;
+print $usage and exit unless $model;
+
+### Read stocks file
+our @stocks;
+if ($stocks) {
+    open(SYMBOLS, '<', $stocks) or die "Unable to open '$stocks': $!\nStopped";
+    while( <SYMBOLS> ) {
+	chomp;
+	s/#.*//;
+	next if /^\s*$/;
+	my @line = split /[,\s]+/;
+	push @stocks, @line;
+    }
+    close SYMBOLS;
+}
+push @stocks, @ARGV;
+#print "Stocks=", join(',', @stocks), "\n";
+
+### Evaluate model hash
+our $hash;
+eval {
+    my @opt = do $model;
+    $hash = {};
+    if (@opt == 1) { $hash = $opt[0]; } else { %$hash = @opt }
+};
+if ($@) {
+    die "Error in '$model': $@\nStopped";
+}
+
+# for unique names
+our $count = 1;
+
+our ($file_hash, $file_order, $file_default) = get_resource($hash, 'file', 1);
+our ($group_hash, $group_order, $group_default) = get_resource($hash, 'group', 0);
+our ($sample_hash, $sample_order, $sample_default) = get_resource($hash, 'sample', 0);
+
+### Ensure named file is the default
+if ($file) {
+    my $fh = deep_copy( $file_hash->{$file_default} );
+    $file_default = $file;
+    $file_hash->{$file_default} = $fh;
+    push @$file_order, $file_default;
+}
+
+### Check filename in samples
+foreach my $id (@$sample_order) {
+    check_filename( $sample_hash->{$id} );
+}
+
+### Check filename in groups
+foreach my $id (@$group_order) {
+    check_filename( $group_hash->{$id} );
+}
+
+### Adding stocks as new samples
+my $h0 = $sample_hash->{$sample_default};
+$h0 = {} unless defined $h0;
+foreach my $symbol (@stocks) {
+    next unless defined $symbol;
+    my $h = deep_copy($h0);
+    next unless defined $h;
+    $h->{symbol} = $symbol;
+    $h->{page}   = $symbol;
+    check_filename($h);
+    my $sname;
+    do {
+	$sname = 'sample' . $count++;
+    } until (not defined $sample_hash->{$sname});
+    $sample_hash->{$sname} = $h;
+    push @$sample_order, $sname;
+}
+
+# Ensure all samples have a symbol
+foreach my $id (keys %$sample_hash) {
+    delete $sample_hash->{$id} unless $sample_hash->{$id}{symbol};
+}
+
+### Finish
+set_resource($hash, 'files', $file_hash, $file_order);
+set_resource($hash, 'samples', $sample_hash, $sample_order);
+set_resource($hash, 'groups', $group_hash, $group_order);
+$hash->{verbose} = $verbose;
+#print "Finance::Shares::Model options...\n", show_hash($hash), "\n";
+
+if (%$sample_hash) {
+    our $fsm = new Finance::Shares::Model($hash);
+    our $res = $fsm->output() unless $none;
+    print $res if $res;
+} else {
+    warn "No samples to model\n";
+}
+
+sub check_filename {
+    my $h = shift;
+    if ($indiv) {
+	my $fh0 = $file_hash->{$file_default};
+	my $fh = deep_copy($fh0);
+	my $count = 1;
+	my $fname;
+	do {
+	    $fname = 'file' . $count++;
+	} until (not defined $file_hash->{$fname});
+	$file_hash->{$fname} = $fh;
+	push @$file_order, $fname;
+	$h->{file} = $fname;
+    } else {
+	$h->{file} = $file_default;
+    }
+}
+
+sub get_resource {
+    my ($orig, $singular, $create) = @_;
+    my $plural  = $singular . 's';
+    my $hash    = {};
+    my $order   = [];
+    my $default = '';
+
+    if (ref $orig eq 'HASH') {
+	my $ar = $orig->{$plural};
+	if (ref($ar) eq 'ARRAY') {
+	    $default = $ar->[0];
+	    for (my $i = 0; $i <= $#$ar; $i += 2) {
+		my $id = $ar->[$i];
+		my $h  = $ar->[$i+1];
+		next unless defined $h;
+		$default = 'default' if $id eq 'default';
+		$hash->{$id} = $h;
+		push @$order, $id;
+	    }
+	}
+	
+	my $h = $orig->{$singular};
+	if (defined $h) {
+	    my $name = 'default';
+	    $default = $name;
+	    $hash->{$name} = $h;
+	    push @$order, $name;
+	    delete $orig->{$singular};
+	}
+    }
+    
+    if ($create) {
+	$default = 'default' unless $default;
+	unless (defined $hash->{$default}) {
+	    $hash->{$default} = {};
+	    push @$order, $default;
+	}
+    }
+    #print "GR ${plural}: default=$default, order=", show_array($order), show_hash($hash), "\n";
+    return ($hash, $order, $default);
+} 
+
+sub set_resource {
+    my ($orig, $name, $hash, $order) = @_;
+    my $sh = $orig->{$name} = [];
+    foreach my $id (@$order) {
+	if (defined $id and defined $hash->{$id}) {
+	    push @$sh, ($id => $hash->{$id}); 
+	}
+    }
+}
+
+=head1 NAME
+
+fs_model - Run a Finance::Shares::Model
+
+=head1 SYNOPSIS
+
+    fs_model --help
+    fs_model [ options ] [ stocks ]
+
+'options' can be any of the following but must include
+a model specification.  See the Finance::Shares::Model
+manpage for details of the file format.
+
+  -m <file> | --model=<file>   Model specification
+  -c <file> | --stocks=<file>  Source for stock codes
+  -v <lvl>  | --verbose=<lvl>  Level 0, 1 or 2
+  -i        | --individual     Output as seperate charts
+  -n        | --nocharts       Suppress chart output
+  -f <file> | --file=<file>    Name (single) output file
+
+'stocks' are a list of Yahoo stock symbols such as
+    MSFT BA.L 12126.PA
+
+=head1 DESCRIPTION
+
+This provides a simple way to run a Finance::Shares::Model.  The specification is placed in a file and run against
+stocks given on the command line.  The following options are recognized.
+
+=over 4
+
+=item --model=<filename>
+
+This file is evaluated using the Perl B<do> command. It should return either a list of keys and values or a hash
+ref containing the same.  See the SPECIFICATION section.
+
+=item --stocks=<filename>
+
+Stock symbols may be declared in any of three ways.  They can be embedded in the specification as part of
+a B<samples> resource, a list of them can be given on the command line, or they can be listed in the file named
+here.
+
+The format of the file is fairly flexible.  Stock symbols may be in upper or lower case, seperated by spaces,
+commas or on their own lines.  Anything after a '#' is ignored, as are blank lines.
+
+=item --file=<filename>
+
+A script option forcing all charts into the file called F<E<lt>nameE<gt>.ps>.
+
+=item --individual
+
+This script option forces all charts into their own seperate files.  The file names are constructed from the
+sample's symbol, start and end dates.
+
+=item --nocharts
+
+Giving this script option prevents any charts being constructed.  It can be used to fetch quotes but as it runs
+the model but discards the results it is less heavy-handed to use B<fs_fetch> instead.
+
+=item --verbose
+
+Gives some control over the number of messages sent to STDERR during the process.
+
+    0	Only fatal messages
+    1	Minimal
+    2	Report each process
+    3+	Debugging
+
+=back
+
+=head2 SPECIFICATION
+
+This is fully described in L<Finance::Shares::Model/CONSTRUCTOR>.  There are eight resources, each key
+corresponding to an array ref listing them.  At least one source and at least one sample must be given.
+
+    sources   => [ ... ],
+    samples   => [ ... ],
+
+    groups    => [ ... ],
+    files     => [ ... ],
+    charts    => [ ... ],
+    functions => [ ... ],
+    tests     => [ ... ],
+    signals   => [ ... ],
+
+The arrays contain key/value pairs.  Each key names a single resource whose value is a hash ref (or an array ref
+in the case of signals).  The hash ref in turn contains a set of options as key/value pairs.
+
+This would be a valid model specification:
+
+    sources => [
+	dbase	 => {
+	    user     => 'test',
+	    password => 'test',
+	    database => 'test',
+	},
+    ],
+    
+    samples => [
+	all => {
+	    start_date => '2003-01-01',
+	},
+    ],
+
+Assuming the above was stored in the file 'simple.mdl' and the database was suitably configured, the model might
+be run thus:
+
+    fs_model -m 'simple.mdl' AMZN
+
+Quotes for Amazon.com would be fetched between January 1st 2003 and today and drawn out on a chart saved as
+F<default.ps>.  Note that it is usually necessary to give at least a start date, and the script will complain if
+no stock symbols are given.
+
+Suitable defaults have been provided for groups, files and charts.  The first entry in each resource list will
+usually be used if none other is specified, so the 'all' sample is used by AMZN and 'dbase' is the source
+assumed.
+
+A full model is driven by the samples entries.  Each sample should ultimately have a choice from every other
+resource.  Where the key is singular the value should be a resource name, like 'dbase' above.  Key names that are
+plural require an array ref holding a list of names which will be dealt with in order.
+
+Example
+
+    samples => [
+	template => {
+	    groups     => [],
+	    file       => 'my_file',
+	    source     => 'dbase',
+	    chart      => 'my_chart',
+	    functions  => [qw(func1 func2 func3)],
+	    tests      => ['my_test'],
+	    signals    => ['sig1', 'sig2'],
+	    start_date => '2003-04-01',
+	    dates_by   => 'quotes',
+	},
+    ],
+
+Because this is the first sample, it will provide all the settings applied to every stock symbol given to the
+model from command line and/or file.
+
+=head2 Groups
+
+These are named collections of sample keys.
+
+=head2 Sources
+
+These keys may be used within a 'database' sub-hash using a L<Finance::Shares::MySQL> object as a source.
+
+    hostname	    port
+    user	    password
+    database	    exchange
+    start_date	    end_date
+    mode	    tries
+
+Sources may also be the name of a CSV file.
+
+=head2 Files
+
+These sub-hashes control the PostScript output file.  They accept these keys documented in L<PostScript::File>.
+
+    paper	    eps
+    height	    width
+    bottom	    top
+    left	    right
+    clip_command    clipping
+    dir		    file
+    landscape	    headings
+    reencode
+
+=head2 Charts
+
+There are hundreds of options controlling the appearance of L<Finance::Shares::Chart> objects.  These are the top
+level keys:
+
+    prices	    volumes
+    cycles	    signals
+    x_axis	    key
+    dots_per_inch   reverse
+    bgnd_outline    background
+    heading_font    normal_font
+    heading
+
+=head2 Functions
+
+There is always a 'function' key indicating the name of the method producing the line.  Apart from that the keys
+vary, but these are common:
+
+    graph	    line
+    period	    percent
+    strict	    shown
+    style	    key
+    
+=head2 Tests
+
+See L<Finance::Shares::Model/test> for details on these keys:
+
+    graph1	    line1
+    graph2	    line2
+    test	    signals
+    shown	    style
+    graph	    key
+    decay	    ramp
+    weight
+
+=head2 Signals
+
+The format of these entries is different.  Each name refers to an array holding parameters for
+L<Finance::Shares::Model/add_signal>.  The signals are all different, but this example marks the price data with
+an arrow.
+
+    signals => [
+	buy => [ 'mark_buy', undef, {
+		  graph => 'prices',
+		  line  => 'low',
+		  key   => 'Buy suggestion',
+	}],
+    ],
+
+=head2 Example
+
+This example assumes you have a mysql database set up as outlined in Finance::Shares::Overview.
+
+The following is the file 'model'.
+
+    my $bgnd = [0.95,0.95,0.9];
+    my $data = [0.7, 0.7, 0.3];
+
+    sources => [
+	default => {
+	    user     => 'test',
+	    password => 'test',
+	    database => 'test',
+	    mode     => 'offline',
+	},
+    ],
+
+    samples => [
+	default => {
+	    start_date => '1998-01-01',
+	    end_date   => '2003-06-01',
+	    dates_by   => 'months',
+	    functions  => [qw(fast)],
+	},
+    ],
+
+    files => [
+	default => {
+	    landscape => 1,
+	},
+    ],
+
+    charts => [
+	default => {
+	    dots_per_inch => 75,
+	    background => $bgnd,
+	    x_axis => {
+		mid_width => 0,
+		mid_color => $bgnd,
+	    },
+	    key => {
+		background => $bgnd,
+	    },
+	    prices => {
+		percent => 60,
+		points => {
+		    color => $data,
+		    width => 1.5,
+		},
+	    },
+	    volumes => {
+		percent => 20,
+		bars => {
+		    color => $data,
+		},
+	    },
+	},
+    ],
+
+    functions => [
+	fast => {
+	    function => 'simple_average',
+	    period => 3,
+	    style => {
+		auto => 'none',
+		same => 1,
+		width => 1,
+		color => [1,0.4,0],
+	    },
+	},
+    ],
+
+The file 'retail' holds:
+
+    BOOT.L	    # Boots Group
+    DXNS.L	    # Dixons Group
+    KGF.L	    # Kingfisher
+    MKS.L	    # Marks & Spencer
+    MRW.L	    # Morrison Supermarket
+    NXT.L	    # Next
+    SFW.L	    # Safeway
+    SBRY.L	    # Sainsbury
+    TSCO.L	    # Tesco
+
+Then the command line
+
+    fs_model -m model -s retail -i
+
+would produce charts as the following files, each showing a 3 month moving average of closing prices.
+
+    BOOT.L_months_1998-02-27_to_2003-05-14.ps
+    DXNS.L_months_1998-02-27_to_2003-05-14.ps
+    KGF.L_months_1998-02-27_to_2003-05-14.ps
+    MKS.L_months_1998-02-27_to_2003-05-14.ps
+    MRW.L_months_1998-02-27_to_2003-05-14.ps
+    NXT.L_months_1998-02-27_to_2003-05-14.ps
+    SBRY.L_months_1998-02-27_to_2003-05-14.ps
+    SFW.L_months_1998-02-27_to_2003-05-14.ps
+    TSCO.L_months_1998-02-27_to_2003-05-14.ps
+
+
+=head1 BUGS
+
+Yes, there will be many.  Please report those you find to the author.
+
+=head1 AUTHOR
+
+Chris Willmot, chris@willmot.org.uk
+
+=head1 SEE ALSO
+
+L<Finance::Shares::Model>,
+L<Finance::Shares::MySQL>,
+L<Finance::Shares::Sample> and
+L<Finance::Shares::Chart>.
+
+Most models use functions from one or more of L<Finance::Shares::Averages>, L<Finance::Shares::Bands> and
+L<Finance::Shares::Momentum> as well.
+
+There is also an introduction, L<Finance::Shares::Overview> and a tutorial beginning with
+L<Finance::Shares::Lesson1>.
+
+=cut
+

@@ -89,6 +89,9 @@ You may be able to make use of the Getopt::Long module:
     GetOptions(
 	'start_date=s'	=> \$start_date,
     );
+    
+B<NB:> When running the script, remember to put all dates inside quotes.  Otherwise perl will interpret 2003-05-13
+as a subtraction sum.
 
 =item 6*.
 

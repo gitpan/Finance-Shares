@@ -1,10 +1,21 @@
+!!! CAUTION !!!
+!!!
+!!! These modules are incompatable with Finance::Shares::CGI before v0.06.
+!!! Installing these will break the CGI interface if you have it working.
+!!!
+!!! To keep the CGI working, copy the Finance::Shares modules from perl's
+!!! site-perl tree (e.g. /usr/lib/perl5/site-perl/5.8.0/) into the directory
+!!! holding the cgi scripts (browser.pl, chart.pl etc.)
+!!!
+!!! CAUTION !!!
+
+
 Finance::Shares
 ===============
 
-This collection of modules provides a toolkit for developing
-stock market strategies.  There is an introduction,
-Finance::Shares::Overview and a tutorial introducing the
-modules, starting with Finance::Shares::Lesson1.
+This collection of modules provides a toolkit for developing stock market
+strategies.  There is an introduction, Finance::Shares::Overview and a tutorial
+introducing the modules, starting with Finance::Shares::Lesson1.
 
 
 INSTALLATION
@@ -21,63 +32,70 @@ To install this module type the following:
 DEPENDENCIES
 ============
 
-In addition to the standard perl distribution, these others
-are also required.  They can all be found on CPAN
-(http://www.cpan.org)
+In addition to the standard perl distribution, these others are also required.
+They can all be found on CPAN (http://www.cpan.org)
 
     Test::More
     Date::Calc
     Text::CSV_XS
     LWP::UserAgent
-    DBIx::Namespace 0.03
-    PostScript::File 0.12
-    PostScript::Graph 0.13
+    DBIx::Namespace   0.03
+    PostScript::File  1.00
+    PostScript::Graph 1.00
 
 
 ADDITIONAL FILES
 ================
 
-A number of support scripts are provided in the package.  As
-they are principally used in development they are not
-installed.
+A number of support scripts are provided in the package.  As they are
+principally used in development they are not installed by default.  However
+some might be useful enough to copy to your own bin dir.
+
+fs_model
+    This is the main script in this package and the only one installed to your
+    system.  By setting up a suitable specifications file, any number of stocks
+    can be put through the same treatment.  The resulting charts can be stored
+    as a single PostScript file or as individual files.  It has its own man
+    page, but see also Finance::Shares::Model.  Try:
+    
+	man fs_model
+	fs_model --model=model/01-multiple
+	fs_model --model=model/05-minimal --stocks=stock/misc3
 
 fs_list_tables
-    Shows the mapping between DBIx::Namespace names and
-    their underlying mysql tables.  Change the script so
-    that it matches your database (it assumes 'test').  
-    Use as:
+    Shows the mapping between DBIx::Namespace names and their underlying mysql
+    tables.  Change the script so that it matches your database (it assumes
+    'test').  Use as:
 
 	fs_list_tables
 	fs_list_tables Known::Family
 
 fs_drop_table
-    Use this to drop a table used by DBIx::Namespace as it
-    keeps the index synchronized.  Change the script so
-    that it matches your database (it assumes 'test').  
-    Use as:
+    Use this to drop a table used by DBIx::Namespace as it keeps the index
+    synchronized.  Change the script so that it matches your database (it
+    assumes 'test').  Use as:
 
 	fs_drop_table Known::Family::Table
 
 fs_fetch
-    A script to fetch quotes from the internet.  It assumes
-    the mysql database has been set up correctly.  See
-    Finance::Shares::MySQL.  Try:
+    A script to fetch quotes from the internet.  It assumes the mysql database
+    has been set up correctly.  See Finance::Shares::MySQL.  Try:
 
 	fs_fetch --help
+	fs_fetch --start '2003-01-01' MSFT HPQ
 
 fs_fetch_csv
-    This also fetches quotes from the internet, but it can
-    also fetch cached quotes and save them as a CSV file.
-    Try:
+    This also fetches quotes from the internet, but it can also fetch cached
+    quotes and save them as a CSV file.  Try:
     
 	fs_fetch_csv --help
+	fs_fetch_csv --stocks=stock/misc3
 
 fs_reset_size
-    Used in conjunction with the t/*.t tests.  The size of
-    the output files are monitored as a quick check whether
-    the chart has changed.  Once you have inspected the
-    charts and are happy with them, this script will update
-    the tests with the new file sizes.  Use as:
+    Used in conjunction with the t/*.t tests.  The size of the output files are
+    monitored as a quick check whether the chart has changed.  Once you have
+    inspected the charts and are happy with them, this script will update the
+    tests with the new file sizes.  Use as:
 
 	$ fs_reset_size t/*.t
 
@@ -88,15 +106,12 @@ TestFuncs.pm
 COPYRIGHT AND LICENCE
 =====================
 
-Copyright (C) 2002 Christopher P Willmot.  All rights
-reserved.
+Copyright (C) 2002 Christopher P Willmot.  All rights reserved.
 
-This work is published under the Artistic licence
-accompanying the Perl distribution which may be found at
-http://www.perl.org.  
+This work is published under the Artistic licence accompanying the Perl
+distribution which may be found at http://www.perl.org.  
 
-There is no warranty whatsoever.  Use at your own risk.
-Just because it is here and is documented does not mean that
-it is fit for any purpose implied by the code or
-accompanying documentation.  
+There is no warranty whatsoever.  Use at your own risk.  Just because it is here
+and is documented does not mean that it is fit for any purpose implied by the
+code or accompanying documentation.  
 

@@ -23,6 +23,7 @@ ok($pf, 'PostScript::File created');
 my $fss = new Finance::Shares::Sample(
     source => $source,
     symbol => 'BOC.L',
+    dates_by => 'quotes',
 );
 ok( $fss, 'Finance::Shares::Sample created' );
 is( $fss->start_date,'2002-01-02', 'start date' );
@@ -98,5 +99,6 @@ my $psfile = check_file("$name.ps");
 ok(-e $psfile, 'PostScript file created');
 
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
+
 

@@ -1,0 +1,99 @@
+# This example assumes you have a mysql database set up for the Lessons
+# as outlined in Finance::Shares::Overview.
+
+{
+    ## sources
+    source => {
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+    },
+    
+    ## files
+    files => [
+	'03-database' => {
+	    landscape => 1,
+	},
+    ],
+    
+    ## charts
+    chart => {
+	dots_per_inch => 75,
+	background => [0.95,0.95,0.9],
+	x_axis => {
+	    mid_width => 0,
+	    mid_color => [0.95,0.95,0.9],
+	},
+	key => {
+	    background => [0.95,0.95,0.9],
+	},
+	prices => {
+	    percent => 60,
+	    points => {
+		color => [0.7, 0.7, 0.3],
+		width => 1.5,
+	    },
+	},
+	volumes => {
+	    percent => 20,
+	    bars => {
+		color => [0.7, 0.7, 0.3 ],
+	    },
+	},
+    },
+    
+    ## functions
+    functions => [
+	medium => {
+	    function => 'exponential_average',
+	    period => 20,
+	    style => {
+		auto => 'none',
+		same => 1,
+		width => 1,
+		color => [0.7,0,0],
+	    },
+	},
+	fast => {
+	    function => 'exponential_average',
+	    period => 3,
+	    style => {
+		auto => 'none',
+		same => 1,
+		width => 1,
+		color => [1,0.4,0],
+	    },
+	},
+    ],
+    
+    ## signals
+    signals => [
+	buy => [ 'mark_buy', { graph => 'prices', line => 'low' } ],
+    ],
+    
+    ## tests
+    tests => [
+	rising => {
+	    graph1 => 'prices', line1 => 'fast',
+	    test   => 'gt',
+	    graph2 => 'prices', line2 => 'medium',
+	    graph  => 'signals',
+	    signal => 'buy',
+	    shown  => 0,
+	},
+    ],
+    
+    ## groups
+    group => { 
+	functions => [qw(medium fast)],
+	tests => [qw(rising)],
+    },
+    
+    ## samples
+    sample => {
+	symbol => 'msft',
+	start_date => '2001-01-01',
+	end_date   => '2001-06-30',
+    },
+};
+

@@ -1,0 +1,201 @@
+#!/usr/bin/perl
+# This example shows how to output multiple samples to multiple files
+# Notice how sources, files etc are all plural and refer to arrays
+
+my $data_colour = [0.3, 0.7, 0.7 ];
+my $bgnd_colour = [0.95,0.95,1   ];
+my $light_blue  = [0,   0.7, 1   ];
+
+my $seq1 = new PostScript::Graph::Sequence;
+$seq1->setup('color', [[0.5,0,0], [1,0,0], [1,1,0], [0.5,0.5,0], [0,1,0], [0,0.5,0], [0,0.5,0.5], [0,0,1], [0.5,0,0.5]]);
+$seq1->auto(qw(color));
+
+### Styles
+my $fn_style = {
+    sequence => $seq1,
+    line => {
+	width => 1.5,
+	outer_color => 0.4,
+    },
+};
+
+my $test_style = {
+    sequence => $seq1,
+    same => 1,
+    line => {
+	width => 3,
+	dashes => [ 1, 2 ],
+    },
+};
+
+my $file1 = '01-multiple-1';
+my $file2 = '01-multiple-2';
+
+### Model
+{
+    ## sources
+    sources => [
+	db   => {
+	    user => 'test',
+	    password => 'test',
+	    database => 'test',
+	    mode => 'offline',
+	},
+	ulvr => 't/07-ulvr.csv',
+	boc  => 't/05-boc.csv',
+    ],
+    
+    ## files
+    files => [
+	$file1 => {
+	    landscape => 1,
+	    title => 'model1a',
+	},
+	$file2 => {
+	    landscape => 1,
+	    title => 'model1b',
+	},
+    ],
+    
+    ## charts
+    charts => [
+	default => {
+	},
+	main => {
+	    dots_per_inch => 75,
+	    background => $bgnd_colour,
+	    invert => 1,
+	    x_axis => {
+		mid_width => 0,
+		mid_color => $bgnd_colour,
+	    },
+	    key => {
+		background => $bgnd_colour,
+	    },
+	    prices => {
+		percent => 60,
+		points => {
+		    color => $data_colour,
+		    width => 1.5,
+		},
+	    },
+	    volumes => {
+		percent => 40,
+		bars => {
+		    color => $data_colour,
+		    width => 1,
+		},
+	    },
+	    signals => {
+		percent => 30,
+	    },
+	},
+	second => {
+	    prices => {
+		percent => 60,
+	    },
+	    volumes => {
+		percent => 40,
+		bars => {
+		    color => $light_blue,
+		},
+	    },
+	},
+    ],
+    
+    ## functions
+    functions => [
+	slow => {
+	    function => 'simple_average',
+	    period => 21,
+	    style => $fn_style,
+	},
+	medium => {
+	    function => 'simple_average',
+	    period => 10,
+	    style => $fn_style,
+	},
+	fast => {
+	    function => 'simple_average',
+	    period => 3,
+	    style => $fn_style,
+	},
+	avg_vol => {
+	    function => 'exponential_average',
+	    graph => 'volumes',
+	    line => 'volume',
+	    period => 21,
+	    strict => 1,
+	    style => $fn_style,
+	},
+    ],
+    
+    ## signals
+    signals => [
+	dummy => [ 'print_values', { message => 'Signal at $date' } ],
+	buy   => [ 'mark_buy',     { graph => 'prices', line => 'medium' } ],
+    ],
+    
+    ## tests
+    tests => [
+	high_vol => {
+	    graph1 => 'volumes', line1 => 'volume',
+	    test   => 'ge',
+	    graph2 => 'volumes', line2 => 'avg_vol',
+	    graph  => 'volumes',
+	    style  => $test_style,
+	    key    => 'high volume',
+	},
+	rising => {
+	    graph1 => 'prices', line1 => 'fast',
+	    test   => 'gt',
+	    graph2 => 'prices', line2 => 'medium',
+	    graph  => 'signals',
+	    style  => $test_style,
+	    signal => [qw(dummy buy)],
+	    key    => 'rising',
+	},
+    ],
+    
+    ## groups
+    groups => [
+	dates => {
+	    start_date => '2002-01-01',
+	    end_date   => '2002-04-01',
+	},
+	volume => {
+	    functions => [qw(avg_vol)],
+	    tests     => [qw(high_vol)],
+	},
+	price => {
+	    functions => [qw(slow medium fast)],
+	    tests => [qw(rising)],
+	},
+	chart1 => {
+	    file      => $file1,
+	    chart     => 'main',
+	},
+	chart2 => {
+	    file      => $file2,
+	    chart     => 'second',
+	},
+    ],
+    
+    ## samples
+    samples => [
+	ulvr_days => {
+	    source => 'ulvr', symbol => 'ULVR.L', dates_by => 'days', page => 'd-ulvr',
+	    groups => [qw(price chart1)],
+	},
+	ulvr_weeks => {
+	    source => 'ulvr', symbol => 'ulvr.l', dates_by => 'weeks', page => 'w-ulvr',
+	    functions => [qw(slow medium fast)],
+	    tests => [qw(rising)],
+	},
+	boc_days => {
+	    source => 'boc', symbol => 'BOC.L', dates_by => 'weekdays', page => 'd-boc',
+	    groups => [qw(dates volume chart2)],
+	},
+    ],
+};
+

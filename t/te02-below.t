@@ -70,14 +70,19 @@ my $fsm = new Finance::Shares::Model;
 $fsm->add_sample($fss);
 is( values %{$fsm->{samples}}, 1, '1 Sample stored');
 
-$fsm->add_signal('mark_buy');
-$fsm->add_signal('mark_sell');
+$fsm->add_signal('buy', 'mark_buy');
+$fsm->add_signal('sell', 'mark_sell');
+$fsm->add_signal('note', 'mark', undef, {
+    graph => 'prices',
+    line  => 'close',
+});
+$fsm->add_signal('msg', 'print', "$volumes above $vol_91");
 
 ### Tests
 my $sell = line_id('below', 'prices', $simple_3, 'prices', $simple_20);
 $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
-		test => 'lt', signal => 'mark_sell', weight => 100,
+		test => 'lt', signal => 'sell', weight => 100,
 		decay => 1.890, ramp => -90, 
 		graph => 'signals', line => $sell, key => undef,
 		style => $orange, shown => 1, );
@@ -87,7 +92,7 @@ is( values %{$fss->{lines}{signals}{$sell}{data}}, $ndates, "$ndates points in $
 my $buy = line_id('above', 'prices', $simple_3, 'prices', $simple_20);
 $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
-		test => 'gt', signal => 'mark_buy', weight => 100,
+		test => 'gt', signal => 'buy', weight => 100,
 		decay => 1.890, ramp => -90, 
 		graph => 'signals', line => $buy, key => undef,
 		style => $green, shown => 1, );
@@ -97,7 +102,7 @@ is( values %{$fss->{lines}{signals}{$buy}{data}}, $ndates, "$ndates points in $b
 my $vol = line_id('above', 'volumes', $volumes, 'volumes', $vol_91);
 $fsm->test( graph1 => 'volumes', line1 => $volumes,
 		graph2 => 'volumes', line2 => $vol_91,
-		test => 'gt', signal => 'mark_buy', weight => 90,
+		test => 'gt', signal => [qw(note msg)], weight => 90,
 		decay => 1.890, ramp => -89, 
 		graph => 'volumes', line => $vol, key => undef,
 		style => $green, shown => 1, );
@@ -129,7 +134,7 @@ my $fsc = new Finance::Shares::Chart(
 	},
     },
     signals => {
-	percent => 20,
+	percent => 40,
 	show_dates => 1,
     },
 );
@@ -143,12 +148,12 @@ $fsc->output($name);
 my $psfile = check_file("$name.ps");
 
 ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the chart looks different?
-warn "Use ghostview or similar to inspect results file:\n$psfile\n";
+warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 
-print "\nKnown lines...\n";
+#print "\nKnown lines...\n";
 foreach my $g (qw(prices volumes cycles signals)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
-	print "$g : $lineid\n";
+	#print "$g : $lineid\n";
     };
 }
 

@@ -1,6 +1,6 @@
 =head1 NAME
 
-Finance::Shares::Lesson3 - Adding colour to Charts
+Finance::Shares::Lesson3 - Adding colour to charts
 
 =head1 DESCRIPTION
 

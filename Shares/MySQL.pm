@@ -1,10 +1,9 @@
 package Finance::Shares::MySQL;
-our $VERSION = 1.03;
+our $VERSION = 1.04;
 use strict;
 use warnings;
 use DBIx::Namespace 0.03;
 use LWP::UserAgent;
-use Carp;
 
 # Prototypes of local functions only
  sub search_array ($$;$);
@@ -116,12 +115,11 @@ sub new {
     $o->{ua} = new LWP::UserAgent;
     $o->{ua}->agent("$agent_name/$VERSION " . $o->{ua}->agent);
 
-    $o->{urlfn} = defined($opt->{url_function}) ? $opt->{url_function} : \&yahoo;
-    $o->{tries} = defined($opt->{tries})        ? $opt->{tries}        : 3;
-    $o->{exch}  = defined($opt->{exchange})     ? $opt->{exchange}     : 'US';
-    $o->{end}   = defined($opt->{end_date})     ? $opt->{end_date}     : $o->today();
-    $o->{start} = defined($opt->{start_date})   ? $opt->{start_date}   : $o->previous_day($o->{end});
-    $o->{debug} = defined($opt->{verbose})      ? $opt->{verbose}      : 1;
+    $o->{urlfn}   = defined($opt->{url_function}) ? $opt->{url_function} : \&yahoo;
+    $o->{tries}   = defined($opt->{tries})        ? $opt->{tries}        : 3;
+    $o->{mode}    = defined($opt->{mode})         ? $opt->{mode}         : 'cache';
+    $o->{exch}    = defined($opt->{exchange})     ? $opt->{exchange}     : 'US';
+    $o->{verbose} = defined($opt->{verbose})      ? $opt->{verbose}      : 1;
 
     return $o;
 }
@@ -145,9 +143,31 @@ The end date to use when none is given.  (Defaults to today's date)
 
 Provide a default setting so that it doesn't have to be entered repeatedly.  (Default: '')
 
-=head3 verbose
+=head3 mode
 
-Controls the number of warnings given. Can be 0, 1 or 2.
+This controls how the quotes are processed.  Suitable values are:
+
+=over 8
+
+=item online
+
+Stock quotes are fetched directly from !Yahoo without being stored in the database.
+
+=item fetch
+
+Stock quotes are fetched from !Yahoo and stored in the database.  If the data has already been fetched it is
+overwritten.
+
+=item cache
+
+If the requested quotes seem to be stored in the database they are returned from there.  Otherwise they are
+fetched from the internet and stored before being returned.  This, the most efficient mode, is the default.
+
+=item offline
+
+Quotes are only extracted from the database.
+
+=back
 
 =head3 start_date
 
@@ -162,6 +182,10 @@ The number of attempts made to fetch a failed internet request.
 This would be a function returning a fully qualified URL for fetching a series of up to 200 quotes using the same
 format as http://finance.yahoo.com.  There should be no need to over-ride the default which works well with all
 exchanges known to !Yahoo.  However, if it is needed the function should be a replacement for the C<yahoo> method.
+
+=head3 verbose
+
+Controls the number of warnings given. Can be 0, 1 or 2.
 
 =head1 MAIN METHODS
 
@@ -191,18 +215,16 @@ are stored as strings up to 255 characters long.  Its fields are:
 
 sub fetch {
     my ($o, %f) = @_;
-    croak "'symbol' must be specified\n" unless defined($f{symbol});
+    die "'symbol' must be specified\n" unless defined($f{symbol});
     $f{symbol} = uc($f{symbol});
     $f{symbol} =~ m/^(\w+)[^\w]?(\w*)$/;
-    $f{name}       = $1        unless defined $f{name};
-    $f{exchange}   = $2        unless defined $f{exchange};
-    $f{exchange}   = 'US'      unless defined $f{exchange};
-    $f{mode}       = 'cache'   unless defined $f{mode};
-    $f{mode}       = 'offline' unless $o->{tries};
-    $o->{exch}     = $f{exchange}   if defined $f{exchange};
-    $o->{end}      = $f{end_date}   if defined $f{end_date};
-    $o->{start}    = $f{start_date} if defined $f{start_date};
-    $o->{tries}    = $f{tries}      if defined $f{tries};
+    $f{name}     = $1         unless $f{name};
+    $f{exchange} = $2         unless $f{exchange};
+    $f{exchange} = 'US'       unless $f{exchange};
+    $o->{exch}   = $f{exchange} if $f{exchange};
+    $o->{tries}  = $f{tries}    if defined $f{tries};
+    $o->{mode}   = $f{mode}     if $f{mode};
+    $o->{mode}   = 'offline'    unless $o->{tries};
    
     my $name = $o->quote_name($f{name}, $f{exchange});
     my $table;
@@ -210,21 +232,43 @@ sub fetch {
 	$table = $o->table($name);
     };
     if ($@) {
-	croak $@ unless ($@ =~ /^No SQL table/);
-    }
-    unless ($table) {
-	$table = $o->stock_create($f{name}, $f{exchange});
-	#my $data_name = $o->data_name($f{name}, $f{exchange});
-	#$o->data_set($data_name, 'Symbol', $f{symbol});
+	if ($@ =~ /^No SQL table/) {
+	    $table = $o->stock_create($f{name}, $f{exchange});
+	} else {
+	    die "$@\n"; 
+	}
     }
 
+    if ($f{end_date} =~ /\d{4}-\d{2}-\d{2}/) {
+	$o->{end} = $f{end_date};
+    } else {
+	$o->{end} = $o->today();
+    }
+    $o->{start} = $o->days_before($o->{end}, 40);
+
+    if ($f{start_date} =~ /\d{4}-\d{2}-\d{2}/) {
+	$o->{start} = $f{start_date};
+    } else {
+	my $last;
+	eval {
+	    $last = $o->sql_eval("qdate from $table order by qdate desc limit 1");
+	    if ($last) {
+		my $next = $o->days_after($last, 1);
+		$o->{start} = $next unless $o->{start} le $next;
+	    }
+	};
+	if (not $last or $@) {
+	} else {
+	}
+    }
+    
     my @rows;
-    if ($f{mode} eq 'offline') {
+    if ($o->{mode} eq 'offline') {
 	my $cols = 'Qdate, Open, High, Low, Close, Volume';
 	my $query = 'qdate >= ? and qdate <= ? order by qdate';
 	@rows = $o->sql_select("$cols from $table where $query", $o->{start}, $o->{end});
     } else {
-	undef $table if $f{mode} eq 'online';
+	undef $table if $o->{mode} eq 'online';
 	@rows = $o->stock_fetch($f{symbol}, $o->{start}, $o->{end}, $table);
     }
     return @rows;
@@ -264,24 +308,7 @@ The last day to fetch, in the form YYYY-MM-DD.
 
 =item mode
 
-This controls how the quotes are processed.  Suitable values are:
-
-=over 8
-
-=item online
-
-Stock quotes are fetched directly from !Yahoo without being stored in the database.
-
-=item cache
-
-If the requested quotes seem to be stored in the database they are returned from there.  Otherwise they are
-fetched from the internet and stored before being returned.
-
-=item offline
-
-Quotes are only extracted from the database.
-
-=back
+This controls how the data is fetched and stored.  See the constructor option C<mode> for details.
 
 =item tries
 
@@ -297,7 +324,7 @@ Exceptions may be thrown.
 
 sub data_set {
     my ($o, $name, $var, $value) = @_;
-    croak "No variable name" unless $var;
+    die "No variable name\n" unless $var;
     $value = '' unless defined $value;
     my $table;
     eval {
@@ -310,10 +337,10 @@ sub data_set {
 	    $fields   .= "primary key(variable)";
 	    $table = $o->create($name, $fields);
 	} else {
-	    croak;
+	    die "$@\n";
 	}
     }
-    croak "No table for '$name'" unless $table;
+    die "No table for '$name'\n" unless $table;
     my $job = "replace into $table ( variable, value ) values ( '$var', '$value' )";
     $o->{dbh}->do( $job, "'data replace' failed" );
 }
@@ -386,7 +413,7 @@ sub data_name {
     my ($o, $id, $exch) = @_;
     $id = '' unless defined $id;
     $exch = $o->{exch} unless defined $exch;
-    croak "No identifier given" unless defined $id;
+    die "No identifier given\n" unless defined $id;
     return 'StockData::' . ($exch ? "${exch}::" : '') . $id;
 }
 
@@ -400,7 +427,7 @@ sub quote_name {
     my ($o, $id, $exch) = @_;
     $id = '' unless defined $id;
     $exch = $o->{exch} unless defined $exch;
-    croak "No identifier given" unless defined $id;
+    die "No identifier given\n" unless defined $id;
     return 'StockQuotes::' . ($exch ? "${exch}::" : 'US::') . $id;
 }
 
@@ -415,6 +442,28 @@ C<exch> defaults to 'US'.
 
 =cut
 
+
+sub start_date {
+    my $o = shift;
+    return $o->{start} || '';
+}
+
+=head2 start_date()
+
+Returns the start date used by fetch().
+
+=cut
+
+sub end_date {
+    my $o = shift;
+    return $o->{end} || '';
+}
+
+=head2 end_date()
+
+Returns the end date used by fetch().
+
+=cut
 
 sub stock_create {
     my ($o, $id, $exch) = @_;
@@ -451,12 +500,12 @@ not have been created on the way.
 
 sub stock_fetch {
     my ($o, $symbol, $start, $end, $table) = @_;
-    croak 'No stock code' unless $symbol;
-    croak 'No start date' unless $start;
-    croak 'No end date'   unless $end;
+    die "No stock code\n" unless $symbol;
+    die "No start date\n" unless $start;
+    die "No end date\n"   unless $end;
     my $start_day = $o->days_from_string( $start );
     my $end_day = $o->days_from_string( $end );
-    croak 'end_date is before start_date' unless ($start_day <= $end_day);
+    die "end_date is before start_date\n" unless ($start_day <= $end_day);
     
     ## Identify any duplicates
     my %dates;
@@ -484,13 +533,17 @@ sub stock_fetch {
 	my $sdstr = $o->string_from_days($sd);
 	my $edstr = $o->string_from_days($ed);
 	if ($table and $o->stock_present($table, $sdstr, $edstr)) {
-	    $o->out(2, "     $symbol from $sdstr to $edstr already present");
+	    $o->out(2, "    $symbol from $sdstr to $edstr already present");
 	} else {
 	    for (my $try = $o->{tries}; $try; $try--) {
-		$o->out(2, "     $symbol from $sdstr to $edstr requested");
+		$o->out(2, "    $symbol from $sdstr to $edstr requested");
 		my $res = $o->{ua}->request($req);
 		if (not $res->is_success) {
-		    $o->out(1, "     Unsuccessful request:\n\t\"$reqfile\"");
+		    if ($o->{verbose} >=2) {
+			$o->out(2, "    Unsuccessful request:\n\t\"$reqfile\"");
+		    } else {
+			$o->out(1, "    $symbol from $sdstr to $edstr failed");
+		    }
 		} else {
 		    my $data = $res->content();
 		    pos($data) = 0;
@@ -519,7 +572,7 @@ sub stock_fetch {
 		    }
 		    my $unit = ($fetched == 1) ? "date" : "dates";
 		    my $msg = $table ? ",  $entered entered into table $table" : '';
-		    $o->out(2, "     $fetched $unit fetched$msg");
+		    $o->out(2, "    $fetched $unit fetched$msg");
 		    $total_fetched += $fetched;
 		    $total_entered += $entered;
 		    last;   # try
@@ -532,7 +585,7 @@ sub stock_fetch {
 	$o->out(1, "$total_fetched $unit fetched,  $total_entered entered in total");
     }
 
-    croak 'No quotes fetched' unless %dates;
+    die "No quotes fetched\n" unless %dates;
     return sort { $a->[0] gt $b->[0] } values %dates;
 }
 
@@ -571,6 +624,7 @@ An exception is thrown if there was a problem.
 
 sub stock_present {
     my ($o, $table, $start, $end) = @_;
+    return 0 unless $o->{mode} eq 'cache';
     my $query = qq(select count(*) from $table where qdate >= '$start' and qdate <= '$end');
     my $days_found = 0;
     my $sth;
@@ -635,20 +689,25 @@ sub today {
     return $o->sql_eval("curdate()");
 }
 
-sub previous_day {
-    my ($o, $date) = @_;
-    return $o->sql_eval("date_sub( ?, interval 1 day )", $date);
+sub days_before {
+    my ($o, $date, $days) = @_;
+    return $o->sql_eval("date_sub( ?, interval $days day )", $date);
 }
 
-sub debug {
-    my ($o, $debug) = @_;
-    $o->{debug} = $debug if defined $debug;
-    return $o->{debug};
+sub days_after {
+    my ($o, $date, $days) = @_;
+    return $o->sql_eval("date_add( ?, interval $days day )", $date);
+}
+
+sub verbose {
+    my ($o, $verbose) = @_;
+    $o->{verbose} = $verbose if defined $verbose;
+    return $o->{verbose};
 }
 
 sub out {
     my ($o, $lvl, $str) = @_;
-    print STDERR "$str\n" if $lvl <= $o->{debug};
+    print STDERR "$str\n" if $lvl <= $o->{verbose};
 }
 
 sub yahoo {

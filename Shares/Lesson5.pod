@@ -174,23 +174,23 @@ The buy points will be placed in response to a signal, triggered when the test e
 to be told what signals to use.  The test is then told 'use this one'.  B<BEFORE> the B<test> method, register
 the signal, then add a 'signal' key to it:
 
-    $fsm->add_signal('mark_buy');
+    $fsm->add_signal('buyme', 'mark_buy');
 
     $fsm->test(
 	...
-	signal => 'mark_buy',
+	signal => 'buyme',
     );
 
 There should now be blue arrows marking where the stock price has bounced from the 500p resistance line.
 
 Several signals can be triggered by the same test by declaring the value as an array ref.
 
-    $fsm->add_signal('mark_buy');
-    $fsm->add_signal('print', 'Bounced from 500p');
+    $fsm->add_signal('buyme', 'mark_buy');
+    $fsm->add_signal('say', 'print', 'Bounced from 500p');
 
     $fsm->test(
 	...
-	signal => [ 'mark_buy', 'print' ],
+	signal => [ 'buyme', 'say' ],
     );
 
 Now the same event causes a message to be printed on the console, too.
@@ -200,7 +200,7 @@ Now the same event causes a message to be printed on the console, too.
 Control over the appearance of buy and sell signals uses a B<style> hashref in the usual way.  But notice the
 hashref braces added as the third B<add_signal> parameter.
 
-    $fsm->add_signal('mark_buy', undef, {
+    $fsm->add_signal('buyme', 'mark_buy', undef, {
 	graph => 'signals', 
 	value => 60,
 	key   => 'Best time to buy',
@@ -215,7 +215,7 @@ hashref braces added as the third B<add_signal> parameter.
     
 =item 7*.
 
-Change the 'mark_buy' signal so that it shows blue arrows on the prices graph, as before.  But time, have them
+Change the 'buyme' signal so that it shows blue arrows on the prices graph, as before.  But time, have them
 appear at the resistance line created in step 1 (i.e. the $v500 line, not the value '500').  If you've managed it,
 changing 500 to 510 in the B<value> method should shift all the arrows as well as recalculating the test.
 

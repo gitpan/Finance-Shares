@@ -100,12 +100,12 @@ my $v500 = $fss->value(
     shown => 0,
 );
 
-$fsm->add_signal('mark_buy', undef, {
+$fsm->add_signal('buyme', 'mark_buy', undef, {
     graph => 'prices',
     line  => $v500,
     key	  => 'Best time to buy',
 });
-$fsm->add_signal('print');
+$fsm->add_signal('showme', 'print');
 
 $fsm->test(
     graph1 => 'prices', line1 => 'close',
@@ -113,7 +113,7 @@ $fsm->test(
     test   => 'gt',
     graph  => 'signals', style => $pstyle,
     weight => 60, decay => 0.9,
-    signal => [ 'mark_buy', 'print' ],
+    signal => [ 'buyme', 'showme' ],
 );
 
 $fsc->output($stock);

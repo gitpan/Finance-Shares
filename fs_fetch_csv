@@ -1,30 +1,35 @@
 #!/usr/bin/perl
+# version 0.01
 use strict;
 use warnings;
 use Getopt::Long;
 use Finance::Shares::MySQL;
 
 my $help;
-my $start = '2003-01-01';
-my $end   = '2003-03-31';
-my $mode  = 'cache';
-my $file  = '';
-my $user  = 'test';
-my $pwd   = 'test';
-my $dbase = 'test';
-my $debug = 2;
-my $usage = <<END;
+my $start  = '';
+my $end    = '';
+my $mode   = '';
+my $file   = '';
+my $user   = 'test';
+my $pwd    = 'test';
+my $dbase  = 'test';
+my $debug  = 2;
+my $stocks = '';
+my $usage  = <<END;
 Usage:
+    $0 -h | --help
     $0 [ options ] stocks
+    $0 -c <file> | --stocks=<file> [ options ]
 
-'options' can be any (or none) of the following:
+The options available are:
   -u <user> |     --user=<user>  User defaults to 'test'
   -p <pwd>  | --password=<pwd>   Password defaults to 'test'
   -d <db>   | --database=<db>    Database defaults to 'test'
   -v <lvl>  |  --verbose=<lvl>   Verbosity level 0, 1 or 2
   -s <date> |    --start=<date>  First date, as 'YYYY-MM-DD'
   -e <date> |      --end=<date>  Last date, as 'YYYY-MM-DD'
-  -m <mode> |     --mode=<mode>  'cache', 'offline' or 'online'
+  -m <mode> |     --mode=<mode>  online/fetch/cache/offline
+  -c <file> |   --stocks=<file>  Source for stock codes
   -f <file> |     --file=<file>  Name of destination CSV file
   -h        |     --help         Show this help
 
@@ -46,32 +51,56 @@ GetOptions (
     'user|u=s'     => \$user,
     'password|p=s' => \$pwd,
     'database|d=s' => \$dbase,
+    'stocks|c=s'   => \$stocks,
     'verbose|v=s'  => \$debug,
 ) or $help = 1;
 print $usage and exit if $help;
-print $usage and exit unless @ARGV and $start and $end and $user and $pwd and $dbase;
+print $usage and exit unless $user and $pwd and $dbase;
 $mode = lc $mode;
-print $usage and exit unless $mode eq 'offline' or $mode eq 'cache' or $mode eq 'online';
+print $usage and exit unless $mode =~ /offline|cache|fetch|online/ or not $mode;
+
+### Read stocks file
+our @stocks;
+if ($stocks) {
+    open(SYMBOLS, '<', $stocks) or die "Unable to open '$stocks': $!\nStopped";
+    while( <SYMBOLS> ) {
+	chomp;
+	s/#.*//;
+	next if /^\s*$/;
+	my @line = split /[,\s]+/;
+	push @stocks, @line;
+    }
+    close SYMBOLS;
+}
+push @stocks, @ARGV;
+print $usage and exit unless @stocks;
+
 
 # Create MySQL object giving access to the data
 my $db = new Finance::Shares::MySQL(
     user     => $user,
     password => $pwd,
     database => $dbase,
-    debug    => $debug,
+    verbose  => $debug,
 );
 
 # Fetch the data from the internet
-foreach my $stock (@ARGV) {
-    my @data = $db->fetch(
-	symbol     => $stock,
-	start_date => $start,
-	end_date   => $end,
-	mode       => $mode,
-    );
-    
-    warn "No data fetched for $stock\n" and next unless @data;
-    warn "Fetched $stock from $start to $end\n" if $debug;
+foreach my $stock (@stocks) {
+    my @data;
+    eval {
+	@data = $db->fetch(
+	    symbol     => $stock,
+	    start_date => $start,
+	    end_date   => $end,
+	    mode       => $mode,
+	);
+    };
+    if ($@) {
+	warn "Error with $stock : $@";
+    } else {
+	warn "No data fetched for $stock\n" and next unless @data;
+	warn "Finished $stock from ", $db->start_date(), " to ", $db->end_date(), "\n" if $debug;
+    }
 
     my $filename = $file ? $file : "$stock-$start-$end.csv";
     my $fs;

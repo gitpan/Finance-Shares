@@ -1,15 +1,19 @@
 package Finance::Shares::Bands;
-our $VERSION = 0.12;
+our $VERSION = 0.13;
 
 package Finance::Shares::Sample;
 use strict;
 use warnings;
-use Finance::Shares::Sample 0.11 qw(%period %line line_id);
+use Finance::Shares::Sample 0.12 qw(%period %function %functype line_id);
 use Carp;
 
-$line{env_e}   = \&envelope;
-$line{boll_b}  = \&bollinger_band;
-$line{chan_c}  = \&channel;
+$function{envelope}       = \&envelope;
+$function{bollinger_band} = \&bollinger_band;
+$function{channel}        = \&channel;
+
+$functype{envelope}       = 'e';
+$functype{bollinger_band} = 'b';
+$functype{channel}        = 'c';
 
 =head1 NAME
 
@@ -38,8 +42,62 @@ Finance::Shares::Bands - High and low boundaries
 This package provides additional methods for L<Finance::Shares::Sample> objects.  The functions provide two boundary
 lines, above and below another source line.  Once the lines have been constructed they may
 be referred to by text identifiers returned by the function.
+The functions may also be referred to by their text names in a model specification:
 
-They all take parameters in hash key/value format.
+    envelope
+    bollinger_band
+    channel
+
+They mostly take the same parameters, all in hash key/value format.
+All of these keys are optional.
+
+=over 8
+
+=item graph
+
+A string indicating the graph for display: one of prices, volumes, cycles or signals.  (Default: 'prices')
+
+=item line
+
+A string indicating the central data/function.  (Default: 'close')
+
+=item percent
+
+[C<envelope> only].  The lines are generated this percentage above and below the guide line.  (Default: 3)
+
+=item period
+
+[C<bollinger> and C<channel> only].  The number of days, weeks or months being sampled.
+
+If 'strict' is set, this will always be 20 for Bollinger bands.  It controls the length of the sample used to
+calculate the 2 standard deviation above and below, so making it too small will give spurious results.
+
+=item strict
+
+If 1, return undef if the average period is incomplete.  If 0, return the best value so far.
+
+For Bollinger bands this would normally be 1, where the period will be 20 quotes.  Setting this to 0 relaxes this
+rule, allowing C<period> to be set.
+
+=item shown
+
+A flag controlling whether the function is graphed.  0 to not show it, 1 to add the line to the named C<graph>.
+(Default: 1)
+
+=item style
+
+A hash ref holding settings suitable for the PostScript::Graph::Style object used when drawing the line.
+By default lines and points are plotted, with each line in a slightly different style.  (Default: undef)
+
+If C<style> is a hash ref, a seperate Style is used for each line.  To get both lines to have the same appearance,
+pass a PostScript::Graph::Style reference.
+
+=item key
+
+If given this becomes the visual identifier, shown on the Chart key panel.  The software appends words 'high' or
+'low' as appropriate.
+
+=back
 
 =cut
 
@@ -104,37 +162,7 @@ sub envelope {
 
 =head2 envelope
     
-Add lines C<pc> percent above and below the main data line.
-All of the following keys are optional.
-
-=over 8
-
-=item graph
-
-A string indicating the graph for display: one of prices, volumes, cycles or signals.  (Default: 'prices')
-
-=item line
-
-A string indicating the central data/function.  (Default: 'close')
-
-=item percent
-
-The lines are generated this percentage above and below the guide line.  (Default: 3)
-
-=item style
-
-An optional hash ref holding settings suitable for the PostScript::Graph::Style object used when drawing the line.
-By default lines and points are plotted, with each line in a slightly different style.  (Default: undef)
-
-If C<style> is a hash ref, a seperate Style is used for each line.  To get both lines to have the same appearance,
-pass a PostScript::Graph::Style reference.
-
-=item shown
-
-A flag controlling whether the function is graphed.  0 to not show it, 1 to add the lines to the C<graph>
-indicated.  (Default: 1)
-
-=back
+Add lines a given percentage above and below the main data line.
 
 The main reason for generating an envelope around a line is to identify a range of readings that are acceptable.
 Buy or sell signals may be generated if prices move outside this band.
@@ -212,47 +240,9 @@ sub bollinger_band {
 
 =head2 bollinger_bands
     
-A Bollinger band comprising upper and lower boundary lines is placed around a main data line.
-All of the following keys are optional.
-
-=over 8
-
-=item graph
-
-A string indicating the graph for display: one of prices, volumes, cycles or signals.  (Default: 'prices')
-
-=item line
-
-A string indicating the central data/function.  (Default: 'close')
-
-=item period
-
-The number of days, weeks or months being sampled.  If 'strict' is set, this will always be 20.  It controls the
-length of the sample used to calculate the 2 standard deviation above and below, so making it too small will give
-spurious results.
-
-=item style
-
-An optional hash ref holding settings suitable for the PostScript::Graph::Style object used when drawing the line.
-By default lines and points are plotted, with each line in a slightly different style.  (Default: undef)
-
-If C<style> is a hash ref, a seperate Style is used for each line.  To get both lines to have the same appearance,
-pass a PostScript::Graph::Style reference.
-
-=item strict
-
-Normally 1, where the period will be 20 quotes.  Setting this to 0 relaxes this rule, allowing C<period> to be
-set.  (Default: 1)
-
-=item shown
-
-A flag controlling whether the function is graphed.  0 to not show it, 1 to add the lines to the C<graph>
-indicated.  (Default: 1)
-
-=back
-
-A Bollinger band is bounded by lines 2 standard deviations above and below the main data line.  The band is
-sensitive to volatility, narrowing if the data is stable and widening as the variance increases.  
+A Bollinger band comprising upper and lower boundary lines is placed around a main data line.  The lines are
+2 standard deviations above and below the main data line.  The band is sensitive to volatility, narrowing if the
+data is stable and widening as the variance increases.  
 
 Bollinger bands are always calculated on 20 days, weeks or months.  This provides a good sample to reliably
 measure around 95% of the closing prices (the default C<line> id).  Buy or sell signals may be generated if prices
@@ -355,38 +345,7 @@ sub channel {
 =head2 channel
 
 This is the function which will give functions like 52 week highs or the lowest price in the last 30 days.
-All of the following keys are optional.
-
-=over 8
-
-=item graph
-
-A string indicating the graph for display: one of prices, volumes, cycles or signals.  (Default: 'prices')
-
-=item line
-
-A string indicating the central data/function.  (Default: 'close')
-
-=item period
-
-The number of days, weeks or months over which the highest and lowest values are recorded.  (Default: 10)
-
-=item style
-
-An optional hash ref holding settings suitable for the PostScript::Graph::Style object used when drawing the line.
-By default lines and points are plotted, with each line in a slightly different style.  (Default: undef)
-
-If C<style> is a hash ref, a seperate Style is used for each line.  To get both lines to have the same appearance,
-pass a PostScript::Graph::Style reference.
-
-=item shown
-
-A flag controlling whether the function is graphed.  0 to not show it, 1 to add the lines to the C<graph>
-indicated.  (Default: 1)
-
-=back
-
-This function adds lines above and below the main data line which show the highest and lowest points in the
+Lines are added above and below the main data line which show the highest and lowest points in the
 specified period.
 
 The main reason for generating a channel around a line is to identify a range of readings that are acceptable.

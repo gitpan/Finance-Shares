@@ -1,0 +1,18 @@
+2002-05-16: fast=636.450, mid= 639.21, slow=   599.3
+2002-06-07: fast=630.187, mid= 631.53, slow=   626.9
+2002-07-10: fast=592.847, mid= 596.21, slow=   606.2
+2002-08-27: fast=605.070, mid= 608.03, slow=   565.6
+2002-09-16: fast=585.103, mid= 586.41, slow=   592.7
+2002-05-27: Mid below fast at 628, value=  1.04
+From custom_func: func, 2002-05-27, 1.04
+2002-07-01: Mid below fast at 588, value=  1.04
+From custom_func: func, 2002-07-01, 1.04
+2002-07-30: Mid below fast at 502, value=  1.04
+From custom_func: func, 2002-07-30, 1.04
+2002-09-09: Mid below fast at 579, value=  1.04
+From custom_func: func, 2002-09-09, 1.04
+2002-09-25: Mid below fast at 579, value=  1.04
+From custom_func: func, 2002-09-25, 1.04
+From custom_func: func, 2002-05-16, 100
+From custom_func: func, 2002-06-07, 100
+From custom_func: func, 2002-08-27, 100

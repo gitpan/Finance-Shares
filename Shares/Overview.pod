@@ -23,31 +23,9 @@ can apply several tests to several samples.  When the tests are run signals may 
 interesting situations.  The intention is to use these signals to drive a simulated portfolio which can be used in
 analysing risk.
 
-=head2 Design Decisions
-
-Charts are output as a L<PostScript::File>.  Originally this was because I couldn't find any software that
-printed A4 sized charts with enough accuracy and detail to scribble lines on.  In practice, I don't print them
-out nearly as often as they are viewed on screen, but it is good to be able to do both.  This doesn't sit
-particularly well with the web interface, but programs like B<pstill> can convert the output to PDF format easily
-enough, and most browsers can be configured to do something useful with files in application/postscript MIME format.
-
-Another initial impetus was the need to have quotes available offline, and this is still useful.  However, this is
-not essential as the MySQL module can be configured to fetch only (not cache).
-
-Modules for Momentum functions, Oscillator analysis and identification of Support and Resitance trends are planned
-or in development.  These mostly follow John J Murphy's book "Technical Analysis of the Financial Markets".  Also
-planned is a Portfolio module for holding stock positions controlled by signals generated from Models.  It would
-be nice if that could include some risk analysis, but that's crystal ball land.
-
-The CGI interface was added to make the plethora of options a bit more manageable and it does provide a useable
-(if slow) front end.  However this suite was implemented in perl to provide flexible scripting tools.  For
-example, it should be possible to automate a series of tests to quotes for several hundred companies in order to
-identify the stock with the most regular patterns.  I haven't included support for signals in this release because
-I'm still not sure what form the callback function should take.  So if you have any thoughts, do email me.
-
 =head2 Tutorial
 
-There are always two paths, aren't there?
+There are always two paths, aren't there?  A broad road and the one less travelled.
 
 L<Finance::Shares::CGI> provides a graphical user interface with lots of help and explanation alongside all the
 options.  Is it the 'easy' route?  I don't know.  It's certainly harder to set up than a script.  But it's
@@ -69,12 +47,13 @@ working.  The lessons available can be listed with the command line:
 
     man -k Finance::Shares::Lesson
 
-=head2 Preparation for the tutorials
+=head2 Preparation
 
-You need mysql working on your system with the test database that comes as standard.  The user and
-password used in the scripts will also be called 'test'.
+However you wish to work, you need mysql working on your system with the test database that comes as standard.
+The tests and tutorials that come with this package (and Finance::Shares::CGI) expect a user called 'test' with
+'test' as the password.
 
-As root, fire up the mysql client and declare the user:
+To set this up, as root, fire up the mysql client and declare the user:
 
 S< > # B<mysql>
   Welcome to the MySQL monitor.  Commands end with ; or \g.
@@ -92,6 +71,96 @@ use a different name (db_name) you will need to give the command C<create databa
 
 All the lesson scripts are found in the 'tutorial' directory of the Finance::Shares package.  Exercises that are
 a little more challenging are marked with an asterisk (*).
+
+=head2 Collecting Data
+
+An initial development impetus was the need to have quotes available offline, so the MySQL module can be
+configured to work in several modes.  By default, requests for quotes are served from a local B<cache> held in
+a mysql database.  The quotes are fetched from the internet if the cache doesn't have them.  For those with fast
+internet access there is an B<online> mode which bypasses the database.  Alternatively, the B<fetch> mode fills
+the database regardless of whether the data is already there, and B<offline> just returns any cached quotes
+without looking further.
+
+=head2 Handling PostScript
+
+L<PostScript::File> is used to output all charts in PostScript format.  Originally this was because I couldn't
+find any software that printed A4 sized charts with enough accuracy and detail to scribble lines on.  In practice,
+I don't print them out nearly as often as they are viewed on screen, but it is good to be able to do both.  This
+doesn't sit particularly well with the web interface, but programs like B<pstill> can convert the output to PDF
+easily enough.  To convert F<chart.ps> to Adobe Portable Document Format:
+
+    pstill -o chart.pdf chart.ps
+
+Don't forget that most browsers can be configured to do something useful with files in application/postscript MIME
+format, possibly by nominating B<pstill> as a helper program.
+
+It is also worth investigating B<GhostScript> which is available for a wide variety of platforms.  For example,
+the following command (on a single line) will convert the file F<chart.ps> to Portable Network Graphics file
+F<chart.png>.
+
+    gs -q -dBATCH -sDEVICE=png16m \
+	-sOutputFile=chart.png chart.ps
+
+Note that B<gs> will also work as a filter.  PostScript might take a bit more work than producing graphs directly,
+but all the advantages of vector graphics are maintained.  As well as producing the generic printer format,
+L<PostScript::File> can also output EPS files for embedding directly in other documents.
+
+=head2 Further Development
+
+Modules for Oscillator analysis and identification of Support and Resitance trends are planned or in development.
+These mostly follow John J Murphy's book "Technical Analysis of the Financial Markets".  Also planned is
+a Portfolio module for holding stock positions controlled by signals generated from Models.  It would be nice if
+that could include some risk analysis, but that's crystal ball land.
+
+The CGI interface was added to make the plethora of options a bit more manageable and it does provide a useable
+(if slow) front end.  However this suite was implemented in perl to provide flexible scripting tools.  For
+example, it should be possible to automate a series of tests to quotes for several hundred companies in order to
+identify the stock with the most regular patterns.  I haven't included support for signals in this release because
+I'm still not sure what form the callback function should take.  So if you have any thoughts, do email me.
+
+=head1 AUTHOR
+
+Chris Willmot, chris@willmot.org.uk
+
+=head1 SEE ALSO
+
+Have a look at the tests in the F<t> directory of the distribution.  The charts produced will give you a good idea
+of the kind of thing this suite does.
+
+F<fs_model> is the main script, using L<Finance::Shares::Model> - see that man page for details. 
+
+Look through the function modules listed in the introduction to get an idea of the tools available.
+The lessons provide an introduction to these, with scripts found in the F<tutorial> directory.
+
+=head2 Lesson1 - Fetching quotes
+
+Develops a short script which fetches quotes from the internet and shows how the database is used.
+
+=head2 Lesson2 - Sampling stock quotes
+
+This introduces the most used module, L<Finance::Shares::Sample> and how to get a chart from the quotes fetched.
+
+=head2 Lesson3 - Adding colour to charts
+
+Building on the previous script, the options for L<Finance::Shares::Chart> are explored in a little more detail.
+L<PostScript::Graph::Style> objects are also introduced.
+
+=head2 Lesson4 - Drawing moving averages
+
+Lines are now added to the stock chart using functions from L<Finance::Shares::Averages> as examples.
+
+=head2 Lesson5 - Developing tests
+
+This lesson shows how the function lines can be combined to produce signals.
+
+=head2 Other modules
+
+There are literally several hundred options, spread throughout the various modules.  Although you are unlikely to
+use their objects directly, it is worth looking through the support modules to discover what options are available
+and how to use them:
+
+L<PostScript::Graph::Paper>, L<PostScript::Graph::Key>, L<PostScript::Graph::Style> and L<PostScript::File> as
+well as L<Finance::Shares::MySQL>.
 
 =cut
 
