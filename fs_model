@@ -9,7 +9,7 @@ use Finance::Shares::Averages;
 use Finance::Shares::Bands;
 use Finance::Shares::Momentum;
 
-use TestFuncs qw(show_hash show_array);
+#use TestFuncs qw(show_hash show_array);
 
 our $help;
 our $file    = '';
