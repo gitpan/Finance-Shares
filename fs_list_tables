@@ -2,7 +2,7 @@
 # version 0.01
 use warnings;
 use strict;
-use DBIx::Namespace;
+use DBIx::Namespace 0.03;
 
 my $table = shift;
 

@@ -3,11 +3,11 @@ use strict;
 use warnings;
 use Test::More;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Sample   0.10 qw(line_id);
-use Finance::Shares::Chart    0.10;
-use Finance::Shares::Averages 0.10;
-use Finance::Shares::Bands    0.10;
+use PostScript::File          1.00 qw(check_file);
+use Finance::Shares::Sample   0.12 qw(line_id);
+use Finance::Shares::Chart    0.14;
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Bands    0.13;
 
 my $name = 't/fn03-bollinger';
 my $source = 't/04-arm.csv';

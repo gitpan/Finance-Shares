@@ -3,11 +3,11 @@ use strict;
 use warnings;
 use Test::More tests => 14;
 use TestFuncs qw(show show_hash show_lines csv_to_sample check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Model;
-use Finance::Shares::Sample;
-use Finance::Shares::Averages;
-use Finance::Shares::Chart;
+use PostScript::File          1.00 qw(check_file);
+use Finance::Shares::Model    0.12;
+use Finance::Shares::Sample   0.12;
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Chart    0.14;
 
 my $name = 't/te04-minmax';
 my $source = 't/07-ulvr.csv';
@@ -147,7 +147,7 @@ my $combi1 = $fsm->test(
     test   => 'min',
     style  => $combistyle,
     key => 'min',
-    signal => [ 'sigmin' ],
+    signals => [ 'sigmin' ],
     shown => 1,
 );
 ok( $fss->choose_line('signals', $combi1, 1), 'combi1 line' );
@@ -159,7 +159,7 @@ my $combi2 = $fsm->test(
     test   => 'max',
     style  => $combistyle,
     key => 'max',
-    signal => [ 'sigmax' ],
+    signals => [ 'sigmax' ],
     shown => 1,
 );
 ok( $fss->choose_line('signals', $combi2, 1), 'combi2 line' );

@@ -3,11 +3,11 @@ use strict;
 use warnings;
 use Test::More tests => 7;
 use TestFuncs qw(show show_lines csv_to_sample check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Model;
-use Finance::Shares::Sample;
-use Finance::Shares::Bands;
-use Finance::Shares::Chart;
+use PostScript::File        1.00 qw(check_file);
+use Finance::Shares::Model  0.12;
+use Finance::Shares::Sample 0.12;
+use Finance::Shares::Bands  0.13;
+use Finance::Shares::Chart  0.14;
 
 my $name = 't/te03-synopsis';
 my $source = 't/07-ulvr.csv';
@@ -40,10 +40,10 @@ ok( $fss->choose_line('prices', $high, 1), 'high envelope line' );
 ok( $fss->choose_line('prices', $low, 1), 'low envelope line' );
 
 my $tline = $fsm->test(
-    graph1 => 'prices', line1 => 'high',
-    graph2 => 'prices', line2 => $high,
-    test   => 'ge',
-    signal => [ 'circle' ],
+    graph1  => 'prices', line1 => 'high',
+    graph2  => 'prices', line2 => $high,
+    test    => 'ge',
+    signals => [ 'circle' ],
 );
 ok( $fss->choose_line('prices', $tline, 1), 'test line' );
 

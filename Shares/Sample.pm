@@ -32,10 +32,6 @@ our %function = (
     close  => sub { return 'close'; },
     volume => sub { return 'volume'; },
     value  => \&value,
-    price_value   => \&value,
-    volume_value  => \&value,
-    cycles_value  => \&value,
-    signals_value => \&value,
 );
 
 our %functype = (
@@ -43,12 +39,8 @@ our %functype = (
     high   => 'x',
     low    => 'x',
     close  => 'x',
-    volume => 'x',
-    value  => 'p',
-    price_value   => 'p',
-    volume_value  => 'v',
-    cycles_value  => 'c',
-    signals_value => 's',
+    volume => 'y',
+    value  => 'v',
 );
     
 our $highest_int = 10 ** 20;	# how do you set these properly?

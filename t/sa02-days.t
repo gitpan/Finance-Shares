@@ -2,8 +2,8 @@
 use strict;
 use warnings;
 use Test::More tests => 14;
-use TestFuncs qw (array_to_sample);
-use Finance::Shares::Sample;
+use TestFuncs qw(array_to_sample);
+use Finance::Shares::Sample 0.12;
 
 my $data = [
     ['2001-06-01',454.50,475.00,448.50,461.00,8535680],

@@ -2,8 +2,8 @@
 use strict;
 use warnings;
 use Test::More tests => 5;
-use PostScript::File  0.1 qw(check_file);
-use PostScript::Graph::Paper 0.08;
+use PostScript::File         1.00 qw(check_file);
+use PostScript::Graph::Paper 1.00;
 ok(1, 'PostScript::Graph::Paper loaded');
 
 my $ps = new PostScript::Graph::Paper();

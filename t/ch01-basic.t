@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use Test::More;
 use TestFuncs qw(show is_same check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Sample 0.10;
-use Finance::Shares::Chart  0.10;
+use PostScript::File        1.00 qw(check_file);
+use Finance::Shares::Sample 0.12;
+use Finance::Shares::Chart  0.14;
 
 my $name = 't/ch01-basic';
 my $source = 't/01-shell.csv';

@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use Test::More tests => 8;
-use Finance::Shares::Sample qw(today_as_string string_from_ymd ymd_from_string
+use Finance::Shares::Sample 0.12 qw(today_as_string string_from_ymd ymd_from_string
 		    increment_days increment_date days_difference day_of_week);
 ok(1, 'Finance::Shares::Sample loaded');
 		    

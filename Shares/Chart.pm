@@ -1,7 +1,8 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.13;
+our $VERSION = 0.14;
 use strict;
 use warnings;
+use Exporter;
 use Carp;
 use PostScript::File	     1.00 qw(check_file str);
 use PostScript::Graph::Bar   0.03;
@@ -10,6 +11,9 @@ use PostScript::Graph::Paper 1.00;
 use PostScript::Graph::Style 1.00;
 use PostScript::Graph::XY    0.04;
 use Finance::Shares::Sample  0.12 qw(ymd_from_string day_of_week);
+
+our @ISA = qw(Exporter);
+our @EXPORT_OK = qw(deep_copy);
 
 # These are the option keys for each graph
 our @graphs = qw(prices volumes cycles signals);
@@ -26,6 +30,7 @@ Finance::Shares::Chart - Draw stock quotes on a PostScript graph
 =head1 SYNOPSIS
 
     use Finance::Shares::Chart;
+    use Finance::Shares::Chart 'deep_copy';
 
     # ensure quotes data exists
     my $fss = new Finance::Shares::Sample(...);
@@ -261,7 +266,7 @@ sub new {
 	$y->{smallest} = $o->{smallest} unless defined $y->{smallest};
 	
 	## key
-	$h->{key} = $o->{key};
+	$h->{key} = deep_copy($o->{key});
     }
     
     ## Individual settings
@@ -1358,6 +1363,41 @@ name.  It should take 5 parameters similar to the code for C<shape => 'stock'> w
 
     x yopen ylow yhigh yclose make_stock
     
+=cut
+
+=head1 EXPORTED FUNCTIONS
+
+=cut
+
+sub deep_copy {
+    my ($orig) = @_;
+    return undef unless defined $orig;
+    my $ref = ref $orig;
+    my $copy;
+
+    if ($ref eq 'HASH') {
+	$copy = {};
+	foreach my $key (keys %$orig) {
+	    my $value = $orig->{$key};
+	    $copy->{$key} = deep_copy($value);
+	}
+    } elsif ($ref eq 'ARRAY') {
+	$copy = [];
+	foreach my $value (@$orig) {
+	    push @$copy, deep_copy($value);
+	}
+    } else {
+	$copy = $orig;
+    }
+
+    return $copy;
+}
+
+=head2 deep_copy( var )
+
+C<var> is returned unless it is, or contains, a hash ref or  an array ref.  These are copied recursively and the
+copy is returned.
+
 =cut
 
 =head1 BUGS

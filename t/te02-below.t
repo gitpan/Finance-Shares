@@ -3,11 +3,11 @@ use strict;
 use warnings;
 use Test::More;
 use TestFuncs qw(show show_lines csv_to_sample check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Sample   0.10 qw(line_id);
-use Finance::Shares::Chart    0.10;
-use Finance::Shares::Averages 0.10;
-use Finance::Shares::Model    0.10;
+use PostScript::File          1.00 qw(check_file);
+use Finance::Shares::Sample   0.12 qw(line_id);
+use Finance::Shares::Chart    0.14;
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Model    0.12;
 
 my $name = 't/te02-below';
 my $source = 't/01-shell.csv';
@@ -102,7 +102,7 @@ is( values %{$fss->{lines}{signals}{$buy}{data}}, $ndates, "$ndates points in $b
 my $vol = line_id('above', 'volumes', $volumes, 'volumes', $vol_91);
 $fsm->test( graph1 => 'volumes', line1 => $volumes,
 		graph2 => 'volumes', line2 => $vol_91,
-		test => 'gt', signal => [qw(note msg)], weight => 90,
+		test => 'gt', signals => [qw(note msg)], weight => 90,
 		decay => 1.890, ramp => -89, 
 		graph => 'volumes', line => $vol, key => undef,
 		style => $green, shown => 1, );

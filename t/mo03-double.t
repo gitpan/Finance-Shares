@@ -3,16 +3,16 @@ use strict;
 use warnings;
 use Test::More tests => 2;
 use TestFuncs qw(check_filesize show_lines);
-use PostScript::File 0.11 qw(check_file);
-use PostScript::Graph::Style;
-use Finance::Shares::Model;
+use PostScript::File          1.00 qw(check_file);
+use PostScript::Graph::Style  1.00;
+use Finance::Shares::Model    0.12;
 
 my $name = 't/mo03-double';
 
 ### Setup
-use Finance::Shares::Averages;
-use Finance::Shares::Bands;
-use Finance::Shares::Momentum;
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Bands    0.13;
+use Finance::Shares::Momentum 0.02;
 
 my $data_colour = [0.3, 0.7, 0.7 ];
 my $bgnd_colour = [0.95,0.95,1   ];

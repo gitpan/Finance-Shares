@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	=> 'Finance::Shares',
-    VERSION	=> '0.07',
+    VERSION	=> '0.08',
     ABSTRACT	=> 'Collecting and tracking share prices',
     AUTHOR      => 'Christopher Willmot <chris@willmot.org>',
     NORECURS    => 1,
@@ -18,7 +18,7 @@ WriteMakefile(
 	'PostScript::Graph::Style'  => 1.00,
 	'PostScript::Graph::XY'	    => 0.04,
     },
-    EXE_FILES => [ 'fs_model' ],
+    EXE_FILES => [qw(fs_model fs_fetch)],
     PM	=> {
 	'Shares/Averages.pm'	=> '$(INST_LIBDIR)/Shares/Averages.pm',
 	'Shares/Bands.pm'   	=> '$(INST_LIBDIR)/Shares/Bands.pm',
@@ -33,12 +33,13 @@ WriteMakefile(
 	'Shares/Bands.pm'   	=> '$(INST_LIBDIR)/Shares/Bands.pod',
 	'Shares/Chart.pm'	=> '$(INST_LIBDIR)/Shares/Chart.pod',
 	'Shares/Model.pm'   	=> '$(INST_LIBDIR)/Shares/Model.pod',
-	'Shares/Momentum.pm'   	=> '$(INST_LIBDIR)/Shares/Momentum.pm',
+	'Shares/Momentum.pm'  	=> '$(INST_LIBDIR)/Shares/Momentum.pod',
 	'Shares/MySQL.pm'	=> '$(INST_LIBDIR)/Shares/MySQL.pod',
 	'Shares/Sample.pm'	=> '$(INST_LIBDIR)/Shares/Sample.pod',
 	'Shares/Lesson1.pod'	=> '$(INST_LIBDIR)/Shares/Lesson1.pod',
 	'Shares/Lesson2.pod'	=> '$(INST_LIBDIR)/Shares/Lesson2.pod',
 	'Shares/Lesson3.pod'	=> '$(INST_LIBDIR)/Shares/Lesson3.pod',
 	'Shares/Lesson4.pod'	=> '$(INST_LIBDIR)/Shares/Lesson4.pod',
+	'Shares/Lesson5.pod'	=> '$(INST_LIBDIR)/Shares/Lesson5.pod',
     },
 );

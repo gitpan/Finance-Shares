@@ -2,12 +2,12 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use PostScript::File 0.11 qw(check_file);
-use PostScript::Graph::Style;
-use Finance::Shares::Model qw(deep_copy);
-use Finance::Shares::Averages;
-use Finance::Shares::Bands;
-use Finance::Shares::Momentum;
+use PostScript::File          1.00 qw(check_file);
+use PostScript::Graph::Style  1.00;
+use Finance::Shares::Model    0.12 qw(deep_copy);
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Bands    0.13;
+use Finance::Shares::Momentum 0.02;
 
 #use TestFuncs qw(show_hash show_array);
 

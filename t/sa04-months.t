@@ -3,10 +3,9 @@ use strict;
 use warnings;
 use Test::More tests => 12;
 use TestFuncs qw(is_same csv_to_sample sample_to_csv check_filesize);
-use Finance::Shares::Sample;
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Chart  0.10;
-use Text::CSV_XS;
+use Finance::Shares::Sample 0.12;
+use PostScript::File        1.00 qw(check_file);
+use Finance::Shares::Chart  0.14;
 
 my $name    = 't/sa04-results';
 my $source  = 't/06-egg.csv';

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use Finance::Shares::MySQL;
+use Finance::Shares::MySQL 1.04;
 
 my $help;
 my $start  = '';

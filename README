@@ -47,9 +47,8 @@ They can all be found on CPAN (http://www.cpan.org)
 ADDITIONAL FILES
 ================
 
-A number of support scripts are provided in the package.  As they are
-principally used in development they are not installed by default.  However
-some might be useful enough to copy to your own bin dir.
+A number of support scripts are provided although only fs_model and fs_fetch are
+installed.
 
 fs_model
     This is the main script in this package and the only one installed to your
@@ -83,6 +82,11 @@ fs_fetch
 
 	fs_fetch --help
 	fs_fetch --start '2003-01-01' MSFT HPQ
+
+    Note that the start and end dates now have useful defaults (which also apply
+    to fs_model and fs_fetch_csv).  'end' defaults to today.  'start' defaults
+    to the day after the last date in the database, or fetches the last few
+    days.
 
 fs_fetch_csv
     This also fetches quotes from the internet, but it can also fetch cached

@@ -341,7 +341,7 @@ sub check_filesize {
     }
     
     my $exists = $fs{$psfile};
-    my $res = $exists ? ($fs{$psfile} == $pssize) 1;
+    my $res = $exists ? ($fs{$psfile} == $pssize) : 1;
     $fs{$psfile} = $pssize;
 
     open(OUT, '>', $filesizes) or die "Unable to write to $filesizes : $!\n";

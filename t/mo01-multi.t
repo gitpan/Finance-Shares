@@ -3,9 +3,9 @@ use strict;
 use warnings;
 use Test::More tests => 4;
 use TestFuncs qw(check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use PostScript::Graph::Style;
-use Finance::Shares::Model;
+use PostScript::File         1.00 qw(check_file);
+use PostScript::Graph::Style 1.00;
+use Finance::Shares::Model   0.12;
 
 my $name = 't/mo01-multi';
 

@@ -1,17 +1,13 @@
 package Finance::Shares::Model;
-our $VERSION = 0.11;
+our $VERSION = 0.12;
 use strict;
 use warnings;
-use Exporter;
 use Carp;
 use PostScript::File	     1.00;
 use Finance::Shares::Sample  0.12 qw(line_id call_function %function);
-use Finance::Shares::Chart;
+use Finance::Shares::Chart   0.14 qw(deep_copy);
 
 #use TestFuncs qw(show_hash show_array show_lines);
-
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(deep_copy);
 
 our %testfunc;
 $testfunc{gt} = \&test_gt;
@@ -731,6 +727,8 @@ sub new {
     $o->{cgi_file} = $opt->{cgi_file} || 'STDOUT';
     $o->{verbose}  = defined($opt->{verbose})  ? $opt->{verbose}  : 1;  
     $o->{dir}      = $opt->{directory};
+    $o->{delay}    = %$opt ? 1 : 0;
+    $o->{delay}    = ($opt->{run} == 0) if defined $opt->{run};
     
     ## Resources
     $o->resource('source');
@@ -762,7 +760,7 @@ sub new {
 	}
     }
 
-    $o->run() if %$opt and not $opt->{delay};
+    $o->run() unless $o->{delay};
     return $o;
 }
 
@@ -781,6 +779,11 @@ Specify the name of the C<file> or C<files> hash to be printed to STDOUT rather 
 =item directory
 
 If the file names are not absolute paths, they will be placed in this directory.  (Default: undef)
+
+=item run
+
+Setting this to 0 prevents the constructor from running the model.  A model is assumed if there are ANY
+parameters: if no parameters are given, this defaults to 0, otherwise the default is 1.
 
 =item verbose
 
@@ -877,7 +880,7 @@ sub run {
 		my $th = deep_copy($h0);
 		patch_line(\%lines, $th, 'line1');
 		patch_line(\%lines, $th, 'line2');
-		$o->patch_signals(\%lines, $th->{signal});
+		$o->patch_signals(\%lines, $th->{signals});
 		my $line_id = $o->test_sample($fss, $th);
 		$lines{$id} = $line_id;
 		$o->out(3, '    ' . "$id = test $line_id");
@@ -1042,10 +1045,9 @@ the period.
 An alternative method for conditioning the signal line.  This amount is added to the signal value with each
 period.
 
-=item signal
+=item signals
 
-This should be one or more of the signals registered with this model.  It can either be a single name or an array
-ref holding a list of names.
+This should be an array ref holding one or more of the signals registered with this model.
 
 =back
 
@@ -1081,19 +1083,19 @@ An inverted curve with the first 5 days scoring more than 85 then dropping rapid
 
 sub output {
     my $o = shift;
-    my ($filename, $dir, $psf);
-
+    
+    my ($psf, $filename, $dir);
     unless ($o->{run}) {
-	my $pf = shift;
-	my $ref = ref $pf;
-	if ($pf and ($ref eq 'HASH' or $ref eq 'PostScript::File')) {
+	$psf = shift;
+	my $ref = ref $psf;
+	if ($psf and ($ref eq 'HASH' or $ref eq 'PostScript::File')) {
 	    ($filename, $dir) = @_;
 	} else {
 	    $dir = shift;
-	    $filename = $pf;
-	    $pf = undef;
+	    $filename = $psf;
+	    $psf = undef;
 	}
-	$o->ensure_psfile( $filename, $pf );
+	$o->ensure_psfile( $filename, $psf );
 	$o->run();
     }
     $dir = $o->{dir} unless defined $dir;
@@ -1589,7 +1591,7 @@ sub test_sample {
 	croak "Line '$h->{line2}' has no key" unless $base2->{key};
 	$label = (defined $testpre{$h->{test}} ? "$testpre{$h->{test}} " : '') . $base1->{key} . ' ' .
 		 (defined $testname{$h->{test}} ? "$testname{$h->{test}} " : '') . $base2->{key} unless $label;
-	$id = line_id($h->{test}, $h->{graph1}, $h->{line1}, $graph2, $h->{line2}) unless $id;
+	$id = line_id("test_$h->{test}", $h->{graph1}, $h->{line1}, $graph2, $h->{line2}) unless $id;
     } else {
 	$label = (defined $testpre{$h->{test}} ? "$testpre{$h->{test}} " : '') . $base1->{key} . ' ' .
 		 (defined $testname{$h->{test}} ? "$testname{$h->{test}} " : '') unless $label;
@@ -1608,14 +1610,14 @@ sub test_sample {
     my $res = call_function(\%testfunc,$h->{test}, $o,$data,@args );
     $s->add_line($graph, $id, $res, $label, $h->{style}, $h->{shown}) if $res;
 
-    if ($h->{signal}) {
+    $h->{signals} = [ $h->{signal} ] if defined($h->{signal}) and not defined($h->{signals});
+    if ($h->{signals}) {
 	# A test may produce a line on one graph but invoke a 'mark' signal on another
 	# The signal line may use values from the test graph axis, which might need clipping.
-	my $signals = ref($h->{signal}) eq 'ARRAY' ? $h->{signal} : [ $h->{signal} ];
-	foreach my $id (@$signals) {
+	foreach my $id (@{$h->{signals}}) {
 	    next unless $id;
 	    my $sf = $o->{sigfns}{$id};
-	    return unless ref($sf) eq 'ARRAY';
+	    next unless ref($sf) eq 'ARRAY';
 	    my ($signal, $org, @rest) = @$sf;
 	    if ($signal =~ /mark/) {
 		my $p = $rest[0];
@@ -1697,7 +1699,7 @@ sub test_gt {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp <= 0 and $comp > 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp > 0 and $comp <= 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1725,7 +1727,7 @@ sub test_lt {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp >= 0 and $comp < 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp < 0 and $comp >= 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1753,7 +1755,7 @@ sub test_ge {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp < 0 and $comp >= 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp >= 0 and $comp < 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1781,7 +1783,7 @@ sub test_le {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp > 0 and $comp <= 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp <= 0 and $comp > 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1809,7 +1811,7 @@ sub test_eq {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp != 0 and $comp == 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp == 0 and $comp != 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1837,7 +1839,7 @@ sub test_ne {
 	if (defined $prev_comp and defined $comp) {
 	    if ($prev_comp == 0 and $comp != 0) {	# change this when copying
 		$level = $a{max};
-		$o->signal($a{signal}, $a{sample}, $date, $level);
+		$o->signal($a{signals}, $a{sample}, $date, $level);
 	    } elsif ($prev_comp != 0 and $comp == 0) {	# change this when copying
 		$level = $a{min} ;
 	    } else {
@@ -1864,7 +1866,7 @@ sub test_min {
 	my ($v1, $v2) = @{$data->{$date}};
 	$level = ($v1 <= $v2 ? $v1 : $v2);
 	my $line = ($v1 <=> $v2);
-	$o->signal($a{signal}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
+	$o->signal($a{signals}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
 	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
 	$level = $a{max} if $level > $a{max};
 	$level = $a{min} if $level < $a{min};
@@ -1887,7 +1889,7 @@ sub test_max {
 	my ($v1, $v2) = @{$data->{$date}};
 	$level = ($v1 >= $v2 ? $v1 : $v2);
 	my $line = ($v1 <=> $v2);
-	$o->signal($a{signal}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
+	$o->signal($a{signals}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
 	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
 	$level = $a{max} if $level >= $a{max};
 	$level = $a{min} if $level <= $a{min};
@@ -1912,7 +1914,7 @@ sub test_sum {
 	$level = $a{max} if $level >= $a{max};
 	$level = $a{min} if $level <= $a{min};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -1934,7 +1936,7 @@ sub test_diff {
 	$level = $a{max} if $limit and $level >= $a{max};
 	$level = $a{min} if $limit and $level <= $a{min};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -1951,7 +1953,7 @@ sub test_or {
 	my ($v1, $v2) = @{$data->{$date}};
 	$level = ($v1 || $v2) ? $a{max} : $a{min};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -1968,7 +1970,7 @@ sub test_and {
 	my ($v1, $v2) = @{$data->{$date}};
 	$level = ($v1 && $v2) ? $a{max} : $a{min};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -1985,7 +1987,7 @@ sub test_not {
 	my ($v1) = @{$data->{$date}};
 	$level = $v1 ? $a{min} : $a{max};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -2002,7 +2004,7 @@ sub test_logic {
 	my ($v1) = @{$data->{$date}};
 	$level = $v1 ? $a{max} : $a{min};
 	
-	$o->signal($a{signal}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
+	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
     }
 
@@ -2144,37 +2146,6 @@ sub condition_level {
 }
 
 
-
-sub deep_copy {
-    my ($orig) = @_;
-    return undef unless defined $orig;
-    my $ref = ref $orig;
-    my $copy;
-
-    if ($ref eq 'HASH') {
-	$copy = {};
-	foreach my $key (keys %$orig) {
-	    my $value = $orig->{$key};
-	    $copy->{$key} = deep_copy($value);
-	}
-    } elsif ($ref eq 'ARRAY') {
-	$copy = [];
-	foreach my $value (@$orig) {
-	    push @$copy, deep_copy($value);
-	}
-    } else {
-	$copy = $orig;
-    }
-
-    return $copy;
-}
-
-=head2 deep_copy( var )
-
-C<var> is returned unless it is, or contains, a hash ref or  an array ref.  These are copied recursively and the
-copy is returned.
-
-=cut
 
 sub patch_line {
     my ($lines, $h, $name) = @_;

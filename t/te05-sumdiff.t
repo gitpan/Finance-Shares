@@ -3,11 +3,11 @@ use strict;
 use warnings;
 use Test::More tests => 11;
 use TestFuncs qw(show show_hash show_lines csv_to_sample check_filesize);
-use PostScript::File 0.11 qw(check_file);
-use Finance::Shares::Model;
-use Finance::Shares::Sample;
-use Finance::Shares::Averages;
-use Finance::Shares::Chart;
+use PostScript::File          1.00 qw(check_file);
+use Finance::Shares::Model    0.12;
+use Finance::Shares::Sample   0.12;
+use Finance::Shares::Averages 0.12;
+use Finance::Shares::Chart    0.14;
 
 my $name = 't/te05-sumdiff';
 my $source = 't/07-ulvr.csv';
@@ -128,7 +128,7 @@ my $combi2 = $fsm->test(
     graph  => 'signals',
     test   => 'sum',
     style  => $combistyle,
-    signal => 'top',
+    signals => ['top'],
     shown => 1,
 );
 ok( $fss->choose_line('signals', $combi2, 1), 'combi2 line' );
