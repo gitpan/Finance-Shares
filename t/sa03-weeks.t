@@ -6,7 +6,7 @@ use TestFuncs qw(is_same csv_to_sample sample_to_csv);
 use Finance::Shares::Sample 0.12;
 
 my $source = 't/01-shell.csv';
-my $results = 't/sa03-results.csv';
+my $results = 't/sa03-weeks.csv';
 
 my $s = new Finance::Shares::Sample(
     source => $source,

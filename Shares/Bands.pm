@@ -1,5 +1,5 @@
 package Finance::Shares::Bands;
-our $VERSION = 0.14;
+our $VERSION = 0.15;
 
 package Finance::Shares::Sample;
 use strict;
@@ -77,12 +77,13 @@ A string indicating the central data/function.  (Default: 'close')
 If 'strict' is set, this will always be 20 for Bollinger bands.  It controls the length of the sample used to
 calculate the 2 standard deviation above and below, so making it too small will give spurious results.
 
+=item sd
+
+[C<bollinger> only].  The number of standard deviations above and below the central line.  (Default: 2.00)
+
 =item strict
 
-If 1, return undef if the average period is incomplete.  If 0, return the best value so far.
-
-For Bollinger bands this would normally be 1, where the period will be 20 quotes.  Setting this to 0 relaxes this
-rule, allowing C<period> to be set.
+If 1, return undef if the average period is incomplete.  If 0, return the best value so far.  (Default: 1)
 
 =item shown
 
@@ -180,18 +181,18 @@ they are returned as a list:
 =cut
 
 sub bollinger_band {
-   my $s = shift;
+   my ($s, %a) = @_;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
-    my %a = (
-	strict	=> 1,
-	shown	=> 1,
-	graph	=> 'prices',
-	line	=> 'close',
-	period	=> 20,
-	style	=> undef,
-	key	=> undef,
-	@_);
-    $a{period} = 20 if $a{strict} or not $a{period};
+    $a{strict} = 1	  unless defined $a{strict};
+    $a{shown}  = 1	  unless defined $a{shown};
+    $a{graph}  = 'prices' unless defined $a{graph};
+    $a{line}   = 'close'  unless defined $a{line};	
+    $a{period} = 20	  unless defined $a{period};
+    $a{sd}     = 2        unless defined $a{sd};
+    if ($a{strict}) {
+	$a{period} = 20;
+	$a{sd} = 2;
+    }
     
     my $base = $s->{lines}{$a{graph}}{$a{line}};
     die "No $a{graph} line with id $a{line}\n" unless $base;
@@ -205,7 +206,6 @@ sub bollinger_band {
 	push @values, $v;
     }
     
-    my $scale = 2;
     my (%low, %high); 
     foreach my $i (0 .. $#values) {
 	my $date = $keys[$i];
@@ -213,7 +213,7 @@ sub bollinger_band {
 	if (defined $val) { 
 	    my $diff = bollinger_single($a{strict}, \@keys, \@values, $a{period}, $i); 
 	    if (defined $diff) { 
-		$diff *= $scale;
+		$diff *= $a{sd};
 		$low{$date}  = $val - $diff;
 		$high{$date} = $val + $diff;
 	    }
@@ -245,15 +245,16 @@ sub bollinger_band {
 
 =head2 bollinger_bands
     
-A Bollinger band comprising upper and lower boundary lines is placed around a main data line.  The lines are
-2 standard deviations above and below the main data line.  The band is sensitive to volatility, narrowing if the
-data is stable and widening as the variance increases.  
+A Bollinger band comprising upper and lower boundary lines is placed around a main data line.  By default the
+lines are 2 standard deviations above and below the main data line.  The band is sensitive to volatility,
+narrowing if the data is stable and widening as the variance increases.  
 
-Bollinger bands are always calculated on 20 days, weeks or months.  This provides a good sample to reliably
+Bollinger bands are normally calculated on 20 days, weeks or months.  This provides a good sample to reliably
 measure around 95% of the closing prices (the default C<line> id).  Buy or sell signals may be generated if prices
 move outside this.  
 
-Even without C<strict>, there is always a lead-in period where values are undefined.
+In order to deviate from these default values, C<strict> must be set to 0.  Even without C<strict>, there is always
+a lead-in period where values are undefined.
 
 Like all functions, this returns the line identifiers.  However, there are two, an upper and a lower bound, so
 they are returned as a list:

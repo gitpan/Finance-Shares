@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+# This file lists all the keys that can be used in a model recipe.
+# They are listed as an aide memoire - no recommendations implied.
+# See the appropriate man page for explanations.
+
+# A model recipe is a perl script which returns a list of keys and values.
+# Note the commas seperating the very long last (and possibly only) statement.
+
+sources => [
+    # Options for a Finance::Shares::MySQL object
+    
+    # This source gets data from a mysql database
+    mysql => {
+	dbsource => 'dbi:mysql',
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+	mode     => 'offline',	# online, fetch, cache, offline
+	tries    => 3,
+	start_date => '2003-01-01',
+	end_date => '2003-12-31',
+	exchange => 'NASDAQ',
+	#url_function => \&my_code,
+	verbose  => 2,
+    },
+    
+    # This source reads all the quotes in a CSV file
+    file1 => 'source.csv',
+],
+
+
+files => [
+    # Options for the PostScript::File object which collects the charts
+    
+    # This postscript file will be saved as 'filename.ps'
+    filename => {
+	paper    => 'US-Letter',
+	landscape => 1,
+	bottom	 => 72,
+	left     => 50,
+	right    => 36,
+	top      => 60,
+	
+	headings    => 1,
+	# extensions => <feature list>
+	langlevel   => 2,
+	reencode    => 'ISOLatin1Encoding',
+	font_suffix => '-iso',
+	order	    => 'ascend',
+	title	    => 'My Title',		# only within PostScript file
+	version	    => 1.2,			# only within PostScript file
+	
+	dir      => '~/postscript',
+	# file option replaced by the key to this hash
+	
+	clip_command => 'stroke',
+	clipping => 1,
+	strip => 'comments',
+	# incpage_handler => \&my_code
+	# page overridden by samples setting
+	
+	debug    => 2,
+	# several db_ options
+	
+	errors	 => 1,
+	# several err_ options
+    },
+    
+    # This postscript file will be saved as 'epsfile.epsf'
+    epsfile => {
+	eps	 => 1,				# only for single charts
+	height	 => 600,
+	width	 => 450,
+    },
+],
+
+

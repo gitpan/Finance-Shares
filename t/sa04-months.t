@@ -7,9 +7,9 @@ use Finance::Shares::Sample 0.12;
 use PostScript::File        1.00 qw(check_file);
 use Finance::Shares::Chart  0.14;
 
-my $name    = 't/sa04-results';
+my $name    = 't/sa04-months';
 my $source  = 't/06-egg.csv';
-my $results = 't/sa04-results.csv';
+my $results = 't/sa04-months.csv';
 
 my $s = new Finance::Shares::Sample(
     source => $source,

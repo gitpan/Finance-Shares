@@ -1,0 +1,141 @@
+# This example assumes you have a mysql database set up for the Lessons
+# as outlined in Finance::Shares::Overview.
+
+my $seq1 = new PostScript::Graph::Sequence;
+$seq1->setup('color', [
+	[0.5,0,0],
+	[1,0,0],
+	[1,1,0],
+	[0.5,0.5,0],
+	[0,1,0],
+	[0,0.5,0],
+	[0,0.5,0.5],
+	[0,0,1],
+	[0.5,0,0.5]
+    ]);
+$seq1->auto(qw(color));
+
+### Styles
+my $fn_style = {
+    sequence => $seq1,
+    line => {
+	width => 1.5,
+	outer_color => 0.4,
+    },
+};
+
+my $bar_style = {
+    sequence => $seq1,
+    bar => {
+    },
+};
+
+### Model
+{
+    verbose => 2,
+
+    ## sources
+    source => {
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+    },
+    
+    ## files
+    file => {
+	landscape => 1,
+    },
+    
+    ## charts
+    chart => {
+	dots_per_inch => 75,
+	background => [0.95,0.95,0.9],
+	x_axis => {
+	    mid_width => 0,
+	    mid_color => [0.95,0.95,0.9],
+	},
+	key => {
+	    background => [0.95,0.95,0.9],
+	},
+	prices => {
+	    percent => 30,
+	    points => {
+		shape => 'candle2',
+		inner_color => [0.9, 0.9, 0],
+		outer_color => [0.4, 0.4, 0],
+		width => 0.5,
+	    },
+	},
+	volumes => {
+	    percent => 15,
+	    bars => {
+		color => [0.7, 0.7, 0.3 ],
+	    },
+	},
+	cycles => {
+	    percent => 20,
+	},
+	tests => {
+	    percent => 40,
+	},
+    },
+   
+    ## functions
+    functions => [
+	usold => {
+	    function => 'undersold',
+	    sd       => 1,
+	    shown    => 0,
+	},
+	usold_ex => {
+	    function => 'extend',
+	    graph    => 'tests',
+	    line     => 'usold',
+	    period   => 5,
+	    style    => $fn_style,
+	    shown    => 1,
+	    weight   => 50,
+	},
+	obv => {
+	    function => 'on_balance_volume',
+	    period   => 10,
+	},
+	obvup => {
+	    function => 'rising',
+	    graph    => 'cycles',
+	    line     => 'obv',
+	    style    => $fn_style,
+	    weight   => 75,
+	},
+    ],
+   
+    ## signals
+    signals => [
+	buysig => [ 'mark_buy', {
+	    graph    => 'prices',
+	    line     => 'low',
+	}],
+    ],
+   
+    ## tests
+    tests => [
+	both => {
+	    graph1   => 'tests',
+	    line1    => 'usold_ex',
+	    graph2   => 'tests',
+	    line2    => 'obvup',
+	    test     => 'and',
+	    signals  => ['buysig'],
+	    style    => $fn_style,
+	},
+    ],
+   
+    ## sample
+    sample => { 
+	start_date => '2003-01-01',
+	end_date   => '2003-04-31',
+	dates_by   => 'weekdays',
+	functions  => [qw(usold usold_ex obv obvup)],
+	tests      => ['both'],
+    },
+};

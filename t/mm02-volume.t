@@ -1,81 +1,107 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More;
+use Test::More tests => 5;
 use TestFuncs qw(show is_same csv_to_sample check_filesize);
 use PostScript::File          1.00 qw(check_file);
+use PostScript::Graph::Style  1.00;
 use Finance::Shares::Sample   0.12 qw(line_id);
 use Finance::Shares::Chart    0.14;
+use Finance::Shares::Momentum 0.03;
 use Finance::Shares::Averages 0.12;
-use Finance::Shares::Bands    0.13;
 
-my $name = 't/fn03-bollinger';
-my $source = 't/04-arm.csv';
-my $test = {};	    # 0 to stop, {} to collect Chart test data
-plan tests => 11;
-my $csv = csv_to_sample($source);
+my $name = 't/mm02-volume';
+my $source = 't/07-ulvr.csv';
 
 ### PostScript::File
 my $pf = new PostScript::File(
     landscape => 1,
 );
-ok($pf, 'PostScript::File created');
 
 ### Finance::Shares::Sample
 my $fss = new Finance::Shares::Sample(
-    source => $source,
-    symbol => 'ARM.L',
+    source   => $source,
+    symbol   => 'ULVR.L',
+    dates_by => 'weekdays',
 );
-ok( $fss, 'Finance::Shares::Sample created' );
-is( $fss->start_date,'1998-01-02', 'start date' );
-is( $fss->end_date,'1998-03-25', 'end date' );
-
-my $ndates = keys %{$fss->{close}};
-is( $ndates, keys %{$csv->{close}}, "$ndates dates" );
 
 ### PostScript::Graph::Style
 my $seq = new PostScript::Graph::Sequence;
+$seq->setup('red', [1, 0, 0.5]);
+$seq->setup('green', [0, 1, 0.5]);
+$seq->setup('blue', [0, 1, 0.5]);
 $seq->auto(qw(green blue red));
-my $style = new PostScript::Graph::Style(
+my $style = {
     sequence => $seq,
     same => 1,
     line => {
 	width => 2,
     },
-);
+};
 
 ### Function lines
-$fss->simple_average(period => 10, strict => 1);
-my $simple_10 = line_id('simple', 10, 'close');
-ok( $fss->{lines}{prices}{$simple_10}, "$simple_10 stored" );
-$fss->bollinger_band(style => $style, line => $simple_10, period => 10, sd => 1.5);
-my $low = line_id('boll_lo', $simple_10);
-ok( $fss->{lines}{prices}{$low}, "$low stored" );
-my $high = line_id('boll_hi', $simple_10);
-ok( $fss->{lines}{prices}{$high}, "$high stored" );
+my @args = (
+    style => $style,
+    shown => 1,
+    #gradient => $style,
+);
+
+my $obv = $fss->on_balance_volume(@args);
+ok( $fss->{lines}{cycles}{$obv}, "$obv stored" );
+my $rising = $fss->rising(
+    graph => 'cycles',
+    line  => $obv,
+    smallest => 10,
+    shown => 1,
+    style => $style,
+);
 
 ### Finance::Shares::Chart
+my $background = [1, 1, 0.9];
 my $fsc = new Finance::Shares::Chart(
     file => $pf,
     sample => $fss,
-    test => $test,
     dots_per_inch => 72,
     smallest => 6,
-    background => [1, 1, 0.9],
+    background => $background,
+    x_axis => {
+	mid_color => $background,
+    },
     prices => {
-	percent => 75,
+	percent => 25,
 	sequence => $seq,
 	points => {
 	    shape => 'close',
-	    color => [ 1, 0, 0 ],
+	    color => [ 0.6, 0.2, 0.2 ],
 	    width => 2,
 	},
     },
+    volumes => {
+	percent => 25,
+    },
+    cycles => {
+	percent => 25,
+    },
+    tests => {
+	percent => 25,
+	show_dates => 1,
+    },
+	
 );
 ok($fsc, 'Finance::Shares::Chart created');
 
 ### output
 $fsc->build_chart();
+
+my $count = 0;
+print "Known lines...\n";
+foreach my $g (qw(prices volumes cycles tests)) {
+    foreach my $lineid ( $fss->known_lines($g) ) {
+	print "  $g : $lineid\n";
+	$count++;
+    };
+}
+is( $count, 9, "$count known lines" );
 
 ### finish
 $fsc->output($name);

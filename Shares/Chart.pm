@@ -1,5 +1,5 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.16;
+our $VERSION = 0.17;
 use strict;
 use warnings;
 use Exporter;
@@ -276,6 +276,7 @@ sub new {
 	my $pp = $o->{prices}{points};
 	$pp->{shape} = 'stock2' unless defined $pp->{shape};
 	$pp->{shape} = 'stock2' unless $pp->{shape} eq 'stock2' or $pp->{shape} eq 'stock'
+	    or $pp->{shape} eq 'candle' or $pp->{shape} eq 'candle2'
 	    or $pp->{shape} eq 'close2' or $pp->{shape} eq 'close';
 	
 	$o->{volumes}{bars} = {} unless defined $o->{volumes}{bars};
@@ -502,8 +503,39 @@ These are the recognized keys; see L<PostScript::Graph::Style> for details.
     size	shape*	    color	width
     inner_color	outer_color inner_width	outer_width
 
-*The allowed values for shape are 'stock', 'stock2', 'close' and 'close2' and B<NOT> as listed under
-L<PostScript::Graph::Style/shape>.
+*The allowed values for shape are B<NOT> as listed under L<PostScript::Graph::Style/shape>.  Instead they are:
+
+=over 8
+
+=item stock2
+
+Draw the normal open, high-low, close mark in the normal colour (C<inner_color>) with an outer edge drawn in
+C<outer_color>.
+
+=item stock
+
+Draw the normal open, high-low, close mark in the normal colour (inner_color) with no outer edge.  This can make
+the drawing a little faster as no outline is drawn.
+
+=item close2
+
+Draw the close mark only in the normal colour (C<inner_color>) with an outer edge drawn in
+C<outer_color>.
+
+=item close
+
+Draw the close mark only in the normal colour (C<inner_color>) with no outer edge.
+
+=item candle2
+
+Draw a Japanese candlestick in C<outer_color>, filled with C<inner_color>.  Don't use this with C<bgnd_outline>
+set to 1 as most of the marks will disappear!
+
+=item candle
+
+Draw a Japanese candlestick in one pass, the filling and outline both in normal colour (C<inner_color>).
+
+=back
 
 =item sequence
 
@@ -1264,10 +1296,7 @@ sub ps_functions {
 	gstockdict begin
 
 	/make_stock {
-	    gsave
-		point_inner
-		stockmark
-	    grestore
+	    gsave point_inner stockmark grestore
 	}bind def
 	% x yopen ylow yhigh yclose => _
 
@@ -1302,11 +1331,77 @@ sub ps_functions {
 	} bind def
 	% x yopen ylow yhigh yclose => _
 
+	/make_candle {
+	    gsave point_inner candlemark grestore
+	}bind def
+	% x yopen ylow yhigh yclose => _
+
+	/make_candle2 {
+	    5 copy
+	    gsave point_outer candlemark grestore
+	    gsave point_inner candlefill grestore
+	}bind def
+	% x yopen ylow yhigh yclose => _
+	
+	/candlemark {
+	    gpaperdict begin
+	    gstockdict begin
+		/yclose exch def
+		/yhigh exch def
+		/ylow exch def
+		/yopen exch def
+		/x exch xmarkgap add def
+		/dx xmarkgap 0.75 mul powidth 2 div sub def
+		/dy yclose yopen sub def
+		2 setlinecap
+		newpath
+		    x ylow moveto
+		    x yopen lineto
+		    x yhigh moveto
+		    x yclose lineto
+		stroke
+		newpath
+		    x yopen moveto
+		    0 dx sub 0 rlineto
+		    0 dy rlineto
+		    dx 0 rlineto
+		    dx 0 rlineto
+		    0 0 dy sub rlineto
+		    0 dx sub 0 rlineto
+		yclose yopen lt { fill }{ stroke } ifelse
+	    end end
+	} bind def
+	% x yopen ylow yhigh yclose => _
+
+	/candlefill {
+	    gpaperdict begin
+	    gstockdict begin
+		/yclose exch def
+		/yhigh exch def
+		/ylow exch def
+		/yopen exch def
+		/x exch xmarkgap add def
+		/dx xmarkgap 0.75 mul powidth sub def
+		yclose yopen lt {
+		    /dy yclose yopen sub powidth add def
+		    dy 0 ge { /dy 0 def } if
+		    2 setlinecap
+		    newpath
+		    x yopen powidth 2 div sub moveto
+		    0 dx sub 0 rlineto
+		    0 dy rlineto
+		    dx 0 rlineto
+		    dx 0 rlineto
+		    0 0 dy sub rlineto
+		    0 dx sub 0 rlineto
+		    fill
+		} if
+	    end end
+	} bind def
+	% x yopen ylow yhigh yclose => _
+
 	/make_close {
-	    gsave
-		point_inner
-		closemark
-	    grestore
+	    gsave point_inner closemark grestore
 	}bind def
 	% x yopen ylow yhigh yclose => _
 
@@ -1345,16 +1440,19 @@ END_FUNCTIONS
 A few functions are defined in the B<gstockdict> dictionary.  These provide the code for the shapes drawn as price
 marks.  These dictionary entries are defined:
 
-    make_stock	Draw single price mark
-    make_stock2 Draw double price mark
-    make_close	Draw single closing price mark
-    make_close2 Draw double closing price mark
-    yclose	parameter
-    ylow	parameter
-    yhigh	parameter
-    yopen	parameter
-    x		parameter
-    dx		working value
+    make_stock	 Draw single price mark
+    make_stock2  Draw double price mark
+    make_candle	 Draw Japanese candle mark
+    make_candle2 Draw Japanese candle mark
+    make_close	 Draw single closing price mark
+    make_close2  Draw double closing price mark
+    yclose	 parameter
+    ylow	 parameter
+    yhigh	 parameter
+    yopen	 parameter
+    x		 parameter
+    dx		 working value
+    dy		 working value
 
 A postscript function suitable for passing to the C<shape> option to B<new> must have 'make_' preprended to the
 name.  It should take 5 parameters similar to the code for C<shape => 'stock'> which is called as follows.

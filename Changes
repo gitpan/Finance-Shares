@@ -17,16 +17,26 @@ Finance::Shares package
 		-X -n Finance::Shares::Model
 
 Averages
+0.13	Sun Jun  8 15:21:06 GMT 2003
+	strict now defaults to 1 throughout
+
 0.12	Thu May 15 12:15:18 GMT 2003
 	text names match function names
 	added %functype
 	removed user id
 
 Bands
+0.15	Sun Jun  8 13:37:41 GMT 2003
+	bollinger band now has variable sd
+	strict now defaults to 1 throughout
+
 0.13	Thu May 15 12:17:58 GMT 2003
 	text names match function names
 
 Chart
+0.17	Sun Jun  8 12:51:55 GMT 2003
+	candlesticks added
+
 0.13	Thu May 15 12:19:13 GMT 2003
 	lines can be printed in reverse order
 	removed x_axis 'smallest' - redundant
@@ -52,12 +62,21 @@ Model
 	added 'deep_copy' export function
 
 Momentum
+0.06	Sun Jun  8 13:39:02 GMT 2003
+	added OBV, ADX and extend
+	example script in doc
+	strict now defaults to 1 throughout
+
 0.04	Fri May 23 16:06:47 GMT 2003
 	pseudo-tests now handle all slope functions
 
 0.01	Thu May 15 12:35:37 GMT 2003
 
 MySQL
+1.05	Sun Jun  8 12:48:52 GMT 2003
+	bug fixes: yahoo dates, undefined values
+	tidied up verbose reporting
+
 1.04	Thu May 15 12:36:32 GMT 2003
 	added 'fetch' mode
 	tidied up stock_fetch() reporting

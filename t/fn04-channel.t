@@ -65,10 +65,13 @@ my $fsc = new Finance::Shares::Chart(
     prices => {
 	percent => 75,
 	sequence => $seq,
+	x_axis => {
+	    show_lines => 0,
+	},
 	points => {
-	    shape => 'close',
-	    color => [ 1, 0, 0 ],
-	    width => 4,
+	    shape => 'candle2',
+	    outer_color => [ 0.7, 0.7, 0 ],
+	    inner_color => [ 1, 0.7, 0.4 ],
 	},
     },
 );

@@ -211,34 +211,6 @@ Writes out Finance::Shares::Sample data so that it can be read by B<from_csv>.
 
 =cut
 
-sub show_lines {
-    my ($s, @graphs) = @_;
-    @graphs = qw(prices volumes cycles signals) unless @graphs;
-    my $res = '';
-    foreach my $graph (@graphs) {
-	my @lines = values %{$s->{lines}{$graph}};
-	@lines = sort { $a->{order} <=> $b->{order} } @lines;
-	$res .= "$graph lines...\n" if @lines;
-	foreach my $h (@lines) {
-	    my $id = $h->{id};
-	    my $show = $h->{shown} || 0;
-	    my $order = $h->{order} || 0;
-	    my $n = keys %{$h->{data}} || 0;
-	    my $style = $h->{style};
-	    my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
-	    $res .= "    $show $id ($n pts) $order $sid\n";
-	}
-    }
-    return $res;
-}
-
-=head2 show_lines( sample )
-
-Prints the ids of all known lines.
-Returns a string which may be displayed with e.g. B<warn>.
-
-=cut
-
 sub show {
     $Data::Dumper::Indent = 1;
     return Data::Dumper->Dump(@_);

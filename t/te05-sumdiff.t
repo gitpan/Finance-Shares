@@ -138,6 +138,12 @@ my $fsc = new Finance::Shares::Chart(
     sample => $fss,
     file => {
 	landscape => 1,
+	bottom    => 10,
+	top       => 10,
+    },
+    key => {
+	glyph_ratio => 0.4,
+	text_width  => 110,
     },
     prices => {
 	percent => 25,
@@ -149,7 +155,7 @@ my $fsc = new Finance::Shares::Chart(
 	percent => 25,
     },
     tests => {
-	percent => 50,
+	percent => 60,
     },
 );
 

@@ -357,6 +357,7 @@ sub add_line {
     my $min = $highest_int;
     my $max = $lowest_int;
     foreach my $value (values %$data) {
+	next unless defined $value;
 	$min = $value if $value < $min;
 	$max = $value if $value > $max;
     }
@@ -403,11 +404,11 @@ The text to be shown next with the style in the Price Key box to the right of th
 
 =item style
 
-This can either be a PostScript::Graph::Style object or a hash ref holding options for one.
+This can either be a PostScript::Graph::Style object or a hash ref holding options for one.  (Default: undef)
 
 =item shown
 
-True if to be drawn, false otherwise.
+True if to be drawn, false otherwise.  (Default: undef)
 
 =back
 
@@ -666,7 +667,7 @@ sub prepare_dates {
 		    $lx{$date} = $x++;
 		    $pmin = $low{$date}  if $low{$date}  < $pmin;
 		    $pmax = $high{$date} if $high{$date} > $pmax;
-		    if ($volume{$date}) {
+		    if (defined $volume{$date}) {
 			$vmin = $volume{$date} if $volume{$date} < $vmin;
 			$vmax = $volume{$date} if $volume{$date} > $vmax;
 		    }
@@ -681,7 +682,7 @@ sub prepare_dates {
 		    $lx{$date} = $x++;
 		    $pmin = $low{$date}  if defined($low{$date}) and $low{$date} < $pmin;
 		    $pmax = $high{$date} if defined($high{$date}) and $high{$date} > $pmax;
-		    if ($volume{$date}) {
+		    if (defined $volume{$date}) {
 			$vmin = $volume{$date} if $volume{$date} < $vmin;
 			$vmax = $volume{$date} if $volume{$date} > $vmax;
 		    }
@@ -704,7 +705,7 @@ sub prepare_dates {
 			    $thigh   += $high{$date};
 			    $tlow    += $low{$date};
 			    $tclose  += $close{$date};
-			    $tvolume += $volume{$date};
+			    $tvolume += $volume{$date} if defined $volume{$date};
 			    # remove days data
 			    delete $open{$date};
 			    delete $high{$date};
@@ -726,10 +727,10 @@ sub prepare_dates {
 				$high{$knowndate}   = $thigh/$total;
 				$low{$knowndate}    = $tlow/$total;
 				$close{$knowndate}  = $tclose/$total;
-				$volume{$knowndate} = $tvolume/$total;
+				$volume{$knowndate} = $tvolume/$total if $tvolume;
 				$pmin = $low{$knowndate}  if $low{$knowndate}  < $pmin;
 				$pmax = $high{$knowndate} if $high{$knowndate} > $pmax;
-				if ($volume{$knowndate}) {
+				if (defined $volume{$knowndate}) {
 				    $vmin = $volume{$knowndate} if $volume{$knowndate} < $vmin;
 				    $vmax = $volume{$knowndate} if $volume{$knowndate} > $vmax;
 				}
@@ -744,7 +745,7 @@ sub prepare_dates {
 			    $thigh   = $high{$date};
 			    $tlow    = $low{$date};
 			    $tclose  = $close{$date};
-			    $tvolume = $volume{$date};
+			    $tvolume = $volume{$date} if defined $volume{$date};
 			    # remove days data
 			    delete $open{$date};
 			    delete $high{$date};
@@ -772,7 +773,7 @@ sub prepare_dates {
 			    $thigh   += $high{$date};
 			    $tlow    += $low{$date};
 			    $tclose  += $close{$date};
-			    $tvolume += $volume{$date};
+			    $tvolume += $volume{$date} if defined $volume{$date};
 			    delete $open{$date};
 			    delete $high{$date};
 			    delete $low{$date};
@@ -792,7 +793,7 @@ sub prepare_dates {
 				$volume{$knowndate} = $tvolume/$total;
 				$pmin = $low{$knowndate}  if $low{$knowndate}  < $pmin;
 				$pmax = $high{$knowndate} if $high{$knowndate} > $pmax;
-				if ($volume{$knowndate}) {
+				if (defined $volume{$knowndate}) {
 				    $vmin = $volume{$knowndate} if $volume{$knowndate} < $vmin;
 				    $vmax = $volume{$knowndate} if $volume{$knowndate} > $vmax;
 				}
@@ -810,6 +811,7 @@ sub prepare_dates {
 			    $thigh   = $high{$date};
 			    $tlow    = $low{$date};
 			    $tclose  = $close{$date};
+			    $tvolume = $volume{$date} if defined $volume{$date};
 			    delete $open{$date};
 			    delete $high{$date};
 			    delete $low{$date};
@@ -840,20 +842,22 @@ sub prepare_dates {
     }
 
     ## finish off
-    if (defined $knowndate) { 
-	$open{$knowndate}  = $topen/$total;
-	$high{$knowndate}  = $thigh/$total;
-	$low{$knowndate}   = $tlow/$total;
-	$close{$knowndate} = $tclose/$total;
-	$volume{$knowndate} = $tvolume/$total;
+    if (defined $knowndate) {
+	if (defined $total) {
+	    $open{$knowndate}   = $topen/$total;
+	    $high{$knowndate}   = $thigh/$total;
+	    $low{$knowndate}    = $tlow/$total;
+	    $close{$knowndate}  = $tclose/$total;
+	    $volume{$knowndate} = $tvolume/$total if $tvolume;
+	    $pmin = $low{$knowndate}  if $low{$knowndate}  < $pmin;
+	    $pmax = $high{$knowndate} if $high{$knowndate} > $pmax;
+	    if (defined $volume{$knowndate}) {
+		$vmin = $volume{$knowndate} if $volume{$knowndate} < $vmin;
+		$vmax = $volume{$knowndate} if $volume{$knowndate} > $vmax;
+	    }
+	}
 	push @dates, $knowndate;
 	$lx{$knowndate} = $x++;
-	$pmin = $low{$knowndate}  if $low{$knowndate}  < $pmin;
-	$pmax = $high{$knowndate} if $high{$knowndate} > $pmax;
-	if ($volume{$knowndate}) {
-	    $vmin = $volume{$knowndate} if $volume{$knowndate} < $vmin;
-	    $vmax = $volume{$knowndate} if $volume{$knowndate} > $vmax;
-	}
     }
 
     ## Define data
@@ -919,6 +923,40 @@ sub known_lines {
 
 Returns a list of line identifiers valid for the specified graphs, zero or more of prices, volumes, cycles or
 tests.  If none are specified, all known lines are returned.
+
+=cut
+
+sub show_lines {
+    my ($s, @graphs) = @_;
+    @graphs = qw(prices volumes cycles tests) unless @graphs;
+    my $res = "Sample " . $s->id() . "\n";
+    foreach my $graph (@graphs) {
+	my @lines = values %{$s->{lines}{$graph}};
+	@lines = sort { $a->{order} <=> $b->{order} } @lines;
+	$res .= "$graph lines... [shown id order (n pts) style]\n";
+	foreach my $h (@lines) {
+	    my $id = $h->{id};
+	    my $show = $h->{shown} || 0;
+	    my $order = $h->{order} || 0;
+	    my $n = keys %{$h->{data}} || 0;
+	    my $style = $h->{style};
+	    my $sid = (ref($style) eq 'PostScript::Graph::Style') ? $style->id() : '';
+	    $res .= "    $show $id $order ($n pts) $sid\n";
+	}
+    }
+    return $res;
+}
+
+=head2 show_lines( [graphs] )
+
+Prints the information on all known lines.  C<graphs> is a list comprising zero or more of prices, volumes, cycles
+and tests.  If omitted, all graphs with any lines are shown.
+
+Returns a string which may be displayed with B<warn> or B<print>.
+
+Example
+
+    warn "MyModule:666\n", $sample->show_lines;
 
 =cut
 

@@ -56,9 +56,9 @@ my $fsc = new Finance::Shares::Chart(
     prices => {
 	percent => 40,
 	points => {
-	    shape => 'stock2',
+	    shape => 'candle2',
 	    color => [ 1, 0, 0 ],
-	    width => 2,
+	    width => 0.8,
 	},
     },
     volumes => {

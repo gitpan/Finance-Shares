@@ -1,0 +1,86 @@
+HOWTO Write Finance::Shares Modules
+===================================
+
+[The intent here is to describe how to write additional functions.  For now, I'm
+just collecting notes.  But they might be better than nothing.]
+
+Defined names
+-------------
+
+Method addresses are stored in three hashes, keyed by the short or long names
+listed below.
+
+    Finance::Shares::Sample::function
+    Finance::Shares::Model::testfunc
+    Finance::Shares::Model::sigfunc
+
+Additional hashes which are likely to be needed are:
+
+    Finance::Shares::Sample::functype
+    Finance::Shares::Sample::period
+    Finance::Shares::Model::testpre
+    Finance::Shares::Model::testname
+
+The methods' corresponding types (stored in Sample hash '%functype') group
+identical expected parameter lists.  't' and 's' are reserved for Tests and
+Signals, should they be added to the same namespace in future.
+
+	Module	    Type    Short and long name
+	---------------------------------------
+	Averages    a	    avg	    simple_average
+	Averages    a	    wgt	    weighted_average
+	Averages    a	    exp	    exponential_average
+	Bands	    b	    boll    bollinger
+	Bands	    c	    chan    channel
+	Bands	    e	    env	    envelope
+	Momentum    d	    adx	    direction
+	Momentum    m	    mom	    momentum
+	Momentum    m	    roc	    ratio
+	Momentum    m	    grad    gradient
+	Momentum    n	    rise    rising
+	Momentum    n	    fall    falling
+	Momentum    n	    over    oversold
+	Momentum    n	    under   undersold
+
+	Sample	    x	    open
+	Sample	    x	    high
+	Sample	    x	    low
+	Sample	    x	    close
+	Sample	    y	    volume
+
+	Model	    (t)	    gt
+	Model	    (t)	    lt
+	Model	    (t)	    ge
+	Model	    (t)	    le
+	Model	    (t)	    eq
+	Model	    (t)	    ne
+	Model	    (t)	    min
+	Model	    (t)	    max
+	Model	    (t)	    diff
+	Model	    (t)	    sum
+	Model	    (t)	    and
+	Model	    (t)	    or
+	Model	    (t)	    not
+	Model	    (t)	    test
+
+	Model	    (s)	    mark
+	Model	    (s)	    buy	    mark_buy
+	Model	    (s)	    sell    mark_sell
+	Model	    (s)	    print
+	Model	    (s)	    values  print_values
+	Model	    (s)	    custom
+
+
+Function methods are called like this:
+
+    use Finance::Shares::Sample qw(call_function %function);
+
+    my $sample    = new Finance::Shares::Sample(...);
+    my @args      = ( period => 5, strict => 1 );
+
+    my $id = call_function( \%function, 'simple_average', $sample, @args );
+    my @id = call_function( \%function, 'channel',        $sample, @args );
+
+Functions can generate more than one line, these identifiers can be obtained by
+calling in list context.
+

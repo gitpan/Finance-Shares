@@ -10,7 +10,7 @@ use Finance::Shares::Chart    0.14;
 use Finance::Shares::Momentum 0.03;
 use Finance::Shares::Averages 0.12;
 
-my $name = 't/fn05-trends';
+my $name = 't/mm01-trends';
 my $source = 't/05-boc.csv';
 plan tests => 8;
 
@@ -42,7 +42,7 @@ my $style = {
 
 ### Function lines
 my @args = (
-    function => 'gradient',
+    gradfn => 'gradient',
     period => 10,
     style => $style,
     weight => 100,

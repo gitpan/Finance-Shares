@@ -1,5 +1,5 @@
 package Finance::Shares::Model;
-our $VERSION = 0.15;
+our $VERSION = 0.16;
 use strict;
 use warnings;
 use Carp;
@@ -7,7 +7,7 @@ use PostScript::File	     1.00;
 use Finance::Shares::Sample  0.12 qw(line_id call_function %function);
 use Finance::Shares::Chart   0.14 qw(deep_copy);
 
-#use TestFuncs qw(show show_deep show_lines);
+#use TestFuncs qw(show_deep);
 
 our %testfunc;
 $testfunc{gt} = \&test_gt;
@@ -52,6 +52,9 @@ $sigfunc{mark_sell}    = \&signal_mark_sell;
 $sigfunc{print}        = \&signal_print;
 $sigfunc{print_values} = \&signal_print_values;
 $sigfunc{custom}       = \&signal_custom;
+$sigfunc{buy}    = \&signal_mark_buy;
+$sigfunc{sell}   = \&signal_mark_sell;
+$sigfunc{values} = \&signal_print_values;
 
 our $points_margin = 0.02;	# logical 0/1 is mark_range -/+ points_margin * mark_range
 
@@ -239,7 +242,7 @@ B<test> might be considered as B<not(not(...))>.  It uses a C<divide> value to c
 'off'.  This can be further conditioned by having this value decay over time.  Another use of B<test> is to
 trigger signals on pseudo-test functions like C<rising> or C<undersold>.
 
-All the logical tests (and, or, not and test) can be performed for their signals only if the C<noline> option is
+All the logical tests (and, or, not and test) can be performed for their signals only if the C<logical> option is
 set.
 
 =head2 The signals
@@ -732,11 +735,12 @@ sub new {
     };
     bless( $o, $class );
 
-    $o->{cgi_file} = $opt->{cgi_file} || 'STDOUT';
-    $o->{verbose}  = defined($opt->{verbose})  ? $opt->{verbose}  : 1;  
-    $o->{dir}      = $opt->{directory};
-    $o->{delay}    = %$opt ? 0 : 1;
-    $o->{delay}    = ($opt->{run} == 0) if defined $opt->{run};
+    $o->{cgi_file}   = $opt->{cgi_file} || 'STDOUT';
+    $o->{verbose}    = defined($opt->{verbose})    ? $opt->{verbose}    : 1;  
+    $o->{show_lines} = defined($opt->{show_lines}) ? $opt->{show_lines} : 0;  
+    $o->{dir}        = $opt->{directory};
+    $o->{delay}      = %$opt ? 0 : 1;
+    $o->{delay}      = ($opt->{run} == 0) if defined $opt->{run};
     
     ## Resources
     $o->resource('source');
@@ -768,6 +772,7 @@ sub new {
 	}
     }
 
+    $o->out(1, "verbose level $o->{verbose}");
     $o->run() unless $o->{delay};
     return $o;
 }
@@ -814,7 +819,7 @@ sub run {
     foreach my $id (@{$o->{sampleord}}) {
 	my $h0 = $o->{samples}{$id};
 	die "Missing sample hash\n" unless ref($h0) eq 'HASH';
-	$o->out(2, "Sample for $h0->{symbol}:") if $h0->{symbol};
+	$o->out(2, "Sample for $h0->{symbol} ...") if $h0->{symbol};
 	
 	## sample hash
 	my $gname = $h0->{group} || $o->{defgroup};
@@ -831,7 +836,9 @@ sub run {
 	my $h = deep_copy( { @args } );
 	#print "Model::run sample=$id\n", show_hash($h);
 	
-	$h->{source}{verbose} = $o->{verbose} if ref $h->{source} eq 'HASH';
+	if (ref $h->{source} eq 'HASH') {
+	    $h->{source}{verbose} = $o->{verbose} unless defined $h->{source}{verbose};
+	}
 	my $fss;
 	eval {    
 	    $fss = new Finance::Shares::Sample( $h );
@@ -844,9 +851,10 @@ sub run {
 
 	## chart
 	my $filename = $h->{file} || $o->{deffile};
+
 	my $psf = $o->{psf}{$filename}; 
 	die "No PostScript::File object named '$filename'\n" unless $psf;
-	@args = (
+	my @chart_args = (
 	    sample => $fss,
 	    file   => $psf,
 	    page   => $h->{page},
@@ -855,8 +863,8 @@ sub run {
 	my $chash = $o->{charts}{$cname}; 
 	my @chart = %{deep_copy($chash)} if ref($chash) eq 'HASH'; 
 	$o->{fsc}{$filename} = [] unless defined $o->{fsc}{$filename};	    # charts for that file
-	push @{$o->{fsc}{$filename}}, new Finance::Shares::Chart(@chart, @args);
-	$o->out(2, "    ". "Using chart '$cname' for " .
+	push @{$o->{fsc}{$filename}}, new Finance::Shares::Chart(@chart, @chart_args);
+	$o->out(3, "    ". "Using chart '$cname' for " .
 	    ($filename eq 'STDOUT' ? 'STDOUT' : "file '$filename.ps'"));
 
 	## functions
@@ -874,7 +882,7 @@ sub run {
 		    $lines{$id . '_low'} = $line2;
 		    $o->out(4, '    ' . $id . "_high = function $line1");
 		    $o->out(4, '    ' . $id . "_low  = function $line2");
-		} else {
+		} elsif (defined $line1) {
 		    $lines{$id} = $line1;
 		    $o->out(4, '    ' . "$id = function $line1");
 		}
@@ -891,10 +899,10 @@ sub run {
 		$o->patch_signals(\%lines, $th->{signals});
 		my $line_id = $o->test_sample($fss, $th);
 		$lines{$id} = $line_id;
-		$o->out(3, '    ' . "$id = test $line_id");
+		$o->out(4, '    ' . "$id = test $line_id");
 	    }
 	}
-	#print show_lines($fss);
+	print $fss->show_lines if $o->{show_lines};
 	#print show_hash(\%lines);
 	$o->out(1, "Finished sample '". $fss->id() ."'");
     }
@@ -1019,11 +1027,10 @@ A string identifying the second line for a binary test.  For a unary test this m
 
 The name of the test to be applied, e.g 'gt' or 'lt'.  Note this is a string and not a function reference.
 
-=item noline
+=item logical
 
 [Only logical tests B<and>, B<or>, B<not> and B<test>.]  When '1', the results line is not generated.  Only useful
 when signals are triggered and the line is not needed for other tests.  (Default: 0)
-
 
 =item shown
 
@@ -1046,8 +1053,13 @@ The string which will appear in the Key panel identifying the test results.
 
 =item divide
 
-[Only for B<not> and B<test> tests.]  This sets the point dividing 'true' from 'false' and should be a value
+[Only for B<not> and B<test>.]  This sets the point dividing 'true' from 'false' and should be a value
 within the range of C<line1> values.  (Default: 0)
+
+=item limit
+
+[Only for B<sum> and B<diff>.]  When 1, the result is clipped within the graphs axes.  Setting this to 0 allows the axis to
+accomodate all the arithmetic results.
 
 =item weight
 
@@ -1220,17 +1232,29 @@ sub signal_mark {
     } elsif (defined $p->{line}) {
 	$p->{graph} = 'prices', $p->{line} = 'close' unless defined $p->{graph};
 	my $vline = $s->choose_line($p->{graph}, $p->{line});
-	die "Cannot mark buy signal: line '$p->{line}' does not exist on $p->{graph}\n" unless defined $vline;
-	$value = $vline->{data}{$date};
+	if (defined $vline) {
+	    $value = $vline->{data}{$date};
+	} else {
+	    warn "Cannot mark buy signal: line '$p->{line}' does not exist on $p->{graph}\n";
+	}
+	unless (defined $value) {
+	    undef $p->{graph};
+	    undef $p->{line};
+	}
     }
-    die "Cannot mark buy signal: no value\n" unless defined $value;
     
-    # changes here must be reflected in test() patch
-    my $graph = $p->{graph} || 'tests';
-    my $line_id = "signal($id)";
-    my $buy = $s->choose_line( $graph, $line_id, 1 );
-    $buy = $s->add_line( $graph, $line_id, {}, $p->{key}, $p->{style}, $p->{shown} ) unless defined $buy;
-    $buy->{data}{$date} = $value;
+    if (defined $value) {
+	# changes here must be reflected in test() patch
+	my $graph = $p->{graph} || 'tests';
+	my $line_id = "signal($id)";
+	my $buy = $s->choose_line( $graph, $line_id, 1 );
+	$buy = $s->add_line( $graph, $line_id, {}, $p->{key}, $p->{style}, $p->{shown} ) unless defined $buy;
+	$buy->{data}{$date} = $value;
+    } else {
+	if (defined $p->{line}) {
+	    warn "Cannot mark buy signal: no value for $date on $p->{graph} line '$p->{key}'\n";
+	}
+    }
 }
 
 =head2 mark
@@ -1596,7 +1620,7 @@ Here &some_func will be be called with a parameter list like this when the volum
 
 sub test_sample {
     my ($o, $s, $h) = @_;
-    my $id = $h->{line};
+    my $id;
     my $label = $h->{key};
     my ($base1, $base2);
     $base1 = $s->choose_line($h->{graph1}, $h->{line1});
@@ -1926,12 +1950,13 @@ sub test_sum {
     my $prev;
     my $level;
     my %res;
+    my $limit = defined($a{limit}) ? $a{limit} : 1;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
 	$level = $v1 + $v2;
 	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
-	$level = $a{max} if $level >= $a{max};
-	$level = $a{min} if $level <= $a{min};
+	$level = $a{max} if $limit and $level >= $a{max};
+	$level = $a{min} if $limit and $level <= $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
 	$prev =	$res{$date} = $level;
@@ -1973,7 +1998,7 @@ sub test_or {
 	$level = ($v1 || $v2) ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{noline};
+	$prev =	$res{$date} = $level unless $a{logical};
     }
 
     return %res ? \%res : undef;
@@ -1990,7 +2015,7 @@ sub test_and {
 	$level = ($v1 && $v2) ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{noline};
+	$prev =	$res{$date} = $level unless $a{logical};
     }
 
     return %res ? \%res : undef;
@@ -2008,7 +2033,7 @@ sub test_not {
 	$level = $v1 > $a{divide} ? $a{min} : $a{max};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{noline};
+	$prev =	$res{$date} = $level unless $a{logical};
     }
 
     return %res ? \%res : undef;
@@ -2026,20 +2051,20 @@ sub test_test {
 	$level = $v1 > $a{divide} ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{noline};
+	$prev =	$res{$date} = $level unless $a{logical};
     }
 
     return %res ? \%res : undef;
 }
 
 sub ensure_psfile {
-    my ($o, $filename, $of) = @_;
+    my ($o, $filename, $h) = @_;
     die "No filename for ensure_psfile\n" unless defined $filename;
     
-    if (ref($of) eq 'PostScript::File') {
-	$o->{psf}{$filename} = $of;
+    if (ref($h) eq 'PostScript::File') {
+	$o->{psf}{$filename} = $h;
     } else {
-	$of = {} unless (ref($of) eq 'HASH');
+	my $of = (ref($h) eq 'HASH') ? deep_copy($h) : {};
 	$of->{paper}     = 'A4' unless (defined $of->{paper});
 	$of->{landscape} = 1    unless (defined $of->{landscape});
 	$of->{left}      = 36   unless (defined $of->{left});
@@ -2080,7 +2105,7 @@ sub resource {
 	push @{$o->{$order}}, $name;
     }
     
-    #print "${plural}: $default=$o->{$default}, order=", show_array($o->{$order}), show_hash($o->{$plural}), "\n";
+    #print $plural, ": $default=", $o->{$default} || '<none>'," order=", show_deep($o->{$order}), show_deep($o->{$plural}), "\n";
 } 
 
 sub patch_signals {
@@ -2100,8 +2125,8 @@ sub patch_signals {
 }
 
 sub out {
-    my ($o, $lvl, $str) = @_;
-    print STDERR "$str\n" if $lvl <= $o->{verbose};
+    my ($o, $lvl, @args) = @_;
+    print STDERR @args, "\n" if $lvl <= $o->{verbose};
 }
 
 ### SUPPORT FUNCTIONS
@@ -2176,7 +2201,8 @@ sub patch_line {
     if (defined $l) {
 	$h->{$name} = $l;
     } else {
-	$l = $lines->{$h->{$name}};
+	my $tag = $h->{$name};
+	$l = $lines->{$tag};
 	$h->{$name} = $l if defined $l;
     }
 }

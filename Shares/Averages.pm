@@ -1,5 +1,5 @@
 package Finance::Shares::Averages;
-our $VERSION = 0.12;
+our $VERSION = 0.13;
 use strict;
 use warnings;
 
@@ -35,7 +35,7 @@ Finance::Shares::Averages - Moving average lines and tests
 	graph  => 'prices',
 	line   => 'close',
 	period => 5,
-	strict => 1,
+	strict => 0,
 	shown  => 1,
 	style  => {...}, # PostScript::Graph::Style
 	key    => 'My Momentum Line',
@@ -74,7 +74,7 @@ was configured.  (Default: 5)
 
 =item strict
 
-If 1, return undef if the average period is incomplete.  If 0, return the best value so far.  (Default: 0)
+If 1, return undef if the average period is incomplete.  If 0, return the best value so far.  (Default: 1)
 
 =item shown
 
@@ -98,7 +98,7 @@ sub simple_average {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
-	strict	=> 0,
+	strict	=> 1,
 	shown	=> 1,
 	graph	=> 'prices',
 	line	=> 'close',
@@ -133,7 +133,7 @@ sub weighted_average {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
-	strict	=> 0,
+	strict	=> 1,
 	shown	=> 1,
 	graph	=> 'prices',
 	line	=> 'close',
@@ -168,7 +168,7 @@ sub exponential_average {
     my $s = shift;
     die "No Finance::Shares::Sample object\n" unless ref($s) eq 'Finance::Shares::Sample';
     my %a = (
-	strict	=> 0,
+	strict	=> 1,
 	shown	=> 1,
 	graph	=> 'prices',
 	line	=> 'close',

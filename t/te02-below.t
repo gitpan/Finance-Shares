@@ -52,16 +52,13 @@ my $orange = {
 
 
 ### Function lines
-$fss->simple_average(period => 3);
-my $simple_3 = line_id('simple', 3, 'close');
+my $simple_3 = $fss->simple_average(period => 3, strict => 0);
 ok( $fss->{lines}{prices}{$simple_3}, "$simple_3 stored" );
 
-$fss->simple_average(period => 20);
-my $simple_20 = line_id('simple', 20, 'close');
+my $simple_20 = $fss->simple_average(period => 20, strict => 0);
 ok( $fss->{lines}{prices}{$simple_20}, "$simple_20 stored" );
 
-$fss->value(graph => 'volumes', value => 91000000, show => 1, style => $orange);
-my $vol_91 = line_id('value', 91000000);
+my $vol_91 = $fss->value(graph => 'volumes', value => 91000000, show => 1, style => $orange);
 ok( $fss->{lines}{volumes}{$vol_91}, "$vol_91 stored" );
 my $volumes = line_id('volume');
 
@@ -79,32 +76,29 @@ $fsm->add_signal('note', 'mark', undef, {
 $fsm->add_signal('msg', 'print', "$volumes above $vol_91");
 
 ### Tests
-my $sell = line_id('below', 'prices', $simple_3, 'prices', $simple_20);
-$fsm->test( graph1 => 'prices', line1 => $simple_3,
+my $sell = $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
 		test => 'lt', signal => 'sell', weight => 100,
 		decay => 1.890, ramp => -90, 
-		graph => 'tests', line => $sell, key => undef,
+		graph => 'tests', , key => undef,
 		style => $orange, shown => 1, );
 ok( $fss->{lines}{tests}{$sell}, "$sell stored" );
 is( values %{$fss->{lines}{tests}{$sell}{data}}, $ndates, "$ndates points in $sell" );
 
-my $buy = line_id('above', 'prices', $simple_3, 'prices', $simple_20);
-$fsm->test( graph1 => 'prices', line1 => $simple_3,
+my $buy = $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
 		test => 'gt', signal => 'buy', weight => 100,
 		decay => 1.890, ramp => -90, 
-		graph => 'tests', line => $buy, key => undef,
+		graph => 'tests', key => undef,
 		style => $green, shown => 1, );
 ok( $fss->{lines}{tests}{$buy}, "$buy stored" );
 is( values %{$fss->{lines}{tests}{$buy}{data}}, $ndates, "$ndates points in $buy" );
 
-my $vol = line_id('above', 'volumes', $volumes, 'volumes', $vol_91);
-$fsm->test( graph1 => 'volumes', line1 => $volumes,
+my $vol = $fsm->test( graph1 => 'volumes', line1 => $volumes,
 		graph2 => 'volumes', line2 => $vol_91,
 		test => 'gt', signals => [qw(note msg)], weight => 90,
 		decay => 1.890, ramp => -89, 
-		graph => 'volumes', line => $vol, key => undef,
+		graph => 'volumes', key => undef,
 		style => $green, shown => 1, );
 ok( $fss->{lines}{volumes}{$vol}, "$vol stored" );
 is( values %{$fss->{lines}{volumes}{$vol}{data}}, $ndates, "$ndates points in $vol" );

@@ -1,5 +1,5 @@
 package Finance::Shares::MySQL;
-our $VERSION = 1.04;
+our $VERSION = 1.05;
 use strict;
 use warnings;
 use DBIx::Namespace 0.03;
@@ -23,13 +23,13 @@ Finance::Shares::MySQL - Access to stock data stored in a database
     use Finance::Shares::MySQL;
 
     my $db = new Finance::Shares::MySQL(
-	    hostname   => 'my_computer',
+	    hostname   => 'my.server',
 	    port       => 3306,
 	    user       => 'myself',
 	    password   => 'easy2guess',
 	    database   => 'shares',
 	    tries      => 3,
-	    exchange   => 'NewYork',
+	    verbose    => 2,
 	    start_date => '1980-01-01',
 	    end_date   => '2002-12-31',
 	);
@@ -239,14 +239,14 @@ sub fetch {
 	}
     }
 
-    if ($f{end_date} =~ /\d{4}-\d{2}-\d{2}/) {
+    if (defined($f{end_date}) and $f{end_date} =~ /\d{4}-\d{2}-\d{2}/) {
 	$o->{end} = $f{end_date};
     } else {
 	$o->{end} = $o->today();
     }
-    $o->{start} = $o->days_before($o->{end}, 40);
+    $o->{start} = $o->days_before($o->{end}, 5);
 
-    if ($f{start_date} =~ /\d{4}-\d{2}-\d{2}/) {
+    if (defined($f{start_date}) and $f{start_date} =~ /\d{4}-\d{2}-\d{2}/) {
 	$o->{start} = $f{start_date};
     } else {
 	my $last;
@@ -639,10 +639,12 @@ sub stock_present {
     }
     $sth->finish();
     my $total_days = $o->days_from_string($end) - $o->days_from_string($start);
-    my $fraction = $days_found/$total_days;
-    #print "stock_present: $days_found/$total_days = $fraction\n";
-
-    return $fraction > 19/28 ? 1 : 0;
+    my $fraction = $total_days ? $days_found/$total_days : 1;
+    
+    my $res = $fraction > 19/28 ? 1 : 0;
+    my $frac = sprintf('%5.3f', $fraction);
+    $o->out(3, "    stock_present: $days_found/$total_days = $frac (", ($res ? '' : 'not '), "present)");
+    return $res;
 }
 
 =head2 stock_present( table, start, end )
@@ -706,17 +708,17 @@ sub verbose {
 }
 
 sub out {
-    my ($o, $lvl, $str) = @_;
-    print STDERR "$str\n" if $lvl <= $o->{verbose};
+    my ($o, $lvl, @args) = @_;
+    print STDERR @args, "\n" if $lvl <= $o->{verbose};
 }
 
 sub yahoo {
     my ($o, $symbol, $start_day, $end_day) = @_;
     my $url = "http://table.finance.yahoo.com/table.csv";
     my ($year, $month, $day) = $o->ymd_from_days( $start_day );
-    $url .= ("?a=" . $month . "&b=" . $day . "&c=" . $year);
+    $url .= ("?a=" . ($month-1) . "&b=" . $day . "&c=" . $year);
     ($year, $month, $day) = $o->ymd_from_days( $end_day );
-    $url .= ("&d=" . $month . "&e=" . $day . "&f=" . $year . "&s=$symbol");
+    $url .= ("&d=" . ($month-1) . "&e=" . $day . "&f=" . $year . "&s=$symbol");
     return $url;
 }
 # $block_end = end_of_block( $block_start, $max_end )
