@@ -86,7 +86,9 @@ my $fsc = new Finance::Shares::Chart(
     },
     key => {
 	title => 'Simple averages',
-	title_font => 'Courier-BoldOblique',
+	title_font => {
+	    font => 'Courier-BoldOblique',
+	},
 	text_width => 70,
 	background => [0.9,1,1],
     },

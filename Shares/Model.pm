@@ -3,7 +3,7 @@ our $VERSION = 0.10;
 use strict;
 use warnings;
 use Carp;
-use PostScript::File	     0.12;
+use PostScript::File	     0.13;
 use Finance::Shares::Sample  0.11 qw(line_id function);
 
 our %testfunc;
@@ -110,7 +110,7 @@ interchangeably.  They can all be graphed (or hidden).  Wherever a 'line' is exp
 or test line.  I think a circular reference is not possible because of the declaration order, but it would be
 a Very Bad Thing (TM) so be aware of the possibility.
 
-These results lines are analog in that they can take a range of values.  Indeed they can be made to fade over
+These results lines are analog in that they can take a range of values.  Indeed they can be made to decrease over
 time.  But they represent a B<state> or level at any particular time.  Signals, on the other hand, are a form of
 output that is inherently digital - either it has been invoked or it hasn't.  All tests can have zero or more
 signals associated with them which are invoked when some critical B<change> of state happens, like when one line
@@ -425,7 +425,7 @@ sub output {
 	$chart->build_chart($pf);
     }
 	
-    return $o->{pf}->output($filename, $dir);
+    return $pf->output($filename, $dir);
 }
 
 =head2 output( [psfile,] [filename [, directory]] )
@@ -969,8 +969,8 @@ sub test_ne {
 
 sub ensure_common_values {
     my ($base1, $base2) = @_;
-    my $data1 = $base1->{data};
-    my $data2 = $base2->{data};
+    my $data1 = $base1->{data} || {};
+    my $data2 = $base2->{data} || {};
     my %temp = (%$data1, %$data2);
     foreach my $date (keys %temp) {
 	my $v1 = $data1->{$date};

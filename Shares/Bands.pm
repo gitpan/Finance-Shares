@@ -1,11 +1,15 @@
 package Finance::Shares::Bands;
-our $VERSION = 0.11;
+our $VERSION = 0.12;
 
 package Finance::Shares::Sample;
 use strict;
 use warnings;
 use Finance::Shares::Sample 0.11 qw(%period %line line_id);
 use Carp;
+
+$line{env_e}   = \&envelope;
+$line{boll_b}  = \&bollinger_band;
+$line{chan_c}  = \&channel;
 
 =head1 NAME
 
@@ -154,7 +158,7 @@ sub bollinger_band {
 	style	=> undef,
 	key	=> undef,
 	@_);
-    $a{period} = 20 if $a{strict};
+    $a{period} = 20 if $a{strict} or not $a{period};
     
     my $base = $s->{lines}{$a{graph}}{$a{line}};
     croak "No $a{graph} line with id $a{line}" unless $base;
@@ -281,6 +285,7 @@ sub bollinger_single {
 	$ex2 += $val * $val;
     }
     return undef if ($strict and $count < 20);
+    return undef unless $count;
     my $mean = $total/$count;
     my $sd = sqrt($ex2/$count - $mean * $mean);
     return $sd;

@@ -1,13 +1,13 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.11;
+our $VERSION = 0.12;
 use strict;
 use warnings;
 use Carp;
-use PostScript::File	     0.12 qw(check_file);
+use PostScript::File	     0.13 qw(check_file);
 use PostScript::Graph::Bar   0.03;
-use PostScript::Graph::Key   0.10;
-use PostScript::Graph::Paper 0.10;
-use PostScript::Graph::Style 0.07;
+use PostScript::Graph::Key   0.11;
+use PostScript::Graph::Paper 0.11;
+use PostScript::Graph::Style 0.08;
 use PostScript::Graph::XY    0.04;
 use Finance::Shares::Sample  0.11 qw(ymd_from_string day_of_week);
 
@@ -50,7 +50,7 @@ Finance::Shares::Chart - Draw stock quotes on a PostScript graph
 	heading	      => 'Results chart',
 
 	heading_font => {
-	    name => 'Times-Bold',
+	    font => 'Times-Bold',
 	    size => 12,
 	    color => [0, 0, 0.7],
 	},
@@ -221,10 +221,10 @@ sub new {
 	my $l = $h->{layout};
 	$l->{dots_per_inch} = $o->{dots_per_inch};
 	$l->{background} = $o->{background};
-	$l->{heading_font} = $o->{heading_font}{name};
+	$l->{heading_font} = $o->{heading_font}{font};
 	$l->{heading_font_size} = $o->{heading_font}{size};
 	$l->{heading_font_color} = $o->{heading_font}{color};
-	$l->{font} = $o->{normal_font}{name};
+	$l->{font} = $o->{normal_font}{font};
 	$l->{font_size} = $o->{normal_font}{size};
 	$l->{font_color} = $o->{normal_font}{color};
 	$l->{top_margin} = 3 unless defined $l->{top_margin};;
@@ -276,7 +276,7 @@ sub new {
 	
 	$o->{volumes}{bars} = {} unless defined $o->{volumes}{bars};
 	
-	$o->{prices}{y_axis}{si_shift} = 0           unless defined $o->{prices}{y_axis}{si_shift};
+	$o->{prices}{y_axis}{si_shift} = 0 unless defined $o->{prices}{y_axis}{si_shift};
     }
 
     return $o;
@@ -334,11 +334,11 @@ A hash ref holding font settings for the main heading.  See B<normal_font> for d
 A hash ref controlling the appearance of the key panels.  The following keys are recognized.  See
 L<PostScript::Graph::Key> for details.
 
-    background	outline_color		outline_width
-    spacing	horizontal_spacing	vertical_spacing
-    icon_height	icon_width  text_size	text_width
-    text_color	text_font   title	title_color
-    title_font	title_size  glyph_ratio
+    background	    outline_color	outline_width
+    title	    title_font		text_font
+    spacing	    horz_spacing	vert_spacing
+    text_width	    icon_height		icon_width
+    glyph_ratio
 
 =item normal_font
 
@@ -346,7 +346,7 @@ A hash ref holding font settings for the text used for axis labels etc.  It may 
 
 =over 4
 
-=item name
+=item font
 
 The font family name which should be one of the following.  (Default: 'Helvetica')
 
@@ -503,6 +503,7 @@ These keys are recognized within y_axis.  See L<PostScript::Graph::Paper> for de
     color	heavy_color mid_color	light_color
     smallest	heavy_width mid_width	light_width
     title	mark_min    mark_max	label_gap
+    si_shift
 
 =back
 
@@ -586,6 +587,7 @@ sub build_chart {
     my $t = $o->{test};	    # may be undef or 0
 
     ## open dictionaries
+    PostScript::Graph::Paper->ps_functions( $o->{pf} );
     PostScript::Graph::Key->ps_functions( $o->{pf} );
     PostScript::Graph::XY->ps_functions( $o->{pf} );
     Finance::Shares::Chart->ps_functions( $o->{pf} );

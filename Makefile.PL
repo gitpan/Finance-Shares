@@ -1,7 +1,7 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME	=> 'Finance::Shares',
-    VERSION	=> '0.02',
+    VERSION	=> '0.03',
     ABSTRACT	=> 'Collecting and tracking share prices',
     AUTHOR      => 'Christopher Willmot <chris@willmot.co.uk>',
     NORECURS    => 1,

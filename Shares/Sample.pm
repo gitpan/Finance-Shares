@@ -6,7 +6,7 @@ use Exporter;
 use Carp;
 use Date::Calc qw(Today Date_to_Days Add_Delta_Days Delta_Days Day_of_Week);
 use Text::CSV_XS;
-use PostScript::Graph::Style 0.07;
+use PostScript::Graph::Style 0.08;
 use Finance::Shares::MySQL   1.03;
 
 our @ISA = qw(Exporter);
@@ -29,6 +29,8 @@ our %line = (
     low_x    => sub { return 'low'; },
     close_x  => sub { return 'close'; },
     volume_x => sub { return 'volume'; },
+    value_p  => \&value,
+    value_v  => \&value,
 );
     
 our $highest_int = 10 ** 20;	# how do you set these properly?
@@ -783,10 +785,9 @@ sub choose_line {
     return $full if $full;
     
     my $given = $o->{lines}{$graph}{$id};
-    my $nquotes = @{$o->{dates}};
     return undef unless $given;
     return $given if $original;
-    return $given if keys(%{$given->{data}}) >= $nquotes;
+    return $given if keys(%{$given->{data}}) >= @{$o->{dates}};
 
     return $o->interpolate($graph, $id);
 }
