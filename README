@@ -1,5 +1,16 @@
-Finance::Shares::Model version 1.03
+Finance::Shares::Model version 1.04
 ===================================
+
+This version only differs from 1.03 by a single patch which handles Yahoo's
+change to their CSV format.  I have now started an MSc which will take all my
+time and attention, so I will not be developing this further now.  [I have 
+further work using external code and genetic algorithms but not of publishable
+quality.]
+
+Anyone wanting to take it on (and make it their own) is very welcome.  If you
+let me know, I can tell other enquirers.  
+
+
 
 WARNING: *** USER INTERFACE CHANGED ***
 =======================================
@@ -12,6 +23,10 @@ from v0.91 and before will work at all.)
 2.  Within a code entry, the field 'during' is now 'step'.
 
 3.  Within a chart specification, the graph type 'level' is now 'logic'.
+
+4.  Within a code segment, calls to mark() and info() expect their first
+    argument to be a literal line tag name i.e. in quotes rather than using
+    a preceding '$'.
 
 Also note that tag names with leading underscores will have them removed,
 possibly clashing with other tags within the same resource.  Don't use leading

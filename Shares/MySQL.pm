@@ -1,5 +1,5 @@
 package Finance::Shares::MySQL;
-our $VERSION = 1.06;
+our $VERSION = 1.07;
 use strict;
 use warnings;
 use DBIx::Namespace 0.03;
@@ -116,11 +116,12 @@ sub new {
     $o->{ua} = new LWP::UserAgent;
     $o->{ua}->agent("$agent_name/$VERSION " . $o->{ua}->agent);
 
-    $o->{urlfn}   = defined($opt->{url_function}) ? $opt->{url_function} : \&yahoo;
-    $o->{tries}   = defined($opt->{tries})        ? $opt->{tries}        : 3;
-    $o->{mode}    = defined($opt->{mode})         ? $opt->{mode}         : 'cache';
-    $o->{exch}    = defined($opt->{exchange})     ? $opt->{exchange}     : 'US';
-    $o->{verbose} = defined($opt->{verbose})      ? $opt->{verbose}      : 1;
+    $o->{urlfn}    = defined($opt->{url_function}) ? $opt->{url_function} : \&yahoo;
+    $o->{tries}    = defined($opt->{tries})        ? $opt->{tries}        : 3;
+    $o->{mode}     = defined($opt->{mode})         ? $opt->{mode}         : 'cache';
+    $o->{exch}     = defined($opt->{exchange})     ? $opt->{exchange}     : 'US';
+    $o->{verbose}  = defined($opt->{verbose})      ? $opt->{verbose}      : 1;
+    $o->{adjusted} = defined($opt->{adjusted})     ? $opt->{adjusted}     : 1;
 
     return $o;
 }
@@ -135,6 +136,11 @@ C<options> are passed to the base class.  See L<DBIx::Namespace/new> for details
     database
 
 Keys recognized by this module are:
+
+=head3 adjusted
+
+Sometimes, !Yahoo publishes closing prices that have been adjusted to take dividends and splits into account. '0'
+to use the strict closing prices, '1' for the adjusted prices.  (Default: 1)
 
 =head3 end_date
 
@@ -569,6 +575,10 @@ sub stock_fetch {
 			    if ( not exists($dates{$date}) ) {
 				if ($table) {
 				    $fields[0] = "\"$date\"";
+				    if (@fields > 6) {
+					my $adj = pop @fields;
+					$fields[4] = $adj if $o->{adjusted};
+				    }
 				    my $line = join(",", @fields);
 				    $o->{dbh}->do( "replace into $table (qdate, open, high, low, close, volume)
 					values($line)" );
@@ -595,7 +605,7 @@ sub stock_fetch {
     }
 
     die "No quotes fetched\n" unless %dates;
-    return sort { $a->[0] gt $b->[0] } values %dates;
+    return sort { $a->[0] cmp $b->[0] } values %dates;
 }
 
 =head2 stock_fetch( symbol, start, end [, table] )

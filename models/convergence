@@ -79,8 +79,8 @@ lines => [
 code => [
     maxima => <<'END_CODE'
     my $posn = defined($low) ? $low - 2 : undef;
-    mark($above, $posn) if $grad <= 0;
-    mark($below, $posn) if $grad >= 0;
+    mark('above', $posn) if $grad <= 0;
+    mark('below', $posn) if $grad >= 0;
     #print $self->{date}, "\t", $open, "\t", $high, "\t", $low, "\t", $close, "\n";
 END_CODE
 ],

@@ -17,9 +17,9 @@ lines => [
 code => <<'END'
     if (defined $close) {
 	if ($close > $open) {
-	    mark($result, 100);
+	    mark('result', 100);
 	} else {
-	    mark($result, 0);
+	    mark('result', 0);
 	}
     }
 END

@@ -19,7 +19,7 @@ lines => [
 ],
 
 code => <<'END'
-    mark($result, $close) if $close > $open;
+    mark('result', $close) if $close > $open;
 END
 ,
 

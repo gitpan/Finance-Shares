@@ -339,4 +339,13 @@ Functions
     Passing global variables to and from code fragment;
     2 pages: price=3,2
 
+244.t	: mrw.csv, tsco.csv
+    sample_mean
+    using line within code
+    bar chart of MRW relative to TSCO
+    2 pages: analysis=1
+
+245.t	: lgen.csv
+    MACD
+
 

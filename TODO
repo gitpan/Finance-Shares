@@ -1,3 +1,18 @@
 value() should accept variable line tags as well as literals
 e.g. $self->{tag} would be useful to say 'the corresponding line'
 It should also be able to access values created from 'codes'.
+
+Key: icons should be central in text block, not just 1st line.
+Also, the key layout is not sensitive to a change in point size.
+- should it be?
+
+Document function options:
+graph
+gtype
+scale
+key
+style
+shown
+strict
+order
+

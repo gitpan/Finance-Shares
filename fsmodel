@@ -16,16 +16,8 @@ use Finance::Shares::Support  1.00 qw(
 
 ### Debugging
 add_show_objects (
-	#'Finance::Shares::Model',
-	#'Finance::Shares::MySQL',
-	#'Finance::Shares::Chart',
-	'Finance::Shares::Line',
-	#'Finance::Shares::data',
-	#'Finance::Shares::moving_average',
-	#'Finance::Shares::gt',
-	#'Finance::Shares::value',
-	'Finance::Shares::compare',
-    );
+    'Finance::Shares::Line',
+);
 show_addresses(1);
 show_indent('.   ', '\.   ');
 
@@ -60,10 +52,6 @@ GetOptions(
 ) or $help = 1;
 my $config_ok = $config ? -e check_file($config) : 0;
 pod2usage(-verbose => 1) if $help;
-#unless ($config_ok or $model) {
-#    print "\nPlease specify either a model or a config file.\n\n";
-#    pod2usage(-verbose => 1); 
-#}
 
 $model =~ s/\..*$//;
 $filename =~ s/\..*$//;

@@ -84,6 +84,6 @@ is($nlines, 3, 'Number of lines');
 my $dump = 0;
 my $line;
 $line = $fsm->{ptfsls}[0][2];
-is($line->{npoints}, 60, 'points in delayed curve');
+is($line->{npoints}, 59, 'points in delayed curve');
 line_dump($line->{data}, "$filename.data") if $dump;
 ok(line_compare($line->{data}, "$filename.data"), 'delayed curve');

@@ -9,7 +9,7 @@ END
 
 WriteMakefile(
     NAME	  => 'Finance::Shares',
-    VERSION	  => '1.03',
+    VERSION	  => '1.04',
     ABSTRACT      => $abstract,
     AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
     NORECURS      => 1,
