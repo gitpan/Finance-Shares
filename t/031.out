@@ -1,0 +1,10 @@
+'default/VOD.L/default/test' details:
+function = Finance::Shares::mark=HASH(0x88337a4)
+line     = Finance::Shares::Line=HASH(0x8833924)
+line name= default/VOD.L/default/test/default
+fn name  = default/VOD.L/default/test
+source lines:
+    = default/VOD.L/default/band/high
+    = default/VOD.L/default/band/low
+output lines:
+    = default/VOD.L/default/test/default

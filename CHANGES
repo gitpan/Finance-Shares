@@ -1,3 +1,44 @@
+1.03	Mon Sep 15 09:00:38 GMT 2003
+	Fixed dash pattern problem with chart styles
+	Renamed 'level' graph to 'logic'
+	Renamed Function method 'line' to 'func_line'
+	Renamed Function method 'line_list' to 'func_line_list'
+	Fixed text wrapping problem in Key
+	Fixed bar display PostScript function
+	Corrected 'SEE ALSO' references
+	test.pm replaced by Code.pm
+	In Function: source_lines='line' entries, func_lines=output
+	Added sources, flattened input line list
+	In Line: default key now includes stock code
+	In Model: renamed test(s) resource to code(s)
+	output_files now has its own method
+	add_option has additional parameter
+	user tags have initial '_'s stripped
+	user line names have any '/' changed to '_'
+	create_line has its own debug level!!
+	code field 'during' renamed to 'step'
+	extensive changes to how code is eval'ed
+	new builtin function, 'info()'
+	marks() and info() now accept variables for line names
+	they also create unknown lines
+	codes now have more information available
+	hopefully fixed dependency line problem
+	fixed known_function/line warning
+	extensive changes to Model documentation regarding code
+	Overview just renamed (needs rereading)
+	In Support: 'in_path' renamed to 'in_list'
+	added support for working lines' internal names
+	line_compare has 'no data' error now
+	added array_from_file
+	In data.pm: keys now include stock code
+	In mark.pm: additional lines now supported
+	extra field 'check' to prevent duplicates
+	documentation changes, including Gotchas
+	'out' field now automatic; 'use_spec' removed
+
+1.02
+	Packaging corrections
+
 1.01	Mon Sep  8 15:21:57 GMT 2003
 	Chart displays lines behind data
 	Function objects may now provide a 'value()' method

@@ -1,5 +1,5 @@
 package Finance::Shares::Model;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Log::Agent;
@@ -16,7 +16,7 @@ use Finance::Shares::Chart;
 use Finance::Shares::MySQL;
 use Finance::Shares::data;
 use Finance::Shares::value;
-use Finance::Shares::test;
+use Finance::Shares::Code;
 use Finance::Shares::mark;
 
 our %data_lines = qw(open 1 high 1 low 1 close 1 volume 1);
@@ -44,7 +44,7 @@ sub new {
 	groups  => [],
 	samples => [],
 	lines   => [],
-	tests   => [],
+	codes   => [],
 
 	## Preparation
 	# set up by constructor
@@ -119,8 +119,6 @@ sub build {
     $o->fetch_data;
 
     my $nlines = 0;
-    my $npages = 0;
-    my @filenames;
     my $files = $o->{fname};
     for (my $fp = 0; $fp <= $#$files; $fp++) {
 	my $fname = $o->{fname}[$fp];
@@ -136,56 +134,20 @@ sub build {
 	    my $funcs = $o->{pfsls}[$pp];
 	    foreach my $fns (@$funcs) {
 		$nlines += $o->build_function($fns);
+		#warn "nlines=$nlines";
 	    }
 
 	    out($o, 3, "Model::build tests on page $pp '$pname'");
 	    my $tests = $o->{ptests}[$pp];
 	    foreach my $t (@$tests) {
 		$nlines += $t->build();
-		$t->finalize();
+		#warn "nlines=$nlines";
 	    }
 	}
 	$o->scale_foreign_lines;
     }
 
-    for (my $fp = 0; $fp <= $#$files; $fp++) {
-	my $pages = $o->{fpages}[$fp];
-	
-	# build charts
-	my $psf = $o->{fpsf}[$fp];
-	my $multiple = 0;
-	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
-	    if ($o->{write_csv}) {
-		my $fsd = $o->{pfsd}[$pp];
-		my $file = $multiple ? '1' : $o->{write_csv};
-		my $res = $fsd->write_csv( $file, $o->{directory} );
-		out($o, 1, "CSV file ", ($res ? "'$res' saved" : "failed to save"));
-	    }
-	    my $fsc = $o->{pfsc}[$pp];
-	    next if $o->{no_chart};
-	    unless ($fsc->hidden) {
-		out($o, 3, "Model::build chart for page $pp '",$o->{pname}[$pp],"'");
-		$psf->newpage if $multiple;
-		$multiple++;	# npages for this file only
-		$npages++;	# total returned for testing
-		$fsc->build;
-	    }
-	}
-
-	# output file
-	unless ($o->{no_chart}) {
-	    my $tag = $o->{ffile}[$fp];
-	    my $filename = $tag;
-	    my $entry = $o->find_option('files', $tag);
-	    if (ref $entry eq 'HASH') {
-		$filename = $entry->{filename} if $entry->{filename};
-	    }
-	    $filename = $o->{filename} if $o->{filename};
-	    push @filenames, check_file("$filename.ps", $o->{directory});
-	    $psf->output( $filename, $o->{directory} );
-	}
-    }
-    return ($nlines, $npages, @filenames);
+    return $o->output_files( $files, $nlines );
 }
 # NB: $nlines is confused.
 # For lines build_function() returns NEW lines;
@@ -208,15 +170,15 @@ sub collect_options {
 	    my $ar = $o->stock_file($val);
 	    $val = [ 'default', $ar ] if $ar;
 	}
-	if (index('source stock date file chart group sample line test', $key) >= 0) {
+	if (index('source stock date file chart group sample line code', $key) >= 0) {
 	    # normal - array or single hash/string
 	    my $option = $key . 's';
 	    if (ref($val) eq 'ARRAY') {
 		for( my $i = 0; $i < $#$val; $i += 2) {
-		    $o->add_option($option, $val->[$i], $val->[$i+1]);
+		    $o->add_option($option, $val->[$i], $val->[$i+1], 1);
 		}
 	    } else {
-		$o->add_option( $option, 'default', $val);
+		$o->add_option( $option, 'default', $val, 1);
 	    }
 	} elsif (index('name', $key) >= 0) {
 	    # special treatment for alias hash
@@ -238,7 +200,7 @@ sub collect_options {
 # NB: $key has no trailing 's', even if the option has one
 
 sub add_option {
-    my ($o, $option, $tag, $entry) = @_;
+    my ($o, $option, $tag, $entry, $user) = @_;
     my $array = $o->{$option};
     logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
     
@@ -248,6 +210,7 @@ sub add_option {
     }
     $p = @$array unless defined $p;
     
+    $tag =~ s/^_+// if $user;
     $array->[$p] = $tag;
     $array->[$p+1] = $entry;
 
@@ -383,7 +346,7 @@ sub prepare_samples {
 	$val = [ $val ] unless ref($val) eq 'ARRAY';
 	$o->{slines}[$sp] = $val;
 
-	$val = $s{test};
+	$val = $s{code};
 	$val = [] unless $val;
 	$val = [ $val ] unless ref($val) eq 'ARRAY';
 	$o->{stests}[$sp] = $val; 
@@ -691,7 +654,7 @@ sub create_data {
     $o->{known_fns}{$name} = $fn;
     foreach my $tag ($fn->line_ids) {
 	my $line_id = name_join($name, $tag);
-	$o->{known_line}{$line_id} = $fn->line($tag);
+	$o->{known_line}{$line_id} = $fn->func_line($tag);
 	$o->set_alias($tag, name_join('data', $tag));
     }
     $o->add_option('lines', 'data', $h);
@@ -787,7 +750,7 @@ sub canonical_names {
     my ($o, $line, $page) = @_;
     $line = $o->get_alias($line);
     out($o, 6, "canonical_names($line, $page)");
-    out_indent(1);
+    #out_indent(1);
     my @f = name_split $line;
     my (@x, @star);
     my $res;
@@ -830,8 +793,8 @@ sub canonical_names {
 		# avoid trailing undef
 		$res = name_join( $fnchart, $fntag );
 	    }
-	    out($o, 6, "found '$res' (relative)");
-	    out_indent(-1);
+	    #out($o, 6, "found '$res' (relative)");
+	    #out_indent(-1);
 	    return $res;
 	}
     }
@@ -844,7 +807,7 @@ sub canonical_names {
     $sample = $psample unless $sample;
     $stock  = $pstock  unless $stock;
     $date   = $pdate   unless $date;
-    out($o, 7, "processing '$sample/$stock/$date/$fntag/$fnline'");
+    #out($o, 7, "processing '$sample/$stock/$date/$fntag/$fnline'");
 
     my ($xsample, $xstock, $xdate);
     $sample = '.*', $xsample = $psample if $sample eq '*';
@@ -854,7 +817,7 @@ sub canonical_names {
     my @list;
     my @samples = $o->match_sample($sample, $xsample);
     #out($o, 1, "samples: ", join(', ', @samples));
-    out_indent(1);
+    #out_indent(1);
     foreach my $sample (@samples) {
 	my @stocks = $o->match_stock($sample, $stock, $xstock);
 	#out($o, 7, "stocks: ", join(', ', @stocks));
@@ -871,10 +834,10 @@ sub canonical_names {
 	    }
 	}
     }
-    out_indent(-1);
+    #out_indent(-1);
 
-    out($o, 6, "matches: ", join(', ', @list));
-    out_indent(-1);
+    #out($o, 6, "matches: ", join(', ', @list));
+    #out_indent(-1);
     return @list;
 }
 
@@ -1012,29 +975,36 @@ sub create_line {
     $pp = $defaultpp unless defined $pp;
     my $fsc   = $o->{pfsc}[$pp];
     my $uname = $f[3]              || logdie("No user name for '$fqln'");
-    my $fname = name_join $page, $uname;   # function name
+    $uname =~ s/\s+/_/g;
+    my $fname = name_join $page, $uname;    # function name
     my $lname = $f[4]              || '';   # line id
     my $line;
-    out($o, 3, "Model::create_line('$fqln')");
+    my $dbg_base = 0;	# normally 0, -7 to show all
+    out($o, $dbg_base+3, "Model::create_line('$fqln')");
     out_indent(1);
 
     ## check for line
     my $fsl = $o->known_line( $fqln );
     if ($fsl) {
-	out($o, 5, "using existing line '", $fsl->name, "'");
+	out($o, $dbg_base+5, "using existing line '", $fsl->name, "'");
 	out_indent(-1);
 	return [ $fsl ];
     }
     
     ## check for function
-    my $lh = $o->find_option('lines', $uname) || logdie("No line known as '$uname'");
+    my $lh = $o->find_option('lines', $uname);
+    $lh = {} unless defined $lh;
+    $lh->{function} = 'mark' unless $lh->{function};
     my $class = $lh->{function} || logdie("'$uname' has no function field");
     $class = $o->get_alias($class);
     my $fn = $o->known_function( $fname );
     
-    unless ($fn) {
+    if ($fn) {
+	out($o, $dbg_base+6, "known function '", ref($fn), ", lname=$lname");
+	$fn->additional_line( $lname ) if $fn->isa('Finance::Shares::mark');
+    } else {
 	## create function
-	out($o, 5, "creating function '$fname'");
+	out($o, $dbg_base+5, "creating function '$fname'");
 	$fn    = eval "Finance::Shares::$class->new(verbose => $o->{verbose})"
 			|| logdie("Can't create function '$class' : $@");
 	$o->declare_known_function( $fname, $fn );
@@ -1047,6 +1017,7 @@ sub create_line {
 	$fh->{verbose} = $o->{verbose};
 	$fh->{fsc}     = $fsc;
 	$fh->{id}      = $uname;
+	$fh->{requested} = $lname;
 	
 	# expand names for initialize() 
 	$fh->{line} = $o->expand_line_names( $fh->{line}, $page );
@@ -1054,6 +1025,7 @@ sub create_line {
 	$fn->add_parameters( %$fh );	# and suitable defaults
 	
 	## create dependent lines
+	out_indent(1);
 	my $fullnames = $o->expand_line_names( $fn->{line}, $page );
 	$fn->{line} = $fullnames;	# including lines set as defaults
 	if (@$fullnames) {
@@ -1063,14 +1035,16 @@ sub create_line {
 		push @lines, $lref;
 	    }
 	    $fn->{line} = \@lines;
-	    out($o, 6, "Lines= ", $fn->show_lines, " created for '$fname'");
+	    out($o, $dbg_base+7, "Lines= ", $fn->show_lines, " created for '$fname'");
 	}
-	out($o, 5, "created line(s) '$fqln'");
+	out_indent(-1);
+	out($o, $dbg_base+6, "created line(s) '$fqln'");
     }
 
     ## finish
-    my $lines = $fn->line_list( $lname );
+    my $lines = $fn->func_line_list( $lname );
     foreach my $line (@$lines) {
+	out($o, $dbg_base+7, "created_line '", $line->name, "'");
 	$fsc->add_line($line);
 	$o->ensure_known_line($line);
     }
@@ -1148,7 +1122,7 @@ sub create_tests {
     out_indent(1);
 
     my %code;
-    my $tests = $o->{tests};
+    my $tests = $o->{codes};
     for( my $i = 0; $i < $#$tests; $i += 2) {
 	my $tag = $tests->[$i];
 	my $val = $tests->[$i+1];
@@ -1165,16 +1139,16 @@ sub create_tests {
     
     foreach my $tag (@$test_opts) {
 	my (@mkA, %mkH, @lnA, %lnH);	# ensure unique line numbers within each test
-	my $t = deep_copy $o->find_option('tests', $tag);
+	my $t = deep_copy $o->find_option('codes', $tag);
 	next unless $t;
 	my $ref = ref $t;
 	if ($ref eq 'HASH') {
-	    $t->{before} = $o->testprep_eval($tag, 0, $t->{before} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
-	    $t->{during} = $o->testprep_eval($tag, 1, $t->{during} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
-	    $t->{after}  = $o->testprep_eval($tag, 0, $t->{after}  || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
-	    push @tests, $o->create_test($tag, $t->{verbose}, $t->{before}, $t->{during}, $t->{after}, $pp, \@mkA, \@lnA, \%code);
+	    $t->{before} = $o->prep_eval($tag, 0, $t->{before} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    $t->{step}   = $o->prep_eval($tag, 1, $t->{step} || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    $t->{after}  = $o->prep_eval($tag, 0, $t->{after}  || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    push @tests, $o->create_test($tag, $t->{verbose}, $t->{before}, $t->{step}, $t->{after}, $pp, \@mkA, \@lnA, \%code);
 	} elsif ($ref eq '') {
-	    $t = $o->testprep_eval($tag, 1, "$t" || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
+	    $t = $o->prep_eval($tag, 1, "$t" || '', $pp, \@mkA, \%mkH, \@lnA, \%lnH);
 	    push @tests, $o->create_test($tag, undef, undef, $t, undef, $pp, \@mkA, \@lnA, \%code);
 	}
 	push @lines, @lnA;		# collect lines so Model knows to draw them
@@ -1192,38 +1166,51 @@ sub create_tests {
     return (\@tests, \@array);
 }
 
-sub testprep_eval {
-    my ($o, $tag, $during, $str, $pp, $mkA, $mkH, $lnA, $lnH) = @_;
-    out($o, 6, "testprep_eval: tag=$tag, str=$str");
+sub prep_eval {
+    my ($o, $tag, $step, $str, $pp, $mkA, $mkH, $lnA, $lnH) = @_;
+    out($o, 6, "prep_eval: tag=$tag, step=$step, str=$str");
     out_indent(1);
-    my $pname = $o->{pname}[$pp];
-    my %vars;	# map tag to accessing code
     
-    while ($str =~ /([\$\@])([^\s,;\)\}\]]+)/g) {
-	my $vtype = $1;
-	my $given = "$1$2";
-	#warn "given = $given\n";
+    #
+    # TODO: This multiple parse search/replace
+    # could be improved with e.g. symbol stream filtering?
+    # 
+    my ($markvars, $infovars, $vars);
+    ($str, $markvars) = $o->prep_marks($str, $pp);
+    ($str, $infovars) = $o->prep_info($str, $pp);
+    
+    my $pname = $o->{pname}[$pp];
+    my %vars;
+    my $terminators = '-\s,;\)\}\]';
+    while ($str =~ /(\w+\()?\s*([\$\@])([^$terminators]+)/g) {
+	my $func  = $1 || '';
+	my $vtype = $2;
+	my $given = "$2$3";
+	#out($o,1,"func=", $func || '', ", given = $given");
 	my @subs;
-	my @lines = $o->canonical_names($2, $pname);
+	my @lines = $o->canonical_names($3, $pname);
 	
-	my $abort = 0;
 	foreach my $line (@lines) {
 	    my @f = name_split($line);
 	    my $entry = $o->find_option('lines', $f[3]);
-	    #warn "tag=$f[3], entry=", $entry || '<undef>', "\n";
-	    $abort++, last unless $entry;
+	    #warn "line=$line, tag=$f[3], entry=", $entry || '<undef>', "\n";
+	    last unless $entry;
 	    my $larray = $o->create_line($line, $pp);
-	    $abort++, last unless $larray;
-
 	    foreach my $fsl (@$larray) {
 		my $uname = $fsl->name;
 		#warn "fsl=$uname\n";
+		
 		my $n = $lnH->{$uname};
 		unless (defined $n) {
 		    push @$lnA, $fsl;
 		    $n = $lnH->{$uname} = $#$lnA;
 		}
-		if ($entry->{function} eq 'mark') {
+		
+		#warn "func=$func, markvars->{$given}=", $markvars->{$given} || '<undef>';
+		#warn "func=$func, given=$given, infovars=", $infovars->{$given} || '<undef>';
+		if ($func =~ /^info\(/ and $infovars->{$given}) {
+		    push @subs, "\$_l_->[$n]";
+		} elsif ($func =~ /^mark\(/ and $markvars->{$given}) {
 		    $fsl->is_mark(1);
 		    my $mark = $fsl->function;
 		    unless ($mkH->{$mark}) {
@@ -1231,29 +1218,26 @@ sub testprep_eval {
 			$mkH->{$mark}++;
 		    }
 		    $fsl->{data} = [];
-		    if ($during) {
+		    if ($step) {
 			push @subs, "\$_l_->[$n]{data}";
-		    } else {
-			out($o, 1, "ERROR: '$given'.  Marks only work in 'during' test phase");
-		    }
-
-		} else {
-		    if ($during) {
-			push @subs, "\$_l_->[$n]{data}[\$i]";
 		    } else {
 			push @subs, "\$_l_->[$n]";
 		    }
+		} elsif ($step) {
+		    push @subs, "\$_l_->[$n]{data}[\$i]";
+		} else {
+		    push @subs, "\$_l_->[$n]";
 		}
 	    }
 	}
 	
-	unless ($abort) {
+	if (@subs) {
 	    $vars{$given} = ($vtype eq '@') ? '(' . join(',', @subs) . ')' : $subs[0];
-	    #warn "\$vars{$given} = $vars{$given}\n";
+	    #out($o,1,"prep_eval: \$vars{$given} = $vars{$given}");
 	}
     }
 
-    # replace line refs with code to access them
+    # match regexps in line fields
     while( my ($var, $val) = each %vars ) {
 	$var =~ s/\$/\\\$/g;
 	$var =~ s/\@/\\\@/g;
@@ -1263,28 +1247,144 @@ sub testprep_eval {
 	#warn "var=$var, val=$val";
 	$str =~ s/$var/$val/g;
     }
-    
+   
     #warn "original str=$str\n";
-    $str =~ s/value\(\s*\$_l_->\[(\d+)\]\{data\}\[\$i\]([^\)]*)\)/value(\$_l_->[$1]$2)/g;
-    $str =~  s/mark\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/mark(\$_v_->[$1], \$i, \$_l_->[$1]$2)/g;
     $str =~ s/call\(([^\),]*)([^\)]*)\)/call(\$_c_->{$1}$2)/g;
+    $str =~ s/mark\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/mark(\$_v_->[$1], \$i, \$_l_->[$1]$2)/g;
+    $str =~ s/info\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/info(\$_v_->[$1]$2)/g;
+    $str =~ s/value\(\s*\$_l_->\[(\d+)\]\{data\}\[\$i\]([^\)]*)\)/value(\$_l_->[$1]$2)/g;
     #warn "substituted str=$str\n";
     
     out_indent(-1);
     return $str;
 }
 
-sub create_test {
-    my ($o, $tag, $verbose, $before, $during, $after, $pp, $marks, $lines, $code) = @_;
+sub prep_marks {
+    my ($o, $str, $pp) = @_;
 
-    # create test object for this code string
-    my $test = new Finance::Shares::test(verbose => $o->{verbose});
-    $test->add_parameters(
+    my (%vars, %mkvars);
+    $vars{'mark\('} = '$_o_->mark(';
+    while( $str =~ /mark\(\s*(["'])([^'"]+)(["'])/g ) {
+	my ($q1, $name, $q2) = ($1, $2, $3);
+	logdie("Quotes don't match in mark( $q1$name$q2 , ... )") unless $q1 eq $q2;
+	my @f = name_split $name;
+	my $tag = $f[0];
+	my $out = $f[1] || '';
+	$tag =~ s/\s/_/g;
+	my $entry = $o->find_option('lines', $tag);
+	#warn "name=$name, tag=$tag, entry=$entry";
+	if ($entry) {
+	    my $eo = $entry->{out};
+	    #warn "eo=$eo, out=$out";
+	    if ($eo) {
+		if (ref($eo) eq 'ARRAY') {
+		    $entry->{out} = $o->prep_add_out($out, $eo, $name, $pp);
+		} else {
+		    $entry->{out} = [ $eo ];
+		}
+	    } else {
+		my $fullname = name_join($name, 'default');
+		$out = 'default' unless $out;
+		$entry->{out} = $o->prep_add_out($out, [], $name, $pp);
+	    }
+	    #warn "eo=", join(',',@{$entry->{out}});
+	} else {
+	    $out = 'default' unless $out;
+	    $entry = {
+		out => [ $out ],
+		stem => $f[0],
+	    };
+	    $o->add_option('lines', $tag, $entry);
+	}
+	$out = $f[1] || $entry->{out}[0];
+	my $given = "$q1$name$q2";
+	my $subs  = name_join("\$$tag", $out);
+	$vars{$given}  = $subs;
+	$mkvars{$subs} = $given;
+	#out($o, 1, "prep_marks: given='$given', subs='$subs'");
+    }
+
+    while( my ($var, $val) = each %vars ) {
+	$str =~ s/$var/$val/g;
+    }
+    
+    #out($o, 1, "prep_marks: str=$str");
+    return ($str, \%mkvars);
+}
+# The marks cannot be substituted completely here
+# as the line numbers ($n) are not yet known
+
+sub prep_add_out {
+    my ($o, $out, $eo, $name, $pp) = @_;
+    #out($o, 1, "prep_add($out, $eo, $name, $pp)");
+    
+    my $found = 0;
+    foreach my $lname (@$eo) {
+	$found++, last if $lname eq $out;
+    }
+    if ($out and not $found) {
+	my $pname = $o->{pname}[$pp];
+	my @lines = $o->canonical_names($name, $pname);
+	foreach my $line (@lines) {
+	    $o->create_line($line, $pp);
+	}
+	push @$eo, $out; 
+    }
+    
+    return $eo;
+}
+
+sub prep_info {
+    my ($o, $str, $pp) = @_;
+    my $pname = $o->{pname}[$pp];
+
+    my (%vars, %infovars);
+    $vars{'info\('} = '$_o_->info(';
+    while( $str =~ /info\(([^)]+)\)/g ) {
+	my @given = split(/,/, $1);
+	my @args  = map { s/^\s+//; s/\s+$//; $_ } @given;
+	#out($o, 1, "info(", join(',',@args), ")");
+	my ($q1, $name, $q2) = ($args[0] =~ /(['"]?)([^'"]*)(['"]?)/);
+	#out($o, 1, "q1=", $q1 || '<undef>', ", name=", $name || '<undef>', " q2=", $q2 || '<undef>', "\n");
+	if ($q1) {
+	    logdie("Quotes don't match in info( $q1$name$q2 , ... )") unless $q1 eq $q2;
+	    my @f = name_split $name;
+	    my $tag = $f[0];
+	    my $out = $f[1] || '';
+	    $tag =~ s/\s/_/g;
+	    my $entry = $o->find_option('lines', $tag);
+	    #warn "name=$name, tag=$tag, entry=", $entry || '<undef>', "\n";
+	    if ($entry) {
+		my $given = $given[0];
+		my $subs = "'" . ($out ? name_join($pname, $tag, $out) : name_join($pname, $tag)) . "'";
+		$vars{$given}  = $subs;
+		$infovars{$subs} = $given;
+	    }
+	}
+    }
+
+    while( my ($var, $val) = each %vars ) {
+	#out($o,1,"prep_info var=[$var], val=[$val]");
+	$str =~ s/$var/$val/g;
+    }
+    
+    #out($o, 1, "prep_info: str=$str");
+    return ($str, \%infovars);
+}
+
+sub create_test {
+    my ($o, $tag, $verbose, $before, $step, $after, $pp, $marks, $lines, $code) = @_;
+
+    my $chart = $o->{pfsc}[$pp];
+    my $test = new Finance::Shares::Code(
 	id      => $tag,
-	fsc     => $o->{pfsc}[$pp],
+	model   => $o,
+	pp      => $pp,
+	fsc     => $chart,
+	quotes  => $chart->data,
 	verbose => defined($verbose) ? $verbose : $o->{verbose},
 	before  => $before,
-	during  => $during,
+	step    => $step,
 	after   => $after,
 	line    => $lines,
 	mark    => $marks,
@@ -1300,7 +1400,8 @@ sub create_test {
     # set dependencies
     foreach my $mark (@$marks) {
 	$mark->{test} = $test;
-	$mark->{line} = [ \@deps ];
+	$mark->{nlines} = @{$mark->{line}};
+	push @{$mark->{line}}, [ @deps ];
     }
 
     return $test;
@@ -1390,7 +1491,7 @@ sub build_function {
 	
 	$fn->build;
 	$fn->finalize;
-	$line_count += $fn->lines;
+	$line_count += $fn->func_lines;
 	out($o, 6, "built '$name', $line_count line(s)");
     }
 
@@ -1425,6 +1526,54 @@ sub scale_foreign_lines {
     out_indent(-1);
 }
 
+sub output_files {
+    my ($o, $files, $nlines) = @_;
+    my $npages = 0;
+    my @filenames;
+
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $pages = $o->{fpages}[$fp];
+	
+	# build charts
+	my $psf = $o->{fpsf}[$fp];
+	my $multiple = 0;
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    if ($o->{write_csv}) {
+		my $fsd = $o->{pfsd}[$pp];
+		my $file = $multiple ? '1' : $o->{write_csv};
+		my $res = $fsd->write_csv( $file, $o->{directory} );
+		out($o, 1, "CSV file ", ($res ? "'$res' saved" : "failed to save"));
+	    }
+	    my $fsc = $o->{pfsc}[$pp];
+	    next if $o->{no_chart};
+	    unless ($fsc->hidden) {
+		out($o, 3, "Model::build chart for page $pp '",$o->{pname}[$pp],"'");
+		$psf->newpage if $multiple;
+		$multiple++;	# npages for this file only
+		$npages++;	# total returned for testing
+		$fsc->build;
+	    }
+	}
+
+	# output file
+	unless ($o->{no_chart}) {
+	    my $tag = $o->{ffile}[$fp];
+	    my $filename = $tag;
+	    my $entry = $o->find_option('files', $tag);
+	    if (ref $entry eq 'HASH') {
+		$filename = $entry->{filename} if $entry->{filename};
+	    }
+	    $filename = $o->{filename} if $o->{filename};
+	    my $pathname = check_file("$filename.ps", $o->{directory});
+	    push @filenames, $pathname; 
+	    $psf->output( $filename, $o->{directory} );
+	    out($o, 3, "Model::output_file($pathname)");
+	}
+    }
+
+    return ($nlines, $npages, @filenames);
+}
+
 ###== SUPPORT METHODS ========================================================= 
 
 sub null_value {
@@ -1452,7 +1601,7 @@ sub page_name {
 
 sub known_function {
     my ($o, $fname) = @_;
-    return $o->{known_fns}{$fname};
+    return $fname ? $o->{known_fns}{$fname} : undef;
 }
 
 sub declare_known_function {
@@ -1464,7 +1613,7 @@ sub declare_known_function {
 
 sub known_line {
     my ($o, $lname) = @_;
-    return $o->{known_lines}{$lname};
+    return $lname ? $o->{known_lines}{$lname} : undef;
 }
 
 sub declare_known_line {
@@ -1560,7 +1709,7 @@ sub show_model_lines {
 		    $res .= "      [$pp][$fn][$ln] $linename\n";
 		}
 	    }
-	    $res .= "    tests \$o->{ptfsls}:\n";
+	    $res .= "    code  \$o->{ptfsls}:\n";
 	    my $array = $o->{ptfsls}[$pp];
 	    for (my $ln = 0; $ln <= $#$array; $ln++) {
 		my $fsl = $array->[$ln];
@@ -2052,7 +2201,7 @@ C<graphs> is a special array listing descriptions for the graph grids that will
 appear on the page. Each graph sub-hash may contain the following keys, although
 'points' is only for prices and 'bars' only for volumes.  Generally, C<gtype>
 and C<percent> are essential.  C<gtype> must be one of C<price>, C<volume>,
-C<analysis> or C<level>.
+C<analysis> or C<logic>.
 
     gtype	    percent
     points	    bars
@@ -2514,32 +2663,32 @@ This example has an abnormally large C<style> entry in order to illustrate the
 possible fields.  The default styles are designed to draw each line in
 a different colour and often only need one or two fields specifying directly.
 
-=head2 Tests
+=head2 Code
 
 One of the original aims in writing these modules was to develop a suite that
 would link stock market analysis with the power of perl.  Well, here it is - its
 reason for existence.
 
-Tests are segments of perl code (mostly in string form) that are eval'ed to
+Segments of perl code (mostly in string form) that eval'ed to
 produce signals of various kinds.  There are three types of entry.
 
 =over
 
 =item Simple text
 
-The simplest and most common form, this perl fragment is eval'ed for every data
-point in the sample where it is applied.  It can be used to produce conditional
-signal marks on the charts, noting dates and prices for potential stock
-positions either as printed output or by invoking a callback function.
+The simplest form, this perl fragment is eval'ed for every data point in the
+sample where it is applied.  It can be used to produce conditional signal marks
+on the charts, noting dates and prices for potential stock positions either as
+printed output or by invoking a callback function.
 
-Don't worry - it is only compiled once, and the compiled code is repeated - so
+The text is only compiled once, it's the compiled code that is repeated - so
 it is just as efficient as running code in a script file.
 
 =item Hash ref
 
-This may have three keys, C<before>, C<during> and C<after>.  Each is a perl
+This may have three keys, C<before>, C<step> and C<after>.  Each is a perl
 fragment, compiled and run before, during and after the sample points are
-considered.  C<during> is thus identical to L<Simple text>.
+considered.  C<step> is thus identical to L<Simple text>.
 
 This form allows one-off invocation of callbacks, or an open-print-close
 sequence for writing signals to file.
@@ -2550,10 +2699,10 @@ These are the callbacks invoked by the previous types of perl fragment.
 
 =back
 
-See L<Finance::Shares::test> for full details, but here is an illustration from
+See L<Finance::Shares::Code> for full details, but here is an illustration from
 the package testing to give some idea of the supported features.
 
-B<Example>
+=head3 Example
     
     tests => [
 	sub1 => sub {
@@ -2574,7 +2723,7 @@ B<Example>
 		    or die "Unable to write to '\$name'";
 END
 	    ,
-	    during => q(
+	    step => q(
 		if ($close > $average and defined $average) {
 		    mark($mark, $close);
 		    my $fh = $self->{fh};
@@ -2589,15 +2738,15 @@ END
 	},
     ],
 
-Some notes.
+=head3 Comments
 
 =over
 
 =item Perl variables
 
 Perl variables may be used normally provided you avoid the tags used for
-B<lines> and B<tests>.  Variables with these names refer to the value of the
-line/test at that time.
+B<lines>.  Variables with these names refer to the value of the line at that
+time.
 
 =item Persistence
 
@@ -2611,7 +2760,22 @@ The perl fragments are just text or code refs.  They would typically be
 presented within a model spec file which B<fsmodel> invokes using B<do>.  It is
 therefore possible to create the code from seperate files, 'here' documents or
 quoted strings.  Don't forget to escape the '$' signs when using double-quoted
-strings.
+strings, though.
+
+=item Code is procedural
+
+B<code> entries are subtly different from lines.  B<lines> are purely
+declarative, the processing order is determined by which lines depend on which
+others.  But B<code> entries are procedural, if they are to be run they must all
+be declared, and in the right order.
+
+=over
+
+[Once it was decided to allow portable code fragments (requiring tags held
+in variables), it was no longer possible to determine the dependencies at
+compile time.  But code is procedural anyway, so this seems natural enough.]
+
+=back
 
 =back
 
@@ -2742,11 +2906,11 @@ as L<Finance::Shares::moving_average>.  The nitty-gritty on how to write each
 line specification are found there.
 
 Core modules used directly by this module include L<Finance::Shares::data>,
-L<Finance::Shares::value>, L<Finance::Share::mark> and L<Finance::Share::test>.
+L<Finance::Shares::value>, L<Finance::Shares::mark> and L<Finance::Shares::Code>.
 
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 

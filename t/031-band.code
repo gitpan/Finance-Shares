@@ -1,0 +1,24 @@
+# Code fragment for t/031.t
+# Requires a line entry with the same tag as this code entry
+
+{
+    before => q(
+	my $fn          = info($self->{name}, 'function');
+	my @lines       = info($self->{name}, 'sources', 1);
+	$self->{source} = $lines[0];
+	$self->{offset} = $fn->{offset} || 5;
+	$self->{high}   = $self->{name} . '/high';
+	$self->{low}    = $self->{name} . '/low';
+    ),
+    step => q(
+	my $array = $self->{source}->data;
+	my $value = $array->[$i];
+	if (defined $value) {
+	    mark($self->{high}, $value + $self->{offset});
+	    mark($self->{low} , $value - $self->{offset});
+	}
+    ),
+    after => q(
+	info($self->{name}, 'finalize', 1);
+    ),
+}

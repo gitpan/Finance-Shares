@@ -1,5 +1,5 @@
 package Finance::Shares::data;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Log::Agent;
@@ -43,8 +43,8 @@ Inherited from L<Finance::Shares::Function>.  See that module for details.
     $name   = $data->name();
     $fsc    = $data->chart();
     @names  = $data->line_ids();
-    $fsl    = $data->line($name);
-    @fsls   = $data->lines($regexp);
+    $fsl    = $data->func_line($name);
+    @fsls   = $data->func_lines($regexp);
     $string = $data->show_lines();
     
 =head1 DESCRIPTION
@@ -67,15 +67,15 @@ lower-case-named Finance::Share modules.  It holds five lines named:
 L<Finance::Shares::Model> provides aliases for these using the B<names>
 resource, so the 'data' suffix may usually be omitted.
 
-    $closing_prices = $data->line('close');
+    $closing_prices = $data->func_line('close');
 
 The data lines are L<Finance::Shares::Line> objects, holding the raw data in
 array format indexed to match the dates held here.  So this would print the
 price range for each date:
 
     my $dates  = $data->dates();
-    my $high   = $data->line('high');
-    my $low    = $data->line('low');
+    my $high   = $data->func_line('high');
+    my $low    = $data->func_line('low');
     my $hidata = $high->data();
     my $lodata = $low->data();
 
@@ -90,7 +90,7 @@ As well as array access, individual dates can also be checked directly using
 a hash.  For example, to obtain the closing price for a given date:
 
     my $i = $data->date_to_idx('2003-06-14');
-    my $close = $data->line('close');
+    my $close = $data->func_line('close');
     my $array = $close->data();
     my $closing_price = $array->[$i];
    
@@ -127,12 +127,13 @@ sub initialize {
     my $o = shift;
     $o->{function} = 'data';
     $o->{id} = 'data';
+    $o->{stock} = '' unless defined $o->{stock};
 
-    $o->add_line('open',   shown => 0, gtype => 'price',  key => 'Opening price' );
-    $o->add_line('high',   shown => 0, gtype => 'price',  key => 'Highest price' );
-    $o->add_line('low',    shown => 0, gtype => 'price',  key => 'Lowest price'  );
-    $o->add_line('close',  shown => 0, gtype => 'price',  key => 'Closing price' );
-    $o->add_line('volume', shown => 0, gtype => 'volume', key => 'Trading volume');
+    $o->add_line('open',   shown => 0, gtype => 'price',  key => "$o->{stock} Opening price" );
+    $o->add_line('high',   shown => 0, gtype => 'price',  key => "$o->{stock} Highest price" );
+    $o->add_line('low',    shown => 0, gtype => 'price',  key => "$o->{stock} Lowest price"  );
+    $o->add_line('close',  shown => 0, gtype => 'price',  key => "$o->{stock} Closing price" );
+    $o->add_line('volume', shown => 0, gtype => 'volume', key => "$o->{stock} Trading volume");
     
     $o->{before} = 0 unless defined $o->{before};
     $o->{after} = 0 unless defined $o->{after};
@@ -210,11 +211,11 @@ sub write_csv {
     }
 
     my $dates = $o->{date_array};
-    my $old = $o->line('open')->{data};
-    my $hld = $o->line('high')->{data};
-    my $lld = $o->line('low')->{data};
-    my $cld = $o->line('close')->{data};
-    my $vld = $o->line('volume')->{data};
+    my $old = $o->func_line('open')->{data};
+    my $hld = $o->func_line('high')->{data};
+    my $lld = $o->func_line('low')->{data};
+    my $cld = $o->func_line('close')->{data};
+    my $vld = $o->func_line('volume')->{data};
     for (my $i = 0; $i <= $#$dates; $i++) {
 	my $date   = $o->{date_array}[$i];
 	my $open   = $old->[$i];
@@ -834,15 +835,15 @@ sub define_data {
     $o->{nvolumes} = $nvolumes;
     
     my $line;
-    $line = $o->line('open');
+    $line = $o->func_line('open');
     $line->{data} = \@open;
-    $line = $o->line('high');
+    $line = $o->func_line('high');
     $line->{data} = \@high;
-    $line = $o->line('low');
+    $line = $o->func_line('low');
     $line->{data} = \@low;
-    $line = $o->line('close');
+    $line = $o->func_line('close');
     $line->{data} = \@close;
-    $line = $o->line('volume');
+    $line = $o->func_line('volume');
     $line->{data} = \@volume;
 }
     
@@ -886,8 +887,8 @@ line specification are found there.
 
 The quote data is stored in a L<Finance::Shares::data> object.
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 

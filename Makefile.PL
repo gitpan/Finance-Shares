@@ -1,8 +1,16 @@
 use ExtUtils::MakeMaker;
+
+my $abstract = <<END;
+=head1 NAME
+
+Finance::Shares - Applying tests to share quotes
+
+END
+
 WriteMakefile(
     NAME	  => 'Finance::Shares',
-    VERSION	  => '1.02',
-    ABSTRACT      => 'Applying tests to share quotes',
+    VERSION	  => '1.03',
+    ABSTRACT      => $abstract,
     AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
     NORECURS      => 1,
     PREREQ_PM	  => { 
@@ -21,6 +29,7 @@ WriteMakefile(
     EXE_FILES => ['fsmodel'],
     PM	=> {
 	'Shares/Chart.pm'	=> '$(INST_LIBDIR)/Shares/Chart.pm',
+	'Shares/Code.pm'	=> '$(INST_LIBDIR)/Shares/Code.pm',
 	'Shares/Function.pm'	=> '$(INST_LIBDIR)/Shares/Function.pm',
 	'Shares/Line.pm'	=> '$(INST_LIBDIR)/Shares/Line.pm',
 	'Shares/Model.pm'   	=> '$(INST_LIBDIR)/Shares/Model.pm',
@@ -55,7 +64,6 @@ WriteMakefile(
 	'Shares/rate_of_change.pm'	=> '$(INST_LIBDIR)/Shares/rate_of_change.pm',
 	'Shares/sample_mean.pm'		=> '$(INST_LIBDIR)/Shares/sample_mean.pm',
 	'Shares/standard_deviation.pm'	=> '$(INST_LIBDIR)/Shares/standard_deviation.pm',
-	'Shares/test.pm'		=> '$(INST_LIBDIR)/Shares/test.pm',
 	'Shares/undersold.pm'		=> '$(INST_LIBDIR)/Shares/undersold.pm',
 	'Shares/value.pm'		=> '$(INST_LIBDIR)/Shares/value.pm',
 	'Shares/weighted_average.pm'	=> '$(INST_LIBDIR)/Shares/weighted_average.pm',

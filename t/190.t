@@ -56,17 +56,17 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    },
 	},
     ],
-    tests => [
+    code => [
 	near => q(
 	    our $limit = $value;
-	    mark($undersold, $low) if $low < $limit;
+	    mark('undersold', $low) if $low < $limit;
 	    #print "           i=$i, mark=", ($low < $limit ? $low : '-'), "\n";
 	),
     ],
     sample => {
 	stock => $stock,
 	lines => 'value',
-	tests => 'near',
+	code  => 'near',
     },
 );
 

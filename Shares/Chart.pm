@@ -1,5 +1,5 @@
 package Finance::Shares::Chart;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Log::Agent;
@@ -30,6 +30,9 @@ our $graph_options = {
 	width => 1,
 	inner_width => undef,
 	outer_width => undef,
+	dashes => '[]',
+	inner_dashes => undef,
+	outer_dashes => undef,
     },
     points => {
 	shape => 'candle2',
@@ -112,10 +115,10 @@ Volume bars are displayed on this graph whose Y axis is typically scaled in mill
 There would typically be more than one 'analysis' graph on a chart.  The Y axis is usually scaled to show price
 movements which may be negative as well as positive.
 
-=item level
+=item logic
 
 Several of the available functions compare two other lines or signal whether conditions are true or false.  Their
-results would be shown on a 'level' graph.  The Y axis is often scaled 0 to 100%.
+results would be shown on a 'logic' graph.  The Y axis is often scaled 0 to 100%.
 
 =back
 
@@ -267,7 +270,7 @@ structure like the following.
 		percent => 40,
 	    },
 	    Tests => {
-		gtype => 'level',
+		gtype => 'logic',
 		show_dates => 1,
 	    },
 	],
@@ -517,7 +520,7 @@ there.  They take a default value of 20.
 Identifies the type of Y axis to use.  Must be one of
 
     price	volume
-    analysis	level
+    analysis	logic
 
 =item show_dates
 
@@ -574,8 +577,8 @@ sub add_data {
     $o->{quotes} = $data;
     
     # ensure there are graphs to display data on
-    $o->graph_for($data->line('close'));
-    $o->graph_for($data->line('volume'));
+    $o->graph_for($data->func_line('close'));
+    $o->graph_for($data->func_line('volume'));
 }
 
 =head2 add_data( data )
@@ -1021,7 +1024,8 @@ sub create_key {
     $max_width       -= ($k->{icon_width} - 3 * $lwidth);
     my $tsize         = defined($k->{text_size}) ? $k->{text_size} : 10;
     unless (defined $k->{text_width}) {
-	$k->{text_width}  = $maxlen * $tsize * $k->{glyph_ratio};
+	my $tw = $maxlen * $tsize * $k->{glyph_ratio};
+	$k->{text_width} = int($tw+1);
 	$k->{text_width}  = $max_width if $k->{text_width} > $max_width;
     }
     
@@ -1271,10 +1275,10 @@ sub price_marks {
     $pstyle->background( $pgp->layout_background() );
     $pstyle->write( $o->{file} );
     my $d      = $o->{quotes};
-    my $open   = $d->line('open')->{data};
-    my $high   = $d->line('high')->{data};
-    my $low    = $d->line('low')->{data};
-    my $close  = $d->line('close')->{data};
+    my $open   = $d->func_line('open')->{data};
+    my $high   = $d->func_line('high')->{data};
+    my $low    = $d->func_line('low')->{data};
+    my $close  = $d->func_line('close')->{data};
     my $count  = 0;
     my $dates = $d->dates;
     for (my $i = 0; $i <= $#$dates; $i++) {
@@ -1307,7 +1311,7 @@ sub volume_marks {
     $vstyle->background( $pgp->layout_background() );
     $vstyle->write( $o->{file} );
     my $d = $o->{quotes};
-    my $volume = $d->line('volume')->{data};
+    my $volume = $d->func_line('volume')->{data};
     my $count = 0;
     my $dates = $d->dates;
     for (my $i = 0; $i <= $#$dates; $i++) {
@@ -1322,9 +1326,11 @@ sub volume_marks {
 	    $bb[2] -= $lwidth;
 	    $bb[3] -= $lwidth;
 	    $bb[3] = $bb[1] if ($bb[3] < $bb[1]);
+		#$bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
+		#$bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
 	    $o->{file}->add_to_page( <<END_BAR );
-		$bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
-		$bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
+		$bb[0] $bb[1] $bb[2] $bb[3] drawbar
+		$bb[0] $bb[1] $bb[2] $bb[3] fillbar
 END_BAR
 	    $count++;
 	}
@@ -1552,13 +1558,13 @@ sub graph_range {
 
     my $q = $o->{quotes};
     if ($g->{gtype} eq 'price') {
-	$o->graph_line_range($g, $q->line('open') );
-	$o->graph_line_range($g, $q->line('high') );
-	$o->graph_line_range($g, $q->line('low') );
-	$o->graph_line_range($g, $q->line('close') );
+	$o->graph_line_range($g, $q->func_line('open') );
+	$o->graph_line_range($g, $q->func_line('high') );
+	$o->graph_line_range($g, $q->func_line('low') );
+	$o->graph_line_range($g, $q->func_line('close') );
     } elsif ($g->{gtype} eq 'volume') {
 	$g->{gmin} = 0;
-	$o->graph_line_range($g, $q->line('volume') );
+	$o->graph_line_range($g, $q->func_line('volume') );
 	$g->{visible} = 0 unless $g->{gmax} > $lowest_int;
     }
 
@@ -1640,7 +1646,7 @@ sub ps_functions {
 
     my $name = "StockChart";
     $ps->add_function( $name, <<END_FUNCTIONS ) unless ($ps->has_function($name));
-	/gstockdict 20 dict def
+	/gstockdict 22 dict def
 	gstockdict begin
 
 	/make_stock {
@@ -1777,6 +1783,38 @@ sub ps_functions {
 	    end end
 	} bind def
 	% x yopen ylow yhigh yclose => _
+	
+	/drawbar {
+	    7 dict begin
+	    gsave
+	    /y1 exch def /x1 exch def /y0 exch def /x0 exch def
+	    newpath
+	    x0 y0 moveto x0 y1 lineto x1 y1 lineto x1 y0 lineto
+	    closepath 
+	    bostyle 0 setdash
+	    bocolor gpapercolor bowidth setlinewidth
+	    stroke
+	    grestore
+	    end
+	} bind def
+	% x0 y0 x1 y1 outline_col outline_width => _
+
+	/fillbar {
+	    7 dict begin
+	    gsave
+	    /y1 exch def /x1 exch def /y0 exch def /x0 exch def
+	    newpath
+	    x0 y0 moveto x0 y1 lineto x1 y1 lineto x1 y0 lineto
+	    closepath 
+	    bistyle 0 setdash
+	    gsave bicolor gpapercolor fill grestore
+	    bicolor gpapercolor biwidth setlinewidth
+	    stroke
+	    grestore
+	    end
+	} bind def
+	% x0 y0 x1 y1 fill_col outline_col outline_width => _
+
 
 	end % stockdict
 END_FUNCTIONS
@@ -1849,8 +1887,8 @@ line specification are found there.
 
 The quote data is stored in a L<Finance::Shares::data> object.
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 

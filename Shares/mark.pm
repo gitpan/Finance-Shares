@@ -1,8 +1,8 @@
 package Finance::Shares::mark;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
-use Finance::Shares::Support qw(%period out show);
+use Finance::Shares::Support qw(out out_indent show);
 use Finance::Shares::Function;
 use Log::Agent;
 our @ISA = 'Finance::Shares::Function';
@@ -10,6 +10,9 @@ our @ISA = 'Finance::Shares::Function';
 sub new {
     my $class = shift;
     my $o = new Finance::Shares::Function(@_);
+
+    $o->{check} = {};
+
     bless $o, $class;
 
     out($o, 4, "new $class");
@@ -19,7 +22,7 @@ sub new {
 sub initialize {
     my $o = shift;
 
-    $o->common_defaults;
+    $o->common_defaults; # how to unset line?
 
     my $style = $o->{style};
     if ($style and ref $style eq '') {
@@ -56,32 +59,56 @@ sub initialize {
 	}
     }
     
-    $o->add_line( "mark", 
-	    graph  => $o->{graph},
-	    gtype  => $o->{gtype},
-	    key    => $o->{key} || "mark '$o->{id}'",
-	    style  => $o->{style},
-	    shown  => $o->{shown},
-	    order  => $o->{order},
-	);
+    $o->{out} = $o->{requested} || 'default' unless $o->{out};
+    #warn "{out}=", $o->{out} || '<undef>';
+    $o->{out} = [ $o->{out} ] unless ref($o->{out}) eq 'ARRAY';
+    if ($o->{requested}) {
+	my $found = 0;
+	foreach my $lname (@{$o->{out}}) {
+	    $found++, last if $lname eq $o->{requested};
+	}
+	push @{$o->{out}}, $o->{requested} unless $found;
+    }
+    #warn "@ {out}=", join(',',@{$o->{out}});
+    my @out = @{$o->{out}};
+    push @out, $o->{requested} if $o->{requested};
+    my %check = map { ($_, 0) } @out;
+    #$o->additional_line( $o->{requested} || $o->{out}[0] );
+    foreach my $out (@out) {
+	$o->additional_line( $out ) unless $check{$out};
+	$check{out}++;
+    }
+}
+
+sub additional_line {
+    my ($o, $out) = @_;
+    return unless $out;
+    #out($o,1, "additional_line($out)");
+    return if $o->{check}{$out};
+
+    my $key_stem = $o->{stem} || $o->{id};
+    my $default_key = ($out =~ /default/) ? $key_stem : "$key_stem/$out";
+    $o->add_line( $out, 
+	graph  => $o->{graph},
+	gtype  => $o->{gtype},
+	key    => $o->{key} || "'$default_key'",
+	style  => $o->{style},
+	shown  => $o->{shown},
+	order  => $o->{order},
+    );
+    $o->{check}{$out}++;
 }
 
 sub build {
     my $o = shift;
-    return if $o->built;
-    my $q      = $o->{quotes};
-    my $src    = $o->{line}[0][0];
-    my $values = $src->{data};
-    my $dates  = $q->dates;
-    out($o, 5, "build mark following '", $src->name);
+    out($o, 5, "building mark");
 
-    my $l = $o->line('mark');
-    $l->{data} = [];
+    foreach my $l ($o->func_lines) {
+	$l->{data} = [];
+    }
     
     my $test = $o->{test};
-    if (ref($test) and $test->isa('Finance::Shares::test')) {
-	$test->build();
-    }
+    $test->build() if ref($test) and $test->isa('Finance::Shares::Code');
 }
 
 __END__
@@ -105,6 +132,7 @@ required and the other illustrating all the possible fields.
 	    },
 	    full = {
 		function   => 'mark',
+		use_spec   => 1,
 		graph      => 'Stock Prices',
 		gtype      => 'price',
 		first_only => 1,
@@ -135,23 +163,23 @@ required and the other illustrating all the possible fields.
 
 This module allows model B<test> code to write points or lines on the graphs.
 
-B<first_only>, B<style> and B<size> are the most significant options.  Note that
-there is no B<line> field as the position is set directly in the program
-function call.
+Significant options are B<line>, B<first_only>, B<style> and B<size>.
 
 =head2 Call Syntax
 
-This module should not be called in the usual way.
+This module may be treated like any other B<line>, but it has some additional
+features.
 
-There must be a L<Finance::Shares::Model> specification B<lines>
-entry that has a B<function> field declaring the module's name.  However, the
-entry's tag may only be used in a B<test> code fragment.
+The L<Finance::Shares::Model> specification B<lines> entry is not required, but
+may be useful.  Normally the entry's tag would be used in a B<code> fragment.
 
-    mark( $line_tag, $position );
+    mark( "line_tag", $position );
+    mark( "line_tag/out_tag", $position );
 
-C<$line_tag> is the B<lines> entry tag with a '$' in front.
-C<$position> is either another line tag or a B<scalar variable> holding a Y axis
-value.  Note that it cannot be an expression.
+Here C<line_tag> is the B<lines> entry tag and C<out_tag> is an identifier for the
+output line.  This must be inside either single or double quotes.  C<$position>
+should evaluate to a Y axis value.  It may be another line tag or an ordinary
+Perl expression.
 
 B<Example>
 
@@ -161,20 +189,72 @@ B<Example>
 	    period   => 10,
 	    key      => '10 day low',
 	}
-	test_line => {
-	    function => 'mark',
+	output => {
 	},
     ],
 
-    test => q(
-	mark( $test_line, $low10 - 5 );
-    ),
+    code => [
+	example1 => q(
+	    mark( 'output', 115 );
+	),
+	example2 => {
+	    before => 'my $line = $output;'
+	    step   => 'mark( "output", $low10 );'
+	},
+	example3 => {
+	    before => q(
+		my $line1 = $output/low;
+		my $line2 = $output/high;
+	    ),
+	    step   => q(
+		mark( "output/low",  $close - 10 );
+		mark( "output/high", $close + 10 );
+	    ),
+	},
+
+	# Asking for TROUBLE
+	example4 => q(
+	    my $line = $output/main;
+	    mark( 'output', $low10 + 5 );
+	),
+    ],
+
+=head2 Some Gotchas
+
+Although the default values are useful, mixing defaults and given identifiers
+can lead to confusion.  To be on the safe side, stick to the following
+usage.
+
+=head3 Using the default line
+
+It is not necessary to give the line a name if there is only ever going to be
+one.  That is, all B<mark> calls add points on the same line.  And if the line
+is referenced seperately as in 'example2', it is referring to that line.
+
+=head3 Multiple lines
+
+Where the code produces multiple lines, give each line an explicit 'out' tag.
+Here it is better to always specify the line identifier as in 'example3'.
+
+Mixing the two styles ('example4') is not a good idea.  If necessary, the order
+of lines can be controlled by giving and C<out> field in the B<lines>
+specification.  In that case, the first line is the default.
+
+=head3 Seperate code entries
+
+Each B<code> entry (whether a string or before/step/after hash) should have
+control of the lines it writes to with B<mark>.  This means that the B<lines>
+entries must also be distinct.
+
+It is OK for many different B<code> entries to read from the same B<line>.  But
+only one B<code> entry must write to each line.
 
 =head1 OPTIONS
 
 =head3 function
 
-Required.  Must be C<mark>.
+If used, it must be C<mark>.  However, this is the default so you won't often
+see it.
 
 =head3 first_only
 
@@ -183,7 +263,7 @@ rather than a mark for every date that passes the test.  A value of 0 means all
 appropriate values are marked.
 
 This module is only ever invoked from a code fragment within a model B<test>.
-See L<Finance::Shares::test/Marking the Chart>.  Typically the code fragment
+See L<Finance::Shares::Code/Marking the Chart>.  Typically the code fragment
 will test the data with some condition such as the following.
 
     mark($mymark, $close) if $line1 > $line2;
@@ -248,7 +328,15 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
+
+=head3 line
+
+Identifies the line(s) whose data is used by the code writing to this line.
+
+=head3 out
+
+If you wish, you may declare the output line names here.
 
 =head3 key
 
@@ -348,8 +436,8 @@ line specification are found there.
 
 The quote data is stored in a L<Finance::Shares::data> object.
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 

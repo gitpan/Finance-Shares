@@ -1,22 +1,21 @@
-Finance::Shares::Model version 1
-================================
+Finance::Shares::Model version 1.03
+===================================
 
-     *********************************************************************
-     *********************************************************************
-     **									**
-     **   WARNING: The version number (1) merely indicates a new major  **
-     **   version since v0.91.  Most of the code has been completely    **
-     **   re-written with very different aims and internal structures.  **
-     **   Therefore,							**
-     **									**
-     **	    If it works, it is a suprise;				**
-     **	    any stability is a bonus.					**
-     **									**
-     **   This version will NOT work with Finance::Share::CGI or with   **
-     **   any of the scripts or files used for version 0.		**
-     **									**
-     *********************************************************************
-     *********************************************************************
+WARNING: *** USER INTERFACE CHANGED ***
+=======================================
+
+Models prepared for v1.00 to v1.02 will need these changes.  (Of course nothing
+from v0.91 and before will work at all.)
+
+1.  The resource 'test'/'tests' has been renamed 'code'/'codes'.
+
+2.  Within a code entry, the field 'during' is now 'step'.
+
+3.  Within a chart specification, the graph type 'level' is now 'logic'.
+
+Also note that tag names with leading underscores will have them removed,
+possibly clashing with other tags within the same resource.  Don't use leading
+underscores - they are now for internal names.
  
 
 PREPARATION
@@ -73,6 +72,9 @@ To install this module type the following:
     make test
     make install
 
+Some tests may be skipped if you haven't got mysql set up.  But if you have,
+then no internet access is considered a 'fail'.
+
 
 ADDITIONAL FILES
 ================
@@ -103,6 +105,7 @@ fsmodel
 	fsmodel -m models/compare -s stocks/FTSE-media -f media
 	fsmodel -m models/convergence -s stocks/FTSE-mining -v 3
 
+    [NOTE: the models have not been tested with this release.]
 
 These two utilities are included as they support low level access to the mysql
 database.  They are not installed; copy them to a bin directory if required.

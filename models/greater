@@ -18,13 +18,13 @@ lines => [
     },
 ],
 
-tests => <<'END'
+code => <<'END'
     mark($result, $close) if $close > $open;
 END
 ,
 
 sample => {
-    test => 'default',
+    code => 'default',
     filename => 'greater',
 },
 

@@ -81,12 +81,12 @@ is($data->start, '2003-04-17', 'data start');
 is($data->end,   '2003-07-07', 'data end');
 is($data->first, '2003-04-01', 'data first');
 is($data->last,  '2003-07-07', 'data last');
-is($data->lines, 5, 'data lines');
+is($data->func_lines, 5, 'data lines');
 is($data->line_ids, 5, 'data line_ids');
 is($data->name, "$page/data", 'data name');
 is($data->source, $csvfile, 'data source');
 
-my @dl = $data->lines;
+my @dl = $data->func_lines;
 is($dl[0]->name, "$page/data/open",   'open line');
 is($dl[1]->name, "$page/data/high",   'high line');
 is($dl[2]->name, "$page/data/low",    'low line');

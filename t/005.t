@@ -13,7 +13,7 @@ use Finance::Shares::Model;
 
 my @args = ( 
     verbose => 6, 
-    config => 't/050.conf' 
+    config => 't/005.conf' 
 );
 
 my $fsm = new Finance::Shares::Model( \@args,
@@ -36,8 +36,8 @@ my $fsm = new Finance::Shares::Model( \@args,
     ],
 );
 
-is($fsm->{config},  't/050.conf', "config OK");
-is($fsm->{filename}, 't/050', "filename OK");
+is($fsm->{config},  't/005.conf', "config OK");
+is($fsm->{filename}, 't/005', "filename OK");
 is($fsm->{verbose}, 6, "verbose OK");
 
 is(@{$fsm->{sources}},    6, "size 'sources' OK");

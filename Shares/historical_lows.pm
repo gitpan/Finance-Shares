@@ -1,5 +1,5 @@
 package Finance::Shares::historical_lows;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -19,7 +19,7 @@ sub new {
 sub initialize {
     my $o = shift;
 
-    $o->common_defaults('level', 'close');
+    $o->common_defaults('logic', 'close');
     $o->{grain}    = 1 unless defined $o->{grain};
     $o->{smallest} = 1 unless defined $o->{smallest};
 
@@ -84,7 +84,7 @@ sub build {
 	}
     }
     
-    my $l = $o->line('line');
+    my $l = $o->func_line('line');
     $l->{data} = \@points;
     unless ($l->{key}) {
 	my $dtype = $q->dates_by;
@@ -150,7 +150,7 @@ entry's tag must be used by a B<sample> in some way.  This may be either
 directly in a B<line> field, or by referring to it within a B<test>.
 
 The other main fields are B<line>, B<grain> and B<smallest>.  This line is
-presented on the 'level' graph and is best shown as a bar chart. i.e. with
+presented on the 'logic' graph and is best shown as a bar chart. i.e. with
 B<style> holding a C<bars> entry as in the L<SYNOPSIS> example.
 
 =head1 OPTIONS
@@ -169,7 +169,7 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 =head3 line
 

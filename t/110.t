@@ -76,12 +76,12 @@ is($data->start, '2003-01-02', 'data start');
 is($data->end,   '2003-03-31', 'data end');
 is($data->first, '2003-01-02', 'data first');
 is($data->last,  '2003-03-31', 'data last');
-is($data->lines, 5, 'data lines');
+is($data->func_lines, 5, 'data lines');
 is($data->line_ids, 5, 'data line_ids');
 is($data->name, 'default/MKS.L/Q1/data', 'data name');
 is(ref($data->{source}), 'Finance::Shares::MySQL', 'Finance::Shares::MySQL');
 
-my @dl = $data->lines;
+my @dl = $data->func_lines;
 is($dl[0]->name, 'default/MKS.L/Q1/data/open',   'open line');
 is($dl[1]->name, 'default/MKS.L/Q1/data/high',   'high line');
 is($dl[2]->name, 'default/MKS.L/Q1/data/low',    'low line');

@@ -1,5 +1,5 @@
 package Finance::Shares::less_than;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Log::Agent;
@@ -16,7 +16,7 @@ sub new {
 sub initialize {
     my $o = shift;
 
-    $o->common_defaults('level', 'close', 'open');
+    $o->common_defaults('logic', 'close', 'open');
     $o->level_defaults;
 
     $o->add_line('line', 
@@ -40,7 +40,7 @@ sub build {
     my $o = shift;
     my $q = $o->{quotes};
     my $d = $q->dates;
-    my $l = $o->line('line');
+    my $l = $o->func_line('line');
 
     my $first = $o->{line}[0][0];
     my $second = $o->{line}[1][0];
@@ -148,13 +148,13 @@ closing price > opening price.
 	test => gt
     }
 
-The next example draws lines at 0 and 100 on a C<level> graph, simulating the
+The next example draws lines at 0 and 100 on a C<logic> graph, simulating the
 result of this module.  [Note the seperating comma after the test END.]
 
     lines => [
 	result => {
 	    function => 'mark',
-	    gtype    => 'level',
+	    gtype    => 'logic',
 	    style    => {
 		line => {
 		    width => 2,
@@ -185,7 +185,7 @@ Two lines are compared and a results line is produced showing high where the
 value of the first is greater than the second and low where it is not.  If one
 of the values is undefined, the result is undefined.
 
-By default the result line will be placed on the C<level> graph, but it can
+By default the result line will be placed on the C<logic> graph, but it can
 appear anywhere.  Normally the high and low levels are given suitable positions
 on the axis, but these can be specified.
 
@@ -219,7 +219,7 @@ identifies a particular graph within a chart page.  A B<gtype> is implied.
 =head3 gtype
 
 This specifies the type of graph the function lines should appear on.  It should
-be one of C<price>, C<volume>, C<analysis> or C<level>.  (Default: C<level>)
+be one of C<price>, C<volume>, C<analysis> or C<logic>.  (Default: C<logic>)
 
 =head3 key
 

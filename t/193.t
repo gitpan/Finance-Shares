@@ -90,25 +90,25 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     ],
     # NB: mark() must see undefined values (eval as 0) to distinguish genuine 'fails'
     # Remember that dates by 'quotes' have no undefined values, by definition.
-    tests => [
+    code => [
 	sub1 => sub {
 	    my ($date, $high, $low) = @_;
 	    #print "$date\: $low to $high\n";
 	},
 
 	test1 => q(
-	    mark($above, 370) if $high > $value or not defined $high;
+	    mark('above', 370) if $high > $value or not defined $high;
 	    call('sub1', $self->{date}, $high, $low) if $low >= 290;
 	),
 	test2 => q(
 	    my $val = $vavg * 2.5;
-	    mark( $line, $val ) if defined $vavg;
-	    mark( $below, $volume ) if $volume > 5000000;
+	    mark( 'line', $val ) if defined $vavg;
+	    mark( 'below', $volume ) if $volume > 5000000;
 	),
     ],
     sample => {
 	stock => $stock,
-	tests => [qw(test2 test1)],
+	code  => [qw(test2 test1)],
     },
 );
 

@@ -1,5 +1,5 @@
 package Finance::Shares::is_rising;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period unique_name shown_style out show);
@@ -20,7 +20,7 @@ sub new {
 sub initialize {
     my $o = shift;
 
-    $o->common_defaults('level', 'close');
+    $o->common_defaults('logic', 'close');
     $o->level_defaults;
     $o->{period} = 5 unless defined $o->{period};
     
@@ -70,7 +70,7 @@ sub build {
     my $o = shift;
     my $q = $o->{quotes};
     my $d = $q->dates;
-    my $l = $o->line('rise');
+    my $l = $o->func_line('rise');
 
     my $gline = $o->{line}[0][0];
     my $grad  = $gline->{data};

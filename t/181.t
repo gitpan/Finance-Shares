@@ -46,13 +46,13 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    function => 'greater_than',
 	    lines    => ['high', 'slow'],
 	    graph    => 'price',
-	    min      => 1050,
-	    max      => 1200,
+	    min      => 465,
+	    max      => 490,
 	    decay    => 0.5,
 	},
 	vgt => {
 	    function => 'less_than',
-	    lines    => ['volume', 17000000],
+	    lines    => ['volume', 3900000],
 	    ramp     => -15,
 	},
     ],
@@ -68,8 +68,8 @@ is($nlines, 4, 'Number of lines');
 
 my $dump = 0;
 my $pgt = $fsm->{pfsls}[0][0][0];
-is($pgt->{lmin}, 1050, 'pgt lmin');
-is($pgt->{lmax}, 1200, 'pgt lmax');
+is($pgt->{lmin}, 465, 'pgt lmin');
+is($pgt->{lmax}, 490, 'pgt lmax');
 is($pgt->{scale}, 1, 'pgt scale');
 line_dump($pgt->{data}, "$filename-pgt.data") if $dump;
 ok(line_compare($pgt->{data}, "$filename-pgt.data"), 'pgt line');

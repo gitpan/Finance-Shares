@@ -1,5 +1,5 @@
 package Finance::Shares::exponential_average;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -69,7 +69,7 @@ sub build {
 	    push @points, undef;
 	}
     }
-    my $l = $o->line('expo');
+    my $l = $o->func_line('expo');
     $l->{data} = \@points;
 	
     unless ($l->{key}) {
@@ -154,7 +154,7 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 =head3 line
 

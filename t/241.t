@@ -51,7 +51,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
 	price_range => {
 	    function => 'mark',
-	    gtype    => 'level',
+	    gtype    => 'logic',
 	    graph    => 'price range',
 	    style    => {},
 	    key      => 'Daily price range',
@@ -64,22 +64,22 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    order    => -3,
 	},
     ],
-    tests => [
+    code => [
 	price_range => {
 	    before => q(
 		print "Std dev = ", value( $sd_price, 'std_dev'), "\n";
 		print "Mean    = ", value( $sd_price, 'mean'), "\n";
 	    ),
-	    during => q(
+	    step => q(
 		my $range = $high - $low;
-		mark($price_range, $range) if defined $high;
+		mark('price_range', $range) if defined $high;
 	    ),
 	},
     ],
     sample => {
 	stock => $stock,
 	lines => [qw(sd_price sd_volume sd_range)],
-	tests => [qw(price_range)],
+	codes => [qw(price_range)],
     },
 );
 

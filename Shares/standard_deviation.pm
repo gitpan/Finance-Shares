@@ -1,5 +1,5 @@
 package Finance::Shares::standard_deviation;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -83,7 +83,7 @@ sub build {
     return unless $count;
     
     if ($o->{no_line}) {
-	my $l = $o->line('sd0');
+	my $l = $o->func_line('sd0');
 	$l->{data} = [];
     } else {
 	my $first = $q->date_to_idx( $q->nearest($q->{first}) );
@@ -91,7 +91,7 @@ sub build {
 
 	my $sds = $o->{std_devs};
 	for (my $i = 0; $i <= $#$sds; $i++) {
-	    my $l = $o->line('sd' . $i);
+	    my $l = $o->func_line('sd' . $i);
 	    my $frac = $sds->[$i];
 	    next unless ref($l) and $l->isa('Finance::Shares::Line');
 
@@ -203,7 +203,7 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 =head3 line
 
@@ -253,6 +253,10 @@ not shown.  The module's value is still available to code fragements, though.
 This is normally a hash ref defining the data's appearance.  See
 L<PostScript::Graph::Style> for full details, or L<Finance::Shares::Model/Lines> for
 an example.
+
+=head2 value( [which] )
+
+Returns the calulated value.  C<which> amy be either 'mean' or 'std_dev'.  (Default: 'std_dev')
 
 =head1 BUGS
 

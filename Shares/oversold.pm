@@ -1,10 +1,10 @@
 package Finance::Shares::oversold;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period $default_line_style
 				$highest_int $lowest_int
-				unique_name shown_style out show);
+				internal_name shown_style out show);
 use Finance::Shares::Function;
 use Finance::Shares::gradient;
 use Finance::Shares::momentum;
@@ -24,7 +24,7 @@ sub new {
 sub initialize {
     my $o = shift;
 
-    $o->common_defaults('level', 'close');
+    $o->common_defaults('logic', 'close');
     $o->level_defaults;
     $o->{period}   = 0 unless defined $o->{period};
     $o->{acceptable} = 1 unless defined $o->{acceptable};
@@ -32,7 +32,7 @@ sub initialize {
     
     # prepare gradient line
     my $source = $o->{line}[0];
-    my $uname  = unique_name( 'gradient' );
+    my $uname  = internal_name( $o->{momentum}, $source, $o->{period} );
     $o->{line}[0] = $uname;
 
     my ($shown, $style) = shown_style( $o->{gradient} );
@@ -93,7 +93,7 @@ sub build {
     my $o = shift;
     my $q = $o->{quotes};
     my $d = $q->dates;
-    my $l = $o->line('line');
+    my $l = $o->func_line('line');
 
     my $gline = $o->{line}[0][0];
     my $grad  = $gline->{data};
@@ -160,7 +160,7 @@ sub build {
 	my $first = $q->date_to_idx( $q->nearest($q->{first}) );
 	my $last  = $q->date_to_idx( $q->nearest($q->{last}, 1) );
 	
-	my $b = $o->line('boundary');
+	my $b = $o->func_line('boundary');
 	$b->{data}[$first] = $cutoff;
 	$b->{data}[$last]  = $cutoff;
 	$b->interpolate();
@@ -253,7 +253,7 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<level>)
+C<logic>.  (Default: C<logic>)
 
 =head3 line
 

@@ -1,5 +1,5 @@
 package Finance::Shares::minimum;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show $highest_int);
@@ -53,7 +53,7 @@ sub build {
     }
     $o->{minimum} = $min;
     
-    my $l = $o->line('min');
+    my $l = $o->func_line('min');
     if ($o->{no_line}) {
 	$l->{data} = [];
     } else {
@@ -161,7 +161,7 @@ default)
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 =head3 line
 
@@ -221,6 +221,10 @@ not shown.  The module's value is still available to code fragements, though.
 This is normally a hash ref defining the data's appearance.  See
 L<PostScript::Graph::Style> for full details, or L<Finance::Shares::Model/Lines> for
 an example.
+
+=head2 value( )
+
+Return the calculated value.
 
 =head1 BUGS
 

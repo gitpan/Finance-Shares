@@ -52,16 +52,16 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    },
 	},
     ],
-    tests => [
+    code => [
 	# NB: limited to only one mark() per code string at present
 	test1 => q(
 	    our $limit = $value;
-	    mark($below, $low) if $low < $limit;
+	    mark("below", $low) if $low < $limit;
 	),
     ],
     sample => {
 	stock => $stock,
-	tests => 'test1',
+	codes => 'test1',
     },
 );
 
@@ -72,6 +72,6 @@ is($nlines, 3, 'Number of lines');
 
 #show $fsm, $fsm->{pfsls}, 4;
 my $mark_np = $fsm->{ptfsls}[0][1]{npoints};
-is($mark_np, 7, 'Number of points');
+is($mark_np, 5, 'Number of points');
 
 

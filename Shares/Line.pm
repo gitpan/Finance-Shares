@@ -1,5 +1,5 @@
 package Finance::Shares::Line;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Log::Agent;
@@ -49,7 +49,7 @@ sub new {
     my $class = shift;
     my $o = {
 	# These should probably be included in add_line()'s hash
-	gtype   => '',		    # REQUIRED: price/volume/analysis/level
+	gtype   => '',		    # REQUIRED: price/volume/analysis/logic
 	key     => undef,	    # Identify line style in Key panel
 	style   => undef,	    # Control appearance
 	shown   => 1,		    # Only needed to over-ride 'style'
@@ -61,7 +61,7 @@ sub new {
 	verbose => 1,
 	
 	# Override for Finance::Shares::Function::build() should set this
-	data    => [],		    # Populate with 'YYYY-MM-DD' => <number>
+	data    => [],		    # Populate with Y axis values, same order as chart's data
 
 	# Finance::Shares::Function::finalize() will set these
 	lmin    => $highest_int,
@@ -95,7 +95,7 @@ following fields.
 =item gtype
 
 The graph type where this line belongs.  It must be one of price, volume,
-analysis or level.  REQUIRED - there is no default.
+analysis or logic.  REQUIRED - there is no default.
 
 =item key
 
@@ -153,6 +153,16 @@ ref holding all the graph settings.  In which case the name is in the {graphID} 
     my $name = (ref($g) eq 'HASH') ? $g->{graphID} : $g;
     my $hash = (ref($g) eq 'HASH') ? $g: {};
     
+=cut
+
+sub id {
+    return $_[0]->{id};
+}
+
+=head2 id( )
+
+Return the line identifier.
+
 =cut
 
 sub name {
@@ -273,7 +283,7 @@ sub initialize {
     my $scale  = 0;
     my $gtype = $o->{gtype};
     if ($gtype) {
-	if ($gtype eq 'level') {
+	if ($gtype eq 'logic') {
 	    $scale = 0;
 	} else {
 	    $scale = 1 if $graph->{gtype} ne $gtype;
@@ -404,12 +414,7 @@ sub finalize {
 
 sub default_key {
     my $o = shift;
-    my $fn = $o->{fsfn};
-    if ($fn->{function} eq 'data') {
-	return "$fn->{stock} $o->{key}";
-    } else {
-	return $o->{key} || '';
-    }
+    return $o->{key} || '';
 }
 
 =head1 BUGS
@@ -452,8 +457,8 @@ line specification are found there.
 
 The quote data is stored in a L<Finance::Shares::data> object.
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 

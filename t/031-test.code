@@ -1,0 +1,35 @@
+# Code fragment for test t/031.t
+# Requires a lines tag 'process1'
+
+{
+    before => q(
+	my $filename = 't/031.out';
+	open(OUT, '>', $filename) or die "Unable to write to '$filename'";
+	my $tag = name_join( $self->{page}, $self->{tag});
+	print OUT "'$tag' details:\n";
+	print OUT "function = ", info($self->{name},'function'),"\n";
+	print OUT "line     = ", info($tag), "\n";
+	print OUT "line name= ", info(  $test/default  ,   'name'  ), "\n";
+	print OUT "fn name  = ", info('test' , 'name', 1), "\n";
+	
+	my @lines = info('test','sources',1);
+	print OUT "source lines:\n";
+	foreach my $line (@lines) {
+	    print OUT "    = ", $line->name, "\n";
+	}
+	
+	@lines = info(    "test"   , 'func_lines', 1 );
+	print OUT "output lines:\n";
+	foreach my $line (@lines) {
+	    print OUT "    = ", $line->name, "\n";
+	}
+	close OUT;
+    ),
+    step => q(
+	mark('test', 123);
+    ),
+    after => q(
+	info($self->{name}, 'finalize', 1);
+    ),
+}
+

@@ -78,7 +78,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     ],
 
    
-    tests => [
+    code => [
 	list => sub {
 	    my $lines = shift;
 	    for (my $i = 0; $i <= $#$lines; $i++) {
@@ -97,19 +97,19 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		print "     raw mean = ", $raw, "\n";
 		print "   difference = ", $self->{diff}, "\n";
  	    ),
-	    during => q(
+	    step => q(
 		my $h = $smoothed + $self->{diff};
 		my $l = $smoothed - $self->{diff};
 		if (defined $close) {
-		    mark($hi_mark, $h);
-		    mark($lo_mark, $l);
+		    mark('hi_mark', $h);
+		    mark('lo_mark', $l);
 		    my $offset = 0;
 		    if ($close > $h) {
 			$offset = $close - $h;
 		    } elsif ($close < $l) {
 			$offset = $close - $l;
 		    }
-		    mark($relative, $offset);
+		    mark('relative', $offset);
 		}
 	    ),
 	    after => q(
@@ -120,7 +120,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     ],
     group => {
 	lines    => [qw(smoothed)],
-	test     => 'main',
+	code     => 'main',
 	filename => $filename,
     },
 

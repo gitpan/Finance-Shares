@@ -1,117 +1,299 @@
 #!/usr/bin/perl
 use warnings;
 use strict;
-use Test::More tests => 35;
+use Test::More tests => 64;
 use Finance::Shares::Model;
+use Finance::Shares::Support qw(show add_show_objects line_dump line_compare);
 
-# More complex resources
-# Some keys are plural
-# Some are arrays holding several typical entries
-# Input only - no build
+my $filename = 't/030';
+
+add_show_objects(
+    'Finance::Shares::Line',
+    'Finance::Shares::Code',
+    'Finance::Shares::mark',
+);
 
 my $fsm = new Finance::Shares::Model( \@ARGV,
     verbose => 1,
-    filename => 'in03',
+    filename => $filename,
 
-    sources => {
-	user     => 'test',
-	password => 'test',
-	database => 'test',
-    },
-    stock => [
-	retail => [qw(NXT.L GUS.L)],
-    ],
-    dates => [
-	nxt => {},
-	default => {},
-    ],
-    file => {
-	landscape => 0,
-    },
-    charts => [
-	one => {
-	    price  => { percent => 100, gtype => 'price'  },
-	    volume => { percent => 0,   gtype => 'volume' },
-	},
-	two => {
-	    price  => { percent => 50,  gtype => 'price'  },
-	    volume => { percent => 50,  gtype => 'volume' },
-	},
-    ],
-    name   => [
-	wally => 'jim',
-	jo    => 'anne',
-    ],
-    line   => [
-	first => {},
-	second => {},
-    ],
-    tests => [
-	xxx => '# some code',
-    ],
-    groups => {
-	chart  => 'one',
-	line   => [qw(first second)],
-	source => 'default',
-    },
-    sample => {
-	stock => 'MKS.L',
-	page  => 'MKS',
-    },
-    date => [
-	gus => {},
-    ],
     lines => [
-	third => {},
+	# case_X have no line entries
+	# mark only
+	caseA0 => {},
+	caseA1 => {},
+	caseB0 => { out => [qw(one two)], },
+	caseB1 => { out => [qw(one two)], },
+	caseB2 => { out => [qw(one two)], },
+	# no 'out' entries specified
+	case00 => {},
+	case01 => {},
+	case02 => {},
+	case03 => {},
+	case04 => {},
+	case05 => {},
+	case06 => {},
+	case07 => {},
+	case08 => {},
+	# 'out' entries given
+	case10 => { out => [qw(one two)], },
+	case11 => { out => [qw(one two)], },
+	case12 => { out => [qw(one two)], },
+	case13 => { out => [qw(one two)], },
+	case14 => { out => [qw(one two)], },
+	case15 => { out => [qw(one two)], },
+	case16 => { out => [qw(one two)], },
+	case17 => { out => [qw(one two)], },
+	case18 => { out => [qw(one two)], },
     ],
+
+    code => [
+	# caseXYZ:
+	# X=lines entry (_=no line,  0=no out, 1+=given),
+	# Y=in mark()   (_=no_entry, d=default, g=given, m=missing)
+	# Z=referenec (_=no_entry, d=default, g=given, m=missing)
+	case_d => q(mark('case_', 110);),
+	case_g => q(mark('case_/one', 111);),
+	case0d => q(mark('caseA0', 112);),
+	case0g => q(mark('caseA1/one', 113);),
+	case1d => q(mark('caseB0', 114);),
+	case1g => q(mark('caseB1/one', 115);),
+	case1m => q(mark('caseB2/xxx', 116);),
+
+	# case_.. all fail as reference needs line entry
+	#case_dd => {
+	#    before => q(my $fsl = $case_0;),		# default
+	#    step   => q(mark('case_0', 107);),		# default
+	#},
+	
+	# case0.. reference only works when mark is same line
+	case0dd => {
+	    before => q(my $fsl = $case00;),		# default
+	    step   => q(mark('case00', 117);),		# default
+	},
+	case0dg => {
+	    before => q(my $fsl = $case01/one;),	# one =0
+	    step   => q(mark('case01', 118);),		# default
+	},
+	case0dm => {
+	    before => q(my $fsl = $case02/xxx;),	# xxx =0
+	    step   => q(mark('case02', 119);),		# default
+	},
+	case0gd => {
+	    before => q(my $fsl = $case03;),		# default =0
+	    step   => q(mark('case03/one', 120);),	# one
+	},
+	case0gg => {
+	    before => q(my $fsl = $case04/one;),	# one
+	    step   => q(mark('case04/one', 121);),	# one
+	},
+	case0gm => {
+	    before => q(my $fsl = $case05/xxx;),	# xxx =0
+	    step   => q(mark('case05/one', 122);),	# one
+	},
+	case0md => {
+	    before => q(my $fsl = $case06;),		# default =0
+	    step   => q(mark('case06/xxx', 123);),	# xxx
+	},
+	case0mg => {
+	    before => q(my $fsl = $case07/one;),	# one =0
+	    step   => q(mark('case07/xxx', 124);),	# xxx
+	},
+	case0mm => {
+	    before => q(my $fsl = $case08/xxx;),	# xxx
+	    step   => q(mark('case08/xxx', 125);),	# xxx
+	},
+
+	# case1..
+	case1dd => {
+	    before => q(my $fsl = $case10;),		# one
+	    step   => q(mark('case10', 126);),		# one
+	},
+	case1dg => {
+	    before => q(my $fsl = $case11/one;),	# one
+	    step   => q(mark('case11', 127);),		# one
+	},
+	case1dm => {
+	    before => q(my $fsl = $case12/xxx;),	# xxx =0
+	    step   => q(mark('case12', 128);),		# one
+	},
+	case1gd => {
+	    before => q(my $fsl = $case13;),		# one
+	    step   => q(mark('case13/one', 129);),	# one
+	},
+	case1gg => {
+	    before => q(my $fsl = $case14/one;),	# one
+	    step   => q(mark('case14/one', 130);),	# one
+	},
+	case1gm => {
+	    before => q(my $fsl = $case15/xxx;),	# xxx =0
+	    step   => q(mark('case15/one', 131);),	# one
+	},
+	case1md => {
+	    before => q(my $fsl = $case16;),		# one =0
+	    step   => q(mark('case16/xxx', 132);),	# xxx
+	},
+	case1mg => {
+	    before => q(my $fsl = $case17/one;),	# one =0
+	    step   => q(mark('case17/xxx', 133);),	# xxx
+	},
+	case1mm => {
+	    before => q(my $fsl = $case18/xxx;),	# xxx
+	    step   => q(mark('case18/xxx', 134);),	# xxx
+	},
+    ],
+
+    sample => {
+	stock  => 'VOD.L',
+	source => 't/vod.csv',
+	code   => [
+	    'case_d',
+	    'case_g',
+	    'case0d',
+	    'case0g',
+	    'case1d',
+	    'case1g',
+	    'case1m',
+
+	    'case0dd',
+	    'case0dg',
+	    'case0dm',
+	    'case0gd',
+	    'case0gg',
+	    'case0gm',
+	    'case0md',
+	    'case0mg',
+	    'case0mm',
+	
+	    'case1dd',
+	    'case1dg',
+	    'case1dm',
+	    'case1gd',
+	    'case1gg',
+	    'case1gm',
+	    'case1md',
+	    'case1mg',
+	    'case1mm',
+	],
+    },
 );
 
-is($fsm->{verbose}, 1, "verbose OK");
-is($fsm->{config},  undef, "config OK");
-is($fsm->{filename}, 'in03', "filename OK");
 
-is(@{$fsm->{sources}}, 2, "size 'sources' OK");
-is(@{$fsm->{stocks}},  2, "size 'stocks' OK");
-is(@{$fsm->{dates}},   6, "size 'dates' OK");
-is(@{$fsm->{files}},   2, "size 'files' OK");
-is(@{$fsm->{charts}},  4, "size 'charts' OK");
-is(@{$fsm->{groups}},  2, "size 'groups' OK");
-is(@{$fsm->{samples}}, 2, "size 'samples' OK");
-is(@{$fsm->{lines}},   6, "size 'lines' OK");
-is(@{$fsm->{tests}}, 2, "size 'tests' OK");
-is(keys %{$fsm->{alias}}, 2, "size 'alias' OK");
+my ($nlines, $npages, @files) = $fsm->build();
+#warn $fsm->show_model_lines;
 
-is($fsm->{sources}[0],      'default', "'sources' 0 OK");
-is(ref($fsm->{sources}[1]), 'HASH',    "'sources' 1 OK");
-is($fsm->{stocks}[0],       'retail',  "'stocks' 0 OK");
-is(ref($fsm->{stocks}[1]),  'ARRAY',   "'stocks' 1 OK");
-is($fsm->{dates}[0],        'nxt',     "'dates' 0 OK");
-is(ref($fsm->{dates}[1]),   'HASH',    "'dates' 1 OK");
-is($fsm->{dates}[2],        'default', "'dates' 2 OK");
-is(ref($fsm->{dates}[3]),   'HASH',    "'dates' 3 OK");
-is($fsm->{dates}[4],        'gus',     "'dates' 4 OK");
-is(ref($fsm->{dates}[5]),   'HASH',    "'dates' 5 OK");
-is($fsm->{files}[0],        'default', "'files' 0 OK");
-is(ref($fsm->{files}[1]),   'HASH',    "'files' 1 OK");
-is($fsm->{charts}[0],       'one',     "'charts' 0 OK");
-is(ref($fsm->{charts}[1]),  'HASH',    "'charts' 1 OK");
-is($fsm->{charts}[2],       'two',     "'charts' 2 OK");
-is(ref($fsm->{charts}[3]),  'HASH',    "'charts' 3 OK");
-is($fsm->{lines}[0],        'first',   "'lines' 0 OK");
-is(ref($fsm->{lines}[1]),   'HASH',    "'lines' 1 OK");
-is($fsm->{lines}[2],        'second',  "'lines' 2 OK");
-is(ref($fsm->{lines}[3]),   'HASH',    "'lines' 3 OK");
-is($fsm->{tests}[0],      'xxx',       "'tests' 0 OK");
-is(ref($fsm->{tests}[1]), '',          "'tests' 1 OK");
+is($npages, 1, 'Number of pages');
+is($nlines, 38, 'Number of lines');
 
-#print $fsm->show_option('sources');
-#print $fsm->show_option('stocks');
-#print $fsm->show_option('dates');
-#print $fsm->show_option('files');
-#print $fsm->show_option('charts');
-#print $fsm->show_option('groups');
-#print $fsm->show_option('samples');
-#print $fsm->show_option('lines');
-#print $fsm->show_option('signals');
-#print $fsm->show_aliases;
+my $line;
+my $dump = 0;
+
+# marks only
+$line = $fsm->{ptfsls}[0][0];
+is($line->{data}[0], 110, 'case_d line');
+is($line->{key}, "'case_'", 'case_d key');
+$line = $fsm->{ptfsls}[0][1];
+is($line->{data}[0], 111, 'case_g line');
+is($line->{key}, "'case_/one'", 'case_g key');
+$line = $fsm->{ptfsls}[0][2];
+is($line->{data}[0], 112, 'case0d line');
+is($line->{key}, "'caseA0'", 'case0d key');
+$line = $fsm->{ptfsls}[0][3];
+is($line->{data}[0], 113, 'case0g line');
+is($line->{key}, "'caseA1/one'", 'case0g key');
+$line = $fsm->{ptfsls}[0][4];
+is($line->{data}[0], 114, 'case1d line');
+is($line->{key}, "'caseB0/one'", 'case1d key');
+$line = $fsm->{ptfsls}[0][5];
+is($line->{data}[0], 115, 'case1g line');
+is($line->{key}, "'caseB1/one'", 'case1g key');
+$line = $fsm->{ptfsls}[0][6];
+is($line->{data}[0], 116, 'case1m line');
+is($line->{key}, "'caseB2/xxx'", 'case1m key');
+
+# case0 - no 'out' field in line entry
+$line = $fsm->{ptfsls}[0][7];
+is($line->{key}, "'case00'", 'case0dd key');
+$line = $fsm->{ptfsls}[0][8];
+is($line->{key}, "'case01/one'",     'case0dg key');
+$line = $fsm->{ptfsls}[0][9];
+is($line->{data}[0], 118,            'case0dg line');
+is($line->{key}, "'case01'", 'case0dg key');
+$line = $fsm->{ptfsls}[0][10];
+is($line->{key}, "'case02/xxx'",     'case0dm key');
+$line = $fsm->{ptfsls}[0][11];
+is($line->{data}[0], 119,            'case0dm line');
+is($line->{key}, "'case02'", 'case0dm key');
+$line = $fsm->{ptfsls}[0][12];
+is($line->{key}, "'case03'", 'case0gd key');
+$line = $fsm->{ptfsls}[0][13];
+is($line->{data}[0], 120,            'case0gd line');
+is($line->{key}, "'case03/one'",     'case0gd key');
+$line = $fsm->{ptfsls}[0][14];
+is($line->{data}[0], 121,            'case0gg line');
+is($line->{key}, "'case04/one'",     'case0gg key');
+$line = $fsm->{ptfsls}[0][15];
+is($line->{key}, "'case05/xxx'",     'case0gm key');
+$line = $fsm->{ptfsls}[0][16];
+is($line->{data}[0], 122,            'case0gm line');
+is($line->{key}, "'case05/one'",     'case0gm key');
+$line = $fsm->{ptfsls}[0][17];
+is($line->{key}, "'case06'", 'case0md key');
+$line = $fsm->{ptfsls}[0][18];
+is($line->{data}[0], 123,            'case0md line');
+is($line->{key}, "'case06/xxx'",     'case0md key');
+$line = $fsm->{ptfsls}[0][19];
+is($line->{key}, "'case07/one'",     'case0mg key');
+$line = $fsm->{ptfsls}[0][20];
+is($line->{data}[0], 124,            'case0mg line');
+is($line->{key}, "'case07/xxx'",     'case0mg key');
+$line = $fsm->{ptfsls}[0][21];
+is($line->{data}[0], 125,            'case0mm line');
+is($line->{key}, "'case08/xxx'",     'case0mm key');
+
+## case 1 - line entry has 'out' field
+$line = $fsm->{ptfsls}[0][22];
+is($line->{key}, "'case10/one'",     'case1dd key');
+is($line->{data}[0], 126,            'case1dd line');
+$line = $fsm->{ptfsls}[0][23];
+is($line->{key}, "'case10/two'",     'case1dd key');
+$line = $fsm->{ptfsls}[0][24];
+is($line->{key}, "'case11/one'",     'case1dg key');
+is($line->{data}[0], 127,            'case1dg line');
+$line = $fsm->{ptfsls}[0][25];
+is($line->{key}, "'case12/xxx'",     'case1dm key');
+$line = $fsm->{ptfsls}[0][26];
+is($line->{key}, "'case12/one'",     'case1dm key');
+is($line->{data}[0], 128,            'case1dm line');
+$line = $fsm->{ptfsls}[0][27];
+is($line->{key}, "'case13/one'",     'case1gd key');
+is($line->{data}[0], 129,            'case1gd line');
+$line = $fsm->{ptfsls}[0][28];
+is($line->{key}, "'case13/two'",     'case1gd key');
+$line = $fsm->{ptfsls}[0][29];
+is($line->{key}, "'case14/one'",     'case1gg key');
+is($line->{data}[0], 130,            'case1gg line');
+$line = $fsm->{ptfsls}[0][30];
+is($line->{key}, "'case15/xxx'",     'case1gm key');
+$line = $fsm->{ptfsls}[0][31];
+is($line->{key}, "'case15/one'",     'case1gm key');
+is($line->{data}[0], 131,            'case1gm line');
+$line = $fsm->{ptfsls}[0][32];
+is($line->{key}, "'case16/one'",     'case1md key');
+$line = $fsm->{ptfsls}[0][33];
+is($line->{key}, "'case16/two'",     'case1md key');
+$line = $fsm->{ptfsls}[0][34];
+is($line->{key}, "'case16/xxx'",     'case1md key');
+is($line->{data}[0], 132,            'case1md line');
+
+$line = $fsm->{ptfsls}[0][35];
+is($line->{key}, "'case17/one'",     'case1mg key');
+$line = $fsm->{ptfsls}[0][36];
+is($line->{key}, "'case17/xxx'",     'case1mg key');
+is($line->{data}[0], 133,            'case1mg line');
+
+$line = $fsm->{ptfsls}[0][37];
+is($line->{key}, "'case18/xxx'",     'case1mm key');
+is($line->{data}[0], 134,            'case1mg line');
+#warn"$line->{key} = ", $line->{data}[0] || '<undef>', "\n";
 

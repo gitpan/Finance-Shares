@@ -1,5 +1,5 @@
 package Finance::Shares::percent_band;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(%period out show);
@@ -73,8 +73,8 @@ sub build {
 #	    "\thi=", (defined($hi) ? $hi : '-'),
 #	    "\tlo=", (defined($lo) ? $lo : '-'), "\n";
     }
-    my $h = $o->line('high');
-    my $l = $o->line('low');
+    my $h = $o->func_line('high');
+    my $l = $o->func_line('low');
     $h->{data} = \@highs;
     $l->{data} = \@lows;
 
@@ -156,7 +156,7 @@ This should be the graph where B<line> appears.
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 This should be the gtype for B<line>.
 

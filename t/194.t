@@ -45,14 +45,6 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    function => 'mark',
 	    gtype    => 'price',
 	    first_only => 0,
-#	    style => {
-#		bgnd_outline => 1,
-#		point => {
-#		    color    => [0, 0, 1],
-#		    shape    => 'circle',
-#		    size     => 12,
-#		},
-#	    },
 	    order    => 99,
 	},
 	average => {
@@ -62,9 +54,9 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
     ],
     # NB: mark() must see undefined values in order to identify genuine 'fails'
-    tests => [
+    code => [
 	test1 => q(
-	    mark($mark, $close) if $close > $average and defined $average;
+	    mark('mark', $close) if $close > $average and defined $average;
 	),
 	test2 => {
 	    before => <<END
@@ -74,9 +66,9 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		open( \$self->{fh}, '>', \$name ) or die "Unable to write to '\$name'";
 END
 	    ,
-	    during => q(
+	    step => q(
 		if ($close > $average and defined $average) {
-		    mark($mark, $close);
+		    mark('mark', $close);
 		    my $fh = $self->{fh};
 		    print $fh "close=$close, average=$average\n" if defined $close;
 		}
@@ -89,7 +81,7 @@ END
     ],
     sample => {
 	stock => $stock,
-	tests => [qw(test2)],
+	code  => [qw(test2)],
     },
 );
 

@@ -18,7 +18,8 @@ my $date     = 'default';
 
 add_show_objects(
     'Finance::Shares::Line',
-    'Finance::Shares::rising',
+    'Finance::Shares::is_falling',
+    'Finance::Shares::is_rising',
 );
 
 my $fsm = new Finance::Shares::Model( \@ARGV,
@@ -42,14 +43,6 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		gtype => 'volume',
 		percent => 0,
 	    },
-#	    falling => {
-#		gtype => 'level',
-#		percent => 25,
-#	    },
-#	    rising => {
-#		gtype => 'level',
-#		percent => 25,
-#	    },
 	],
     },
     lines => [
@@ -79,14 +72,14 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 
 my ($nlines, $npages, @files) = $fsm->build();
+#warn $fsm->show_model_lines;
 is($nlines, 5, 'Number of lines');
 
-#show $fsm, $fsm->{pfsls}, 4;
-my $dump = 1;
+my $dump = 0;
 my $line = $fsm->{pfsls}[0][0][0];
 my $np = $line->{npoints};
 is($np, 47, 'rising points');
-is($line->{key}, "rising 'Closing price' averaged over 5 weekdays (Shape only)", 'rising key');
+is($line->{key}, "rising 'SHP.L Closing price' averaged over 5 weekdays (Shape only)", 'rising key');
 line_dump($line->{data}, "$filename.data") if $dump;
 ok(line_compare($line->{data}, "$filename.data"), 'rising line');
 

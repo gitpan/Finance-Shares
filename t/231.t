@@ -93,28 +93,28 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 
 my ($nlines, $npages, @files) = $fsm->build();
 #warn $fsm->show_model_lines;
-is($nlines, 6, 'Number of lines');
+is($nlines, 5, 'Number of lines');
 
 my $dump = 0;
 my $line = $fsm->{pfsls}[0][0][0];
 my $np = $line->{npoints};
 is($np, 57, 'oversold points');
-is($line->{key}, "oversold 'Closing price' averaged over 3 weekdays (Shape only)", 'oversold key');
+is($line->{key}, "oversold 'SHP.L Closing price' averaged over 3 weekdays (Shape only)", 'oversold key');
 line_dump($line->{data}, "$filename.data") if $dump;
 ok(line_compare($line->{data}, "$filename.data"), 'rising line');
 
 $line = $fsm->{pfsls}[0][0][1];
 $np = $line->{npoints};
 is($np, 65, 'oversold boundary points');
-is($line->{key}, "boundary for oversold 'Closing price'", 'oversold boundary key');
+is($line->{key}, "boundary for oversold 'SHP.L Closing price'", 'oversold boundary key');
 
 $line = $fsm->{pfsls}[0][1][0];
 $np = $line->{npoints};
 is($np, 57, 'undersold points');
-is($line->{key}, "undersold 'Closing price' averaged over 3 weekdays (Shape only)", 'undersold key');
+is($line->{key}, "undersold 'SHP.L Closing price' averaged over 3 weekdays (Shape only)", 'undersold key');
 
 $line = $fsm->{pfsls}[0][1][1];
 $np = $line->{npoints};
 is($np, 65, 'undersold boundary points');
-is($line->{key}, "boundary for undersold 'Closing price'", 'undersold boundary key');
+is($line->{key}, "boundary for undersold 'SHP.L Closing price'", 'undersold boundary key');
 

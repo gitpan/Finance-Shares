@@ -37,7 +37,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     lines => [
 	value => {
 	    function => 'value',
-	    value    => 425,
+	    value    => 423,
 	    shown    => 1,
 	},
 	oversold => {
@@ -56,14 +56,14 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     # NB: mark() must see undefined values 
     # in order to distinguish genuine 'fails' from these
     # Of course, using by 'quotes' has no undefined values, by definition.
-    tests => [
+    code => [
 	near => q(
-	    mark($oversold, $high) if $high > $value or not defined $high;
+	    mark('oversold', $high) if $high > $value or not defined $high;
 	),
     ],
     sample => {
 	stock => $stock,
-	tests => 'near',
+	code  => 'near',
     },
 );
 
@@ -74,5 +74,5 @@ is($nlines, 3, 'Number of lines');
 #warn $fsm->show_model_lines;
 #show $fsm, $fsm->{pfsls}, 4;
 my $mark_np = $fsm->{ptfsls}[0][0]{npoints};
-is($mark_np, 4, 'Number of points');
+is($mark_np, 5, 'Number of points');
 

@@ -7,12 +7,11 @@ use Finance::Shares::Model;
 # Typical, single entries from config file
 # others filled with defaults
 
-my $fsm = new Finance::Shares::Model( [ config => 't/040.conf'],
+my $fsm = new Finance::Shares::Model( [ config => 't/004.conf'],
 );
 
-
-is($fsm->{config},  't/040.conf', "config OK");
-is($fsm->{filename}, 't/040', "filename OK");
+is($fsm->{config},  't/004.conf', "config OK");
+is($fsm->{filename}, 't/004', "filename OK");
 
 is(@{$fsm->{sources}},    2, "size 'sources' OK");
 is(@{$fsm->{stocks}},     2, "size 'stocks' OK");
@@ -31,4 +30,6 @@ is($fsm->{files}[0],        'default', "'files' 0 OK");
 is(ref($fsm->{files}[1]),   'HASH',    "'files' 1 OK");
 is($fsm->{charts}[0],       'default', "'charts' 0 OK");
 is(ref($fsm->{charts}[1]),  'HASH',    "'charts' 1 OK");
+
+#print $fsm->show_option('sources');
 

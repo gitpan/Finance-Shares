@@ -1,5 +1,5 @@
 package Finance::Shares::Support;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Date::Calc qw(:all);
@@ -18,12 +18,12 @@ our @EXPORT_OK = qw(
     days_difference day_of_week
     read_config write_config deep_copy valid_gtype extract_list
     check_file check_filesize check_by check_dates
-    mysql_present unique_name shown_style
+    mysql_present unique_name internal_name shown_style
     name_split name_join name_flatten
     show_dump show show_deep 
     add_show_objects show_addresses show_indent show_seperator
     out outf out_indent 
-    line_dump line_compare
+    line_dump line_compare array_from_file
 );
 
 # Used for constructing Key text
@@ -138,7 +138,7 @@ copy is returned.
 
 sub valid_gtype {
     my $given = shift;
-    foreach my $gtype (qw(price volume analysis level)) {
+    foreach my $gtype (qw(price volume analysis logic)) {
 	return 1 if $given eq $gtype;
     }
     return 0;
@@ -263,6 +263,14 @@ sub unique_name {
 }
 ## unique_name( stem )
 
+sub internal_name {
+    my $name = '_' . join('_', @_);
+    $name =~ s/$field_split/_/;
+    return $name;
+}
+## internal name( args )
+#
+# returns e.g. '_arg1_arg2_arg3'
 
 sub shown_style {
     my $val = shift;
@@ -538,7 +546,7 @@ sub hash_equiv {
 }
 
 
-sub in_path {
+sub in_list {
     my ($var, $path) = @_;
     foreach my $item (@$path) {
 	return 1 if $item == $var;
@@ -621,7 +629,7 @@ sub show_hash {
     $depth = 0  unless defined $depth;
     my $tab = $depth ? ($show_indent x $depth) : '';
     return $h unless ($min);
-    return "<see " . $h . ">\n" if in_path($h, $path);
+    return "<see " . $h . ">\n" if in_list($h, $path);
     push @$path, $h;
     my $res = '';
     if ($h and hash_equiv(ref($h))) {
@@ -636,11 +644,11 @@ sub show_hash {
 	    $res .= $tab if $sep =~ /\n$/;
 	    $res .= "$key=>";
 	    if (hash_equiv(ref $value)) {
-		$res .= "\n$tab  =$value=  " if $show_addresses and not in_path($value, $path) and ($min-1);
+		$res .= "\n$tab  =$value=  " if $show_addresses and not in_list($value, $path) and ($min-1);
 		$res .= show_hash($path, $value, $min-1, $sep, $depth+1);
 		$res .= $tab if ($min-1);
 	    } elsif (ref($value) eq 'ARRAY') {
-		$res .= "\n$tab  =$value=  " if $show_addresses and not in_path($value, $path) and ($min-1);
+		$res .= "\n$tab  =$value=  " if $show_addresses and not in_list($value, $path) and ($min-1);
 		$res .= show_array($path, $value, $min-1, $sep, $depth+1);
 		$res .= $tab if ($min-1);
 	    } else {
@@ -662,7 +670,7 @@ sub show_array {
     $sep = ', ' unless defined $sep;
     $depth = 0 unless defined $depth;
     my $tab = $depth ? ($show_indent x $depth) : '';
-    return "<see " . $ar . ">\n" if in_path($ar, $path);
+    return "<see " . $ar . ">\n" if in_list($ar, $path);
     return $ar unless ($min);
     push @$path, $ar;
     my $res = '';
@@ -674,11 +682,11 @@ sub show_array {
 	    my $value = defined($v) ? $v : '<undef>';
 	    $res .= $sep if $entry;
 	    if (hash_equiv(ref $value)) {
-		$res .= "\n$tab  =$value=  " if $show_addresses and not in_path($value, $path) and ($min-1);
+		$res .= "\n$tab  =$value=  " if $show_addresses and not in_list($value, $path) and ($min-1);
 		$res .= show_hash($path, $value, $min-1, $sep, $depth+1);
 		$res .= $tab if ($min-1);
 	    } elsif (ref($value) eq 'ARRAY') {
-		$res .= "\n$tab  =$value=  " if $show_addresses and not in_path($value, $path) and ($min-1);
+		$res .= "\n$tab  =$value=  " if $show_addresses and not in_list($value, $path) and ($min-1);
 		$res .= show_array($path, $value, $min-1, $sep, $depth+1);
 		$res .= $tab if ($min-1);
 	    } else {
@@ -761,9 +769,10 @@ sub line_dump {
 sub line_compare {
     my ($array, $filename, $error) = @_;
     $error = 0.5 unless defined $error;
-    die "No file called '$filename'" unless -e $filename;
+    die "No line data\n" unless ref $array eq 'ARRAY';
+    die "No file called '$filename'\n" unless -e $filename;
     my $data = do $filename;
-    die "'$filename' doesn't hold a data array" unless ref $data eq 'ARRAY';
+    die "'$filename' doesn't hold a data array\n" unless ref $data eq 'ARRAY';
     my $asz = @$array;
     my $dsz = @$data;
     warn "Different sizes: line=$asz, file=$dsz\n", return 0 unless $asz == $dsz;
@@ -789,6 +798,19 @@ sub line_compare {
     } else {
 	return 1;
     }
+}
+
+sub array_from_file {
+    my $file = shift;
+    open(IN, '<', $file) or die "Unable to open '$file' : $!\n";
+    my @array;
+    while( <IN> ) {
+	chomp;
+	s/^\s+//;
+	s/\s+$//;
+	push @array, $_;
+    }
+    return \@array;
 }
 
 =head1 AUTHOR

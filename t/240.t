@@ -48,7 +48,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    key      => 'Inverted Volume',
 	},
     ],
-    test => {
+    code => {
 	before => q(
 	    print "Minimum price = ", value($min_price), "\n";
 	    print "Maximum price = ", value($max_price), "\n";
@@ -61,11 +61,11 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	    $self->{count}   = 0;
 	    $self->{total}   = 0;
 	),
-	during => q(
+	step => q(
 	    $self->{count}++;
 	    $self->{total} += $volume;
 	    my $y = ($self->{min_vol} + $self->{max_vol} - $volume);
-	    mark($vol_mark, $y) if defined $volume;
+	    mark('vol_mark', $y) if defined $volume;
 	),
 	after => q(
 	    print $self->{count}, " volume entries add up to ", $self->{total}, ".\n";
@@ -75,7 +75,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     sample => {
 	stock => $stock,
 	line  => [qw(min_price max_price min_vol max_vol)],
-	test  => 'default',
+	code  => 'default',
     },
 );
 

@@ -46,8 +46,8 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		    color => 0,
 		},
 	    },
-	    level => {
-		gtype   => 'level',
+	    logic => {
+		gtype   => 'logic',
 		percent => 50,
 	    },
 	    volume => {

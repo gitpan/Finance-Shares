@@ -5,7 +5,7 @@
 lines => [
     result => {
 	function => 'mark',
-	gtype    => 'level',
+	gtype    => 'logic',
 	style    => {
 	    line => {
 		width => 2,
@@ -14,7 +14,7 @@ lines => [
     },
 ],
 
-tests => <<'END'
+code => <<'END'
     if (defined $close) {
 	if ($close > $open) {
 	    mark($result, 100);
@@ -26,6 +26,6 @@ END
 ,
 
 sample => {
-    test => 'default',
+    code => 'default',
 },
 

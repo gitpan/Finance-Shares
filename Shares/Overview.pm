@@ -334,7 +334,7 @@ One of the configuration features is the introduction of user-defined aliases
 
 Probably the most useful development is the use of code fragments or imported
 callbacks which can be invoked before, during or after a model is run.  The
-'during' fragment is visited at every data point, when a variety of data is made
+'step' fragment is visited at every data point, when a variety of data is made
 available, including the value of all other lines.
 
 Code fragments can be as large as you wish - complete files using additional
@@ -371,7 +371,7 @@ except this one'.
 
 The graph types have been renamed.  C<price> and C<volume> types are the same,
 but C<cycles> are now called C<analysis> and C<tests> have been renamed
-C<levels>.  This is because the C<analysis> graphs are more flexible than before
+C<logic>.  This is because the C<analysis> graphs are more flexible than before
 and there are no more C<tests> to present output for.
 
 In version 0, the graphs that could appear on a chart were fixed.  Now any

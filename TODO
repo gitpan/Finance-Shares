@@ -1,0 +1,3 @@
+value() should accept variable line tags as well as literals
+e.g. $self->{tag} would be useful to say 'the corresponding line'
+It should also be able to access values created from 'codes'.

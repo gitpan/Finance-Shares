@@ -31,7 +31,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
     ],
    
-    tests => [
+    code => [
 	main => {
 	    #verbose => 2,
 	    before => q(
@@ -39,12 +39,12 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 		my $tsco_mean = value($tesco/TSCO.L/default/mean);
 		$self->{offset} = $tsco_mean - $mrw_mean;
  	    ),
-	    during => q(
+	    step => q(
 		my $mrw = $morrison/MRW.L/default/close;
 		my $tsco = $tesco/TSCO.L/default/close;
 		if (defined $mrw and defined $tsco) {
 		    my $v = $mrw - $tsco + $self->{offset};
-		    mark($relative, $v);
+		    mark('relative', $v);
 		}
 	    ),
 	    after => q(
@@ -52,7 +52,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
     ],
     group => {
-	test     => 'main',
+	code     => 'main',
 	filename => $filename,
     },
 
@@ -76,7 +76,7 @@ is($npages, 2, 'Number of pages');
 is($nlines, 10, 'Number of lines');
 
 my $line;
-my $dump = 1;
+my $dump = 0;
 $line = $fsm->{ptfsls}[0][0];
 cmp_ok( abs($line->value - 187.203), '<', 0.1, 'MRW.L sample mean');
 $line = $fsm->{ptfsls}[0][1];

@@ -5,9 +5,10 @@ sfw	 43
 tsco	 43
 
 boc	 22
-mrw	 43 +
-shire	 61 +
-lgen	147 +
+mrw	 43
+vod      59
+shire	 61
+lgen	147
 egg	262
 
 Test Scenarios
@@ -18,27 +19,30 @@ filename    : csv file
     test purpose
     results file
 
-010.t
+Specification/Data structure
+----------------------------
+
+001.t
     No input at all - suitable defaults are created
     No build
 
-020.t
+002.t
     A few simple resources
     all default hashes with typical entries
     No build
 
-030.t
+003.t
     More complex resources
     Some keys are plural
     Some are arrays holding several typical entries
     No build
 
-040.t	: 040.conf
+004.t	: 040.conf
     Typical, single entries from config file
     others filled with defaults
     No build
 
-050.t	: 050.conf
+005.t	: 050.conf
     Input from both config file and options
     Some add entries to existing resource
     Both single and plural keys used
@@ -47,23 +51,93 @@ filename    : csv file
     Cmdline overwrites options
     No build
 
-060.t
+006.t
     Multiple options testing preparation structure
     No build
 
-070.t
+007.t
     Particular date and sample entries have defaults filled
     The default group is considered
     No build
 
-080.t
+008.t
     literals in sample entry become resources
     No build
 
-090.t
+009.t
     literals in sample entry become resources
     from group instead of sample
     No build
+
+Basic charts
+------------
+
+010.t	: boc.csv
+    Single sample defaulting to typical, simple values
+    no lines
+    data only, blue candles
+
+011.t	: MySQL
+    Simple sample with named resources
+    value
+    red candles, 2 price lines
+
+Simple marks
+------------
+
+020.t	: shire.csv
+    mark, with and without lines entry
+    code as single text
+    2 marks/code -> mark with 2 lines
+    2 codes, one mark using another
+    1 page; price=2
+
+021.t	: tsco.csv
+    2 mark lines on same mark fn
+    automatic lines entry
+    lines tag contains spaces
+    1 page; price=2
+
+022.t	: mrw.csv, sbry.csv, sfw.csv, tsco.csv
+    user defined null
+    globally set filename
+    chart with no stock or source (hidden)
+    hidden chart
+    hiding volume graph
+    using '*' wildcard to generate list of lines
+    building average from all other lines
+    transfer line from one graph to another
+    Using spaces in mark name making default key
+    4 pages; price=1
+
+Mappings
+--------
+
+030.t	: vod.csv
+    exhaustive test of output lines
+    marks alone
+    referenced line and mark
+    with and without line entry and 'out' field
+    1 page; price=35
+
+031.t	: vod.csv
+    using 'do' to access code from files
+    info() to extract details in step and before
+    code/line with same name using info($self->{name},...)
+    using settings in line entry to control mark
+    build FQLN using $self->{page}
+    using variable holding FQLN in info()
+    using literal tag name in info()
+    returning array and scalar from info()
+    accessing line and function data from info()
+
+032.t	: vod.csv
+    one to one mapping
+    sine curve generated from code
+    input line delayed
+
+Functions
+---------
 
 100.t	: boc.csv
     Single sample defaulting to typical, simple values

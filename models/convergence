@@ -76,7 +76,7 @@ lines => [
     },
 ],
 
-tests => [
+code => [
     maxima => <<'END_CODE'
     my $posn = defined($low) ? $low - 2 : undef;
     mark($above, $posn) if $grad <= 0;
@@ -87,6 +87,6 @@ END_CODE
 
 sample => {
     line => 'grad',
-    test => 'maxima',
+    code => 'maxima',
 },
 

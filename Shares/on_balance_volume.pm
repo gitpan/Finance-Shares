@@ -1,8 +1,8 @@
 package Finance::Shares::on_balance_volume;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
-use Finance::Shares::Support qw(%period unique_name out show);
+use Finance::Shares::Support qw(%period internal_name out show);
 use Finance::Shares::Function;
 use Finance::Shares::gradient;
 use Log::Agent;
@@ -25,7 +25,7 @@ sub initialize {
     # gradient of close is 2nd dependent line
     my $data  = $o->{quotes};
     my $fsm   = $data->model;
-    my $uname = unique_name( 'gradient' );
+    my $uname = internal_name( 'gradient', 'close', 1 );
     my $h     = {
 	function => 'gradient',
 	line     => ['close'],
@@ -79,7 +79,7 @@ sub build {
 	push @points, $res;
     }
    
-    my $l = $o->line('line');
+    my $l = $o->func_line('line');
     $l->{data} = \@points;
 }
 

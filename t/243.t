@@ -36,7 +36,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
 	},
     ],
     
-    tests => [
+    code => [
 	default => {
 	    before => q(
 		$self->{l1} = $avg;
@@ -81,7 +81,7 @@ my $fsm = new Finance::Shares::Model( \@ARGV,
     ],
 
     group => {
-	test     => 'default',
+	code     => 'default',
 	filename => $filename,
     },
 

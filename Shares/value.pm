@@ -1,5 +1,5 @@
 package Finance::Shares::value;
-our $VERSION = 1.01;
+our $VERSION = 1.03;
 use strict;
 use warnings;
 use Finance::Shares::Support qw(out show);
@@ -34,7 +34,7 @@ sub initialize {
 sub build {
     my $o = shift;
     my $q = $o->chart->data;
-    my $l = $o->line('line');
+    my $l = $o->func_line('line');
     my $first = $q->date_to_idx( $q->nearest($q->{first}) );
     my $last  = $q->date_to_idx( $q->nearest($q->{last}, 1) );
     my $start = $q->date_to_idx( $q->nearest($q->{start}) );
@@ -125,7 +125,7 @@ identifies a particular graph within a chart page.  A B<gtype> is implied.
 
 Required, unless B<graph> is given.  This specifies the type of graph the function
 lines should appear on.  It should be one of C<price>, C<volume>, C<analysis> or
-C<level>.  (Default: C<price>)
+C<logic>.  (Default: C<price>)
 
 =head3 key
 
@@ -206,8 +206,8 @@ line specification are found there.
 
 The quote data is stored in a L<Finance::Shares::data> object.
 For information on writing additional line functions see
-L<Finance::Share::Function> and L<Finance::Share::Line>.
-Also, L<Finance::Share::test> covers writing your own tests.
+L<Finance::Shares::Function> and L<Finance::Shares::Line>.
+Also, L<Finance::Shares::Code> covers writing your own tests.
 
 =cut
 
