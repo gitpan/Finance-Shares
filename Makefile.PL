@@ -9,7 +9,7 @@ END
 
 WriteMakefile(
     NAME	  => 'Finance::Shares',
-    VERSION	  => '1.04',
+    VERSION	  => '1.05',
     ABSTRACT      => $abstract,
     AUTHOR        => 'Christopher Willmot <chris@willmot.org>',
     NORECURS      => 1,
@@ -18,6 +18,7 @@ WriteMakefile(
 	'Date::Calc'                => 0,
 	'Text::CSV_XS'              => 0,
 	'LWP::UserAgent'            => 0,
+	'Log::Agent',		    => 0,
 	'DBIx::Namespace'           => 0.03,
 	'PostScript::File'	    => 1.01,
 	'PostScript::Graph::Bar'    => 0.03,

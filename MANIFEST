@@ -94,8 +94,6 @@ t/031-band.code
 t/031-test.code
 t/031.out
 t/031.t
-t/032.data
-t/032.t
 t/100.t
 t/110.t
 t/120.t
