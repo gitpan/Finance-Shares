@@ -6,7 +6,7 @@ Finance::Shares::Lesson5 - Developing tests
 
 Now that we've looked at some functions, it's time to try making some sense of them.  The tests available in
 L<Finance::Shares::Model> produce another graph line, but this should be interpreted as confidence that some
-condition exists.  Typically, they are placed on the signals graph.
+condition exists.  Typically, they are placed on the tests graph.
 
 This script, called F<05tests.pl> can be found in the F<tutorial> directory of the Finance::Shares package.
 
@@ -144,7 +144,7 @@ method:
 
     $fsm->test(
 	...
-	graph  => 'signals',
+	graph  => 'tests',
 	style  => $pstyle,
 	weight => 60,
 	decay  => 0.9,
@@ -201,7 +201,7 @@ Control over the appearance of buy and sell signals uses a B<style> hashref in t
 hashref braces added as the third B<add_signal> parameter.
 
     $fsm->add_signal('buyme', 'mark_buy', undef, {
-	graph => 'signals', 
+	graph => 'tests', 
 	value => 60,
 	key   => 'Best time to buy',
 	style => {

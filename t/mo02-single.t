@@ -74,7 +74,7 @@ my $fsm = new Finance::Shares::Model(
 	volumes => {
 	    percent => 0,
 	},
-	signals => {
+	tests => {
 	    percent => 40,
 	},
     },
@@ -104,7 +104,7 @@ my $fsm = new Finance::Shares::Model(
 	    graph1 => 'prices', line1 => 'fast',
 	    test   => 'le',
 	    graph2 => 'prices', line2 => 'medium',
-	    graph  => 'signals',
+	    graph  => 'tests',
 	    style  => $test_style,
 	    signal => 'sell',
 	},

@@ -1,13 +1,18 @@
 package Finance::Shares::Model;
-our $VERSION = 0.12;
+our $VERSION = 0.14;
 use strict;
 use warnings;
+#use Exporter;
 use Carp;
 use PostScript::File	     1.00;
 use Finance::Shares::Sample  0.12 qw(line_id call_function %function);
 use Finance::Shares::Chart   0.14 qw(deep_copy);
 
 #use TestFuncs qw(show_hash show_array show_lines);
+
+#our @ISA = qw(Exporter);
+#our @EXPORT_OK = qw(%testfunc %testpre %testname %sigfunc 
+#		    value_range condition_signal);
 
 our %testfunc;
 $testfunc{gt} = \&test_gt;
@@ -23,13 +28,13 @@ $testfunc{sum} = \&test_sum;
 $testfunc{and} = \&test_and;
 $testfunc{or} = \&test_or;
 $testfunc{not} = \&test_not;
-$testfunc{logic} = \&test_logic;
+$testfunc{test} = \&test_test;
 
 our %testpre;
 $testpre{min} = 'lowest of';
 $testpre{max} = 'highest of';
 $testpre{not} = 'not';
-$testpre{logic} = 'logical';
+$testpre{test} = 'test';
 
 our %testname;
 $testname{gt} = 'above';
@@ -61,10 +66,7 @@ Finance::Shares::Model - Apply tests to stock quotes
 
 =head1 SYNOPSIS
 
-One exported function:
-
-    use Finance::Shares::Model 'deep_copy';
-
+    use Finance::Shares::Model;
 
 Two ways to use this module.  Either all the data can be given to the constructor, with the model run
 immediately, or tests can be administered piece by piece in a script.
@@ -108,7 +110,7 @@ more than 3% above the previous closing price.
 		graph1 => 'prices', line1 => 'env_high',
 		graph2 => 'prices', line2 => 'high',
 		test   => 'ge',
-		graph  => 'signals',
+		graph  => 'tests',
 		signal => [ 'highlight_volume' ],
 	    },
 	],
@@ -185,7 +187,7 @@ more than 3% above the previous closing price.
 	graph1 => 'prices', line1 => $high,
 	graph2 => 'prices', line2 => 'high',
 	test   => 'ge',
-	graph  => 'signals',
+	graph  => 'tests',
 	signal => [ 'highlight_volume' ],
     );
 
@@ -227,12 +229,23 @@ The tests currently available are:
     and	    Logical 1st AND 2nd
     or	    Logical 1st OR 2nd
     not	    Logical NOT 1st
-    logic   Logical value of 1st
+    test    Logical value of 1st
 
 Tests produce data lines in the standard format.  This means that data, functions and tests can be used
 interchangeably.  Tests can all be shown on any graph (or hidden).  Wherever a 'line' is expected, it can be
 a data, function or test line.  I think a circular reference is not possible because of the declaration order, but
 it would be a Very Bad Thing (TM) so be aware of the possibility.
+
+B<not> and B<test> are unary, only working on the first line given.  The line values are converted to digital
+form, taking one of two values.  On the tests graph, these are 0 and the weight given to the test (up to 100).
+Other graphs have suitable minimum and maximum values depending on the Y axis scale.
+
+B<test> might be considered as B<not(not(...))>.  It uses a C<divide> value to convert the source line to 'on' or
+'off'.  This can be further conditioned by having this value decay over time.  Another use of B<test> is to
+trigger signals on pseudo-test functions like C<rising> or C<undersold>.
+
+All the logical tests (and, or, not and test) can be performed for their signals only if the C<noline> option is
+set.
 
 =head2 The signals
 
@@ -408,7 +421,7 @@ colours, styles) and use the perl variables as values in the hash or sub-hashes.
 for full details, but these top level sub-hash keys may be used in a chart resource:
 
     prices	    volumes
-    cycles	    signals
+    cycles	    tests
     x_axis	    key
     dots_per_inch   reverse
     bgnd_outline    background
@@ -515,7 +528,7 @@ Example 7
 	...
     ],
     
-This will produce a line on the signals graph in the default style.  The software generates keys describing each
+This will produce a line on the tests graph in the default style.  The software generates keys describing each
 line, but they can get very long.  It is often best to declare your own.  See Example 8 for the signal
 definitions.
 
@@ -993,7 +1006,7 @@ pairs, with the following as known keys.
 
 =item graph1
 
-The graph holding C<line1>.  Must be one of 'prices', 'volumes', 'cycles' or 'signals'.
+The graph holding C<line1>.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.
 
 =item line1
 
@@ -1001,7 +1014,7 @@ A string identifying the only line for a unary test or the first line for a bina
 
 =item graph2
 
-The graph holding C<line2>.  Must be one of 'prices', 'volumes', 'cycles' or 'signals'.  Defaults to C<graph1>.
+The graph holding C<line2>.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.  Defaults to C<graph1>.
 
 =item line2
 
@@ -1010,6 +1023,12 @@ A string identifying the second line for a binary test.  For a unary test this m
 =item test
 
 The name of the test to be applied, e.g 'gt' or 'lt'.  Note this is a string and not a function reference.
+
+=item noline
+
+[Only logical tests B<and>, B<or>, B<not> and B<test>.]  When '1', the results line is not generated.  Only useful
+when signals are triggered and the line is not needed for other tests.  (Default: 0)
+
 
 =item shown
 
@@ -1021,7 +1040,7 @@ If present, this should be either a PostScript::Graph::File object or a hash ref
 
 =item graph
 
-The destination graph, where C<line> will be displayed.  Must be one of 'prices', 'volumes', 'cycles' or 'signals'.
+The destination graph, where C<line> will be displayed.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.
 
 If not specified, C<graph1> is used.  This is a little odd as the scales are usually meaningless.  However, as
 mostly the result is an on-or-off function, the line is suitably scaled so the shape is clear enough.
@@ -1029,6 +1048,11 @@ mostly the result is an on-or-off function, the line is suitably scaled so the s
 =item key
 
 The string which will appear in the Key panel identifying the test results.
+
+=item divide
+
+[Only for B<not> and B<test> tests.]  This sets the point dividing 'true' from 'false' and should be a value
+within the range of C<line1> values.  (Default: 0)
 
 =item weight
 
@@ -1042,7 +1066,7 @@ the period.
 
 =item ramp
 
-An alternative method for conditioning the signal line.  This amount is added to the signal value with each
+An alternative method for conditioning the test line.  This amount is added to the test value with each
 period.
 
 =item signals
@@ -1051,7 +1075,7 @@ This should be an array ref holding one or more of the signals registered with t
 
 =back
 
-The results line would typically be shown on the 'signals' graph.  Most tests are either true or false, so the
+The results line would typically be shown on the 'tests' graph.  Most tests are either true or false, so the
 line is flat by default.  The line can be conditioned, however, so its value changes over time.
 Here are some examples of how the relevant parameters interact.
 
@@ -1207,7 +1231,7 @@ sub signal_mark {
     croak 'Cannot mark buy signal: no value' unless defined $value;
     
     # changes here must be reflected in test() patch
-    my $graph = $p->{graph} || 'signals';
+    my $graph = $p->{graph} || 'tests';
     my $line_id = "signal($id)";
     my $buy = $s->choose_line( $graph, $line_id, 1 );
     $buy = $s->add_line( $graph, $line_id, {}, $p->{key}, $p->{style}, $p->{shown} ) unless defined $buy;
@@ -1230,7 +1254,7 @@ Example
 
 =item graph
 
-One of prices, volumes, cycles or signals.  If you have specified a particular graph for the test, you probably
+One of prices, volumes, cycles or tests.  If you have specified a particular graph for the test, you probably
 want to set this to the same.
 
 =item value
@@ -1621,7 +1645,7 @@ sub test_sample {
 	    my ($signal, $org, @rest) = @$sf;
 	    if ($signal =~ /mark/) {
 		my $p = $rest[0];
-		my $graph = $p->{graph} || 'signals';
+		my $graph = $p->{graph} || 'tests';
 		my $line_id = "signal($id)";
 		my $sline = $s->choose_line( $graph, $line_id, 1 );
 		if ($sline) {
@@ -1691,7 +1715,7 @@ sub test_gt {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1719,7 +1743,7 @@ sub test_lt {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1747,7 +1771,7 @@ sub test_ge {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1775,7 +1799,7 @@ sub test_le {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1803,7 +1827,7 @@ sub test_eq {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1831,7 +1855,7 @@ sub test_ne {
     my ($o, $data, %a) = @_;					# See test for list of keys
 
     my $prev_comp;
-    my $level = 0;
+    my $level = $a{min};
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1, $v2) = @{$data->{$date}};
@@ -1954,7 +1978,7 @@ sub test_or {
 	$level = ($v1 || $v2) ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
+	$prev =	$res{$date} = $level unless $a{noline};
     }
 
     return %res ? \%res : undef;
@@ -1971,7 +1995,7 @@ sub test_and {
 	$level = ($v1 && $v2) ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
+	$prev =	$res{$date} = $level unless $a{noline};
     }
 
     return %res ? \%res : undef;
@@ -1979,33 +2003,35 @@ sub test_and {
 
 sub test_not {
     my ($o, $data, %a) = @_;					# See test for list of keys
+    $a{divide} = 0 unless defined $a{divide};
     
     my $prev;
     my $level;
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1) = @{$data->{$date}};
-	$level = $v1 ? $a{min} : $a{max};
+	$level = $v1 > $a{divide} ? $a{min} : $a{max};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
+	$prev =	$res{$date} = $level unless $a{noline};
     }
 
     return %res ? \%res : undef;
 }
 
-sub test_logic {
+sub test_test {
     my ($o, $data, %a) = @_;					# See test for list of keys
+    $a{divide} = 0 unless defined $a{divide};
     
     my $prev;
     my $level;
     my %res;
     foreach my $date (sort keys %$data) {
 	my ($v1) = @{$data->{$date}};
-	$level = $v1 ? $a{max} : $a{min};
+	$level = $v1 > $a{divide} ? $a{max} : $a{min};
 	
 	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
+	$prev =	$res{$date} = $level unless $a{noline};
     }
 
     return %res ? \%res : undef;
@@ -2089,7 +2115,7 @@ sub value_range {
     my ($s, $graph, $weight) = @_;
     my ($min, $max);
     
-    if ($graph eq 'signals') {
+    if ($graph eq 'tests') {
 	$min = 0;
 	$max = $weight;
 	$max = 100 if not $max or $max > 100;

@@ -71,7 +71,7 @@ my $fsc = new Finance::Shares::Chart(
 	percent => 15,
 	show_dates => 1,
     },
-    signals => {
+    tests => {
 	percent => 15,
     },
 );
@@ -87,7 +87,7 @@ like( $pf->{Functions}, qr/BeginProcSet: StockChart/, 'StockChart PostScript');
 ok( $fsc->{prices}{pgp}, 'prices graph');
 ok( $fsc->{volumes}{pgp}, 'volumes graph');
 ok( $fsc->{cycles}{pgp}, 'cycles graph');
-ok( $fsc->{signals}{pgp}, 'signals graph');
+ok( $fsc->{tests}{pgp}, 'tests graph');
 ok( $fsc->{labels}, 'labels exist' );
 is( @{$fsc->{labels}}, $ndates, "$ndates labels" );
 ok( $fsc->{dlabels}, 'dummy labels exist' );
@@ -98,8 +98,8 @@ my @pagebox = $fsc->{pf}->get_page_bounding_box();
 cmp_ok( $pagebox[3], '>=', $fsc->{prices}{layout}{top_edge}, 'top above prices' );
 cmp_ok( $fsc->{prices}{layout}{bottom_edge}, '>=', $fsc->{volumes}{layout}{top_edge}, 'prices above volumes' );
 cmp_ok( $fsc->{volumes}{layout}{bottom_edge}, '>=', $fsc->{cycles}{layout}{top_edge}, 'volumes above cycles' );
-cmp_ok( $fsc->{cycles}{layout}{bottom_edge}, '>=', $fsc->{signals}{layout}{top_edge}, 'cycles above signals' );
-cmp_ok( $fsc->{signals}{layout}{bottom_edge}, '>=', $pagebox[1], 'signals above bottom' );
+cmp_ok( $fsc->{cycles}{layout}{bottom_edge}, '>=', $fsc->{tests}{layout}{top_edge}, 'cycles above tests' );
+cmp_ok( $fsc->{tests}{layout}{bottom_edge}, '>=', $pagebox[1], 'tests above bottom' );
 
 if ($test) {
     my $accuracy = 0.01;

@@ -1,5 +1,5 @@
 package Finance::Shares::Sample;
-our $VERSION = 0.12;
+our $VERSION = 0.13;
 use strict;
 use warnings;
 use Exporter;
@@ -121,7 +121,7 @@ This array is a list of known dates indexed by the logical x coordinate.  It is 
 =head3 lines
 
 Function data is stored in this hash, first keyed by the chart where the function belongs - one of prices,
-volumes, cycles or signals.  Each of these are in turn sub-hashes keyed by a line id.  See <add_line> for details
+volumes, cycles or tests.  Each of these are in turn sub-hashes keyed by a line id.  See <add_line> for details
 of the data stored.
 
 Example
@@ -173,7 +173,7 @@ sub new {
 	prices  => {},
 	volumes => {},
 	cycles  => {},
-	signals => {},
+	tests => {},
 	by_key  => {},   # lines indexed by <graph>::<key>
     };
 
@@ -385,7 +385,7 @@ sub add_line {
 
 =item graph
 
-The graph where the line should appear, one of 'prices', 'volumes', 'cycles' or 'signals'.
+The graph where the line should appear, one of 'prices', 'volumes', 'cycles' or 'tests'.
 
 =item lineid
 
@@ -444,7 +444,7 @@ sub value {
 	@_);
 	
     my $id = line_id('value', $a{value});
-    my $key = "$a{value}";
+    my $key = defined $a{key} ? $a{key} : "$a{value}";
     my $data = {
 	$o->{start} => $a{value},
 	$o->{end}   => $a{value},
@@ -473,7 +473,7 @@ A flag controlling whether the function is graphed.  0 to not show it, 1 to add 
 
 =item graph
 
-A string indicating the graph for display: one of prices, volumes, cycles or signals.  (Default: 'prices')
+A string indicating the graph for display: one of prices, volumes, cycles or tests.  (Default: 'prices')
 
 =item value
 
@@ -602,7 +602,7 @@ Example 2
     }
     @$lines = (@back, @front);
 
-Here the signals are moved to the front.
+Here the tests are moved to the front.
     
 =cut
 
@@ -920,8 +920,8 @@ sub prepare_dates {
     $o->{volumes}{max} = ($vmax != $lowest_int)  ? $vmax : 0;
     $o->{cycles}{min} = -1;
     $o->{cycles}{max} = 1;
-    $o->{signals}{min} = 0;
-    $o->{signals}{max} = 1;
+    $o->{tests}{min} = 0;
+    $o->{tests}{max} = 1;
 }
 
 sub previous_date {
@@ -933,7 +933,7 @@ sub previous_date {
 
 sub known_lines {
     my ($o, @graphs) = @_;
-    @graphs = qw(prices volumes cycles signals) unless @graphs;
+    @graphs = qw(prices volumes cycles tests) unless @graphs;
     my @ids;
     foreach my $graph (@graphs) {
 	my @lines = values %{$o->{lines}{$graph}};
@@ -948,7 +948,7 @@ sub known_lines {
 =head2 known_lines( [ graph(s) ] )
 
 Returns a list of line identifiers valid for the specified graphs, zero or more of prices, volumes, cycles or
-signals.  If none are specified, all known lines are returned.
+tests.  If none are specified, all known lines are returned.
 
 =cut
 
@@ -973,7 +973,7 @@ sub min_value {
 
 =head2 min_value( graph )
 
-Return the lowest value used on the given graph, which should be one of prices, volumes, cycles or signals.
+Return the lowest value used on the given graph, which should be one of prices, volumes, cycles or tests.
 
 =cut
 
@@ -986,7 +986,7 @@ sub max_value {
 
 =head2 max_value( graph )
 
-Return the highest value used on the given graph, which should be one of prices, volumes, cycles or signals.
+Return the highest value used on the given graph, which should be one of prices, volumes, cycles or tests.
 
 =cut
 
@@ -1016,7 +1016,7 @@ Return the data for the identified line.  The data may be checked and any missin
 
 =item graph
 
-One of prices, volumes, cycles or signals.
+One of prices, volumes, cycles or tests.
 
 =item line
 

@@ -84,20 +84,20 @@ $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
 		test => 'lt', signal => 'sell', weight => 100,
 		decay => 1.890, ramp => -90, 
-		graph => 'signals', line => $sell, key => undef,
+		graph => 'tests', line => $sell, key => undef,
 		style => $orange, shown => 1, );
-ok( $fss->{lines}{signals}{$sell}, "$sell stored" );
-is( values %{$fss->{lines}{signals}{$sell}{data}}, $ndates, "$ndates points in $sell" );
+ok( $fss->{lines}{tests}{$sell}, "$sell stored" );
+is( values %{$fss->{lines}{tests}{$sell}{data}}, $ndates, "$ndates points in $sell" );
 
 my $buy = line_id('above', 'prices', $simple_3, 'prices', $simple_20);
 $fsm->test( graph1 => 'prices', line1 => $simple_3,
 		graph2 => 'prices', line2 => $simple_20,
 		test => 'gt', signal => 'buy', weight => 100,
 		decay => 1.890, ramp => -90, 
-		graph => 'signals', line => $buy, key => undef,
+		graph => 'tests', line => $buy, key => undef,
 		style => $green, shown => 1, );
-ok( $fss->{lines}{signals}{$buy}, "$buy stored" );
-is( values %{$fss->{lines}{signals}{$buy}{data}}, $ndates, "$ndates points in $buy" );
+ok( $fss->{lines}{tests}{$buy}, "$buy stored" );
+is( values %{$fss->{lines}{tests}{$buy}{data}}, $ndates, "$ndates points in $buy" );
 
 my $vol = line_id('above', 'volumes', $volumes, 'volumes', $vol_91);
 $fsm->test( graph1 => 'volumes', line1 => $volumes,
@@ -133,7 +133,7 @@ my $fsc = new Finance::Shares::Chart(
 	    outer_width => 1,
 	},
     },
-    signals => {
+    tests => {
 	percent => 40,
 	show_dates => 1,
     },
@@ -151,7 +151,7 @@ ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the
 warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 
 #print "\nKnown lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	#print "$g : $lineid\n";
     };

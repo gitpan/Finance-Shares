@@ -61,14 +61,14 @@ $fss->add_line('prices', 'array_data1', $line1, 'Three points');
 $fss->add_line('prices', 'array_data2', $line2, 'Four points');
 $fss->add_line('volumes', 'array_data3', $line3, 'Volume points', $offset);
 $fss->add_line('cycles', 'array_data4', $line4, 'Cycle points');
-$fss->add_line('signals', 'array_data5', $line5, 'Signal points');
+$fss->add_line('tests', 'array_data5', $line5, 'Signal points');
 is_same( $fss->{lines}{prices}{array_data1}{data}, $line1, 'line1 stored' );
 is_same( $fss->{lines}{prices}{array_data2}{data}, $line2, 'line2 stored' );
 is_same( $fss->{lines}{volumes}{array_data3}{data}, $line3, 'line3 stored' );
 is_same( $fss->{lines}{cycles}{array_data4}{data}, $line4, 'line4 stored' );
-is_same( $fss->{lines}{signals}{array_data5}{data}, $line5, 'line5 stored' );
+is_same( $fss->{lines}{tests}{array_data5}{data}, $line5, 'line5 stored' );
 my $nlines = 0;
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     $nlines += keys %{$fss->{lines}{$g}};
 }
 is( $nlines, 5+5, "$nlines function lines" );
@@ -115,7 +115,7 @@ my $fsc = new Finance::Shares::Chart(
 	percent => 15,
 	show_dates => 1,
     },
-    signals => {
+    tests => {
 	percent => 15,
     },
 );
@@ -126,7 +126,7 @@ $fsc->build_chart();
 is( ref($fsc->{prices}{pgk})  eq 'PostScript::Graph::Key', $fsc->visible_lines('prices')  > 0, 'prices key panel');
 is( ref($fsc->{volumes}{pgk}) eq 'PostScript::Graph::Key', $fsc->visible_lines('volumes') > 0, 'volumes key panel');
 is( ref($fsc->{cycles}{pgk})  eq 'PostScript::Graph::Key', $fsc->visible_lines('cycles')  > 0, 'cycles key panel');
-is( ref($fsc->{signals}{pgk}) eq 'PostScript::Graph::Key', $fsc->visible_lines('signals') > 0, 'signals key panel');
+is( ref($fsc->{tests}{pgk}) eq 'PostScript::Graph::Key', $fsc->visible_lines('tests') > 0, 'tests key panel');
 if ($test) {
     my $t = $fsc->{test};
     is( $t->{nlines} + 5, $nlines, 'function lines built' );

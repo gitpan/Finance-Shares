@@ -225,7 +225,7 @@ to be averaged is specified by the B<graph> and B<line> keys.
 	style => $pstyle,
     );
  
-B<graph> can be one of prices, volumes, cycles, signals.  B<line> must be an identifier for a line on the
+B<graph> can be one of prices, volumes, cycles, tests.  B<line> must be an identifier for a line on the
 specified chart.  Add this code to the end of the script.  It lists all the line IDs for the prices graph.
 
     my @lines = $fss->known_lines( 'prices' );

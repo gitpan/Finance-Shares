@@ -1,5 +1,5 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.14;
+our $VERSION = 0.15;
 use strict;
 use warnings;
 use Exporter;
@@ -16,8 +16,8 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(deep_copy);
 
 # These are the option keys for each graph
-our @graphs = qw(prices volumes cycles signals);
-our %titles = ( prices => 'Prices', volumes => 'Volumes', cycles => 'Cycles', signals => 'Signals');
+our @graphs = qw(prices volumes cycles tests);
+our %titles = ( prices => 'Prices', volumes => 'Volumes', cycles => 'Cycles', tests => 'Tests');
 our $default_percent = 20;
 
 our $highest_int = 10 ** 20;	# how do you set these properly?
@@ -104,7 +104,7 @@ Finance::Shares::Chart - Draw stock quotes on a PostScript graph
 	    # as prices, but without 'points'
 	},
 	
-	signals	=> {
+	tests	=> {
 	    # as prices, but without 'points'
 	},
     );
@@ -135,7 +135,7 @@ data.
 This axis has a negative as well as a positive range, designed for graphing functions describing how the prices
 change.
 
-=item signals
+=item tests
 
 Tests applied to functions from the other graphs would typically place their results here.  By default, the axis
 ranges from 0 to 100 to indicate a confidence percentage.
@@ -394,7 +394,7 @@ A hash ref controlling the appearance of the prices graph.  See L</'Individual g
 
 The L<Finance::Shares::Sample> object holding the data to be displayed.  Required - no default.
 
-=item signals
+=item tests
 
 A hash ref controlling the appearance of the prices graph.  See L</'Individual graphs'> for details.
 
@@ -463,7 +463,7 @@ simpler by setting C<mid_width> to 0 and/or C<mid_color> to the background color
 
 =head3 Individual graphs
 
-B<prices>, B<volumes>, B<cycles> and B<signals> all use extensive hash refs.  More or less, these are passed on to
+B<prices>, B<volumes>, B<cycles> and B<tests> all use extensive hash refs.  More or less, these are passed on to
 L<PostScript::Graph::Paper> and friends.  To make them more manageable, they are broken down into sub-hashes.
 Here are the top level keys within each graph.
 
@@ -541,7 +541,7 @@ sub sequence {
 =head2 sequence( graph )
 
 This provides access to the PostScript::Graph::Sequence object which by default controls the styles of lines
-placed on each of the graphs.  C<graph> is one of 'prices', 'volumes', 'cycles', 'signals'.
+placed on each of the graphs.  C<graph> is one of 'prices', 'volumes', 'cycles', 'tests'.
 
 Example
 

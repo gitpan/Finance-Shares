@@ -60,19 +60,19 @@ my $sigstyle = {
 my $test1 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $slow,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'le',
     style  => $sigstyle,
     key => '(1) mid below slow',
     weight => 70,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test1, 1), 'test1 line' );
+ok( $fss->choose_line('tests', $test1, 1), 'test1 line' );
 
 my $test2 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $fast,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'ge',
     style  => $sigstyle,
     key => '(2) mid above fast',
@@ -80,7 +80,7 @@ my $test2 = $fsm->test(
     decay => 0.8,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test2, 1), 'test2 line' );
+ok( $fss->choose_line('tests', $test2, 1), 'test2 line' );
 
 ### Cycles
 my $diffstyle = {
@@ -113,25 +113,25 @@ my $combistyle = {
 $fsm->add_signal('top', 'mark');
 
 my $combi1 = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'diff',
     style  => $combistyle,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $combi1, 1), 'combi1 line' );
+ok( $fss->choose_line('tests', $combi1, 1), 'combi1 line' );
 
 my $combi2 = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'sum',
     style  => $combistyle,
     signals => ['top'],
     shown => 1,
 );
-ok( $fss->choose_line('signals', $combi2, 1), 'combi2 line' );
+ok( $fss->choose_line('tests', $combi2, 1), 'combi2 line' );
 
 ### Draw chart
 my $fsc = new Finance::Shares::Chart(
@@ -148,14 +148,14 @@ my $fsc = new Finance::Shares::Chart(
     cycles => {
 	percent => 25,
     },
-    signals => {
+    tests => {
 	percent => 50,
     },
 );
 
 my $count = 0;
 print "Known lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	print "  $g : $lineid\n";
 	$count++;

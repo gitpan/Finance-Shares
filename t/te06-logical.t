@@ -62,19 +62,19 @@ my $sigstyle = {
 my $test1 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $slow,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'le',
     style  => $sigstyle,
     key => '(1) mid below slow',
     weight => 70,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test1, 1), 'test1 line' );
+ok( $fss->choose_line('tests', $test1, 1), 'test1 line' );
 
 my $test2 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $fast,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'ge',
     style  => $sigstyle,
     key => '(2) mid above fast',
@@ -82,7 +82,7 @@ my $test2 = $fsm->test(
     decay => 0.8,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test2, 1), 'test2 line' );
+ok( $fss->choose_line('tests', $test2, 1), 'test2 line' );
 
 ### Signals
 $fsm->add_signal('rise', 'print_values', undef, {
@@ -127,17 +127,17 @@ my $combistyle = {
 };
 
 my $logic = $fsm->test(
-    graph1 => 'signals', line1 => $test2,
+    graph1 => 'tests', line1 => $test2,
     graph  => 'prices',
-    test   => 'logic',
+    test   => 'test',
     style  => $combistyle,
     signals => ['rise'],
     shown => 1,
 );
-ok( $fss->choose_line('prices', $logic, 1), 'logic line' );
+ok( $fss->choose_line('prices', $logic, 1), "'test' line" );
 
 my $not = $fsm->test(
-    graph1 => 'signals', line1 => $test2,
+    graph1 => 'tests', line1 => $test2,
     graph  => 'cycles',
     test   => 'not',
     style  => $combistyle,
@@ -147,25 +147,25 @@ my $not = $fsm->test(
 ok( $fss->choose_line('cycles', $not, 1), "'not' line" );
 
 my $and = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'and',
     style  => $combistyle,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $and, 1), 'test1 and test2' );
+ok( $fss->choose_line('tests', $and, 1), 'test1 and test2' );
 
 my $or = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'or',
     style  => $combistyle,
     signals => ['func'],
     shown => 1,
 );
-ok( $fss->choose_line('signals', $or, 1), 'test1 or test2' );
+ok( $fss->choose_line('tests', $or, 1), 'test1 or test2' );
 
 ### Draw chart
 my $fsc = new Finance::Shares::Chart(
@@ -183,14 +183,14 @@ my $fsc = new Finance::Shares::Chart(
     cycles => {
 	percent => 30,
     },
-    signals => {
+    tests => {
 	percent => 40,
     },
 );
 
 my $count = 0;
 print "Known lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	print "  $g : $lineid\n";
 	$count++;

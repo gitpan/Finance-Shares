@@ -10,10 +10,16 @@ use Carp;
 $function{envelope}       = \&envelope;
 $function{bollinger_band} = \&bollinger_band;
 $function{channel}        = \&channel;
+$function{env}  = \&envelope;
+$function{boll} = \&bollinger_band;
+$function{chan} = \&channel;
 
 $functype{envelope}       = 'e';
 $functype{bollinger_band} = 'b';
 $functype{channel}        = 'c';
+$functype{env}  = 'e';
+$functype{boll} = 'b';
+$functype{chan} = 'c';
 
 =head1 NAME
 
@@ -42,11 +48,11 @@ Finance::Shares::Bands - High and low boundaries
 This package provides additional methods for L<Finance::Shares::Sample> objects.  The functions provide two boundary
 lines, above and below another source line.  Once the lines have been constructed they may
 be referred to by text identifiers returned by the function.
-The functions may also be referred to by their text names in a model specification:
+The functions may also be referred to by their text names in a model specification (short or full version):
 
-    envelope
-    bollinger_band
-    channel
+    env	    envelope
+    boll    bollinger_band
+    chan    channel
 
 They mostly take the same parameters, all in hash key/value format.
 All of these keys are optional.

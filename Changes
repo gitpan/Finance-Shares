@@ -1,7 +1,15 @@
 Revision history for Perl extension Finance::Shares
 
+Finance::Shares package
+0.07
+	renamed 'signals' graph to 'tests'
+
 0.06	Sat May 17 09:15:56 GMT 2003
 	removed TestFuncs refs from fs_model!
+
+0.01	Sun Oct 20 15:42:58 2002
+	- original version; created by h2xs 1.21 with options
+		-X -n Finance::Shares::Model
 
 Averages
 0.12	Thu May 15 12:15:18 GMT 2003
@@ -60,9 +68,4 @@ Sample
 	added methods min_value() and max_value()
 	fixed bug in choose_line()
 	support functions line_id() and call_function()
-
-Finance::Shares package
-0.01  Sun Oct 20 15:42:58 2002
-	- original version; created by h2xs 1.21 with options
-		-X -n Finance::Shares::Model
 

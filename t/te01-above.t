@@ -59,10 +59,10 @@ $fsm->test( graph1 => 'prices', line1 => $simple_3,
 	    graph2 => 'prices', line2 => $simple_20,
 	    test => 'gt', weight => 100,
 	    decay => 1.890, ramp => -90, 
-	    graph => 'signals', line => $id, key => $id,
+	    graph => 'tests', line => $id, key => $id,
 	    style => $green, shown => 1, );
-ok( $fss->{lines}{signals}{$id}, "$id stored" );
-#is( values %{$fss->{lines}{signals}{$id}{data}}, $ndates, "$ndates points in $id" );
+ok( $fss->{lines}{tests}{$id}, "$id stored" );
+#is( values %{$fss->{lines}{tests}{$id}{data}}, $ndates, "$ndates points in $id" );
 
 ### Finance::Shares::Chart
 my $fsc = new Finance::Shares::Chart(
@@ -100,7 +100,7 @@ ok( check_filesize($psfile, -s $psfile), "filesize hasn't changed" );	# does the
 warn "\nUse ghostview or similar to inspect results file:\n$psfile\n";
 
 print "\nKnown lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	print "$g : $lineid\n";
     };

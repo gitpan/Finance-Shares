@@ -50,6 +50,7 @@ t/fn01-averages.t
 t/fn02-envelope.t
 t/fn03-bollinger.t
 t/fn04-channel.t
+t/fn05-trends.t
 t/gk01-wrap.t
 t/gp01-basic.t
 t/gp02-defaults.t

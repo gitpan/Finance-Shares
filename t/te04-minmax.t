@@ -95,36 +95,36 @@ my $sigstyle = {
 my $test1 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $slow,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'le',
     style  => $sigstyle,
     key => 'mid below slow',
     decay => 0.8,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test1, 1), 'test1 line' );
+ok( $fss->choose_line('tests', $test1, 1), 'test1 line' );
 
 my $test2 = $fsm->test(
     graph1 => 'prices', line1 => $mid,
     graph2 => 'prices', line2 => $fast,
-    graph  => 'signals',
+    graph  => 'tests',
     test   => 'ge',
     style  => $sigstyle,
     key => 'mid above fast',
     decay => 0.8,
     shown => 1,
 );
-ok( $fss->choose_line('signals', $test2, 1), 'test2 line' );
+ok( $fss->choose_line('tests', $test2, 1), 'test2 line' );
 
-### Combination signals
+### Combination tests
 $fsm->add_signal('sigmax', 'mark_buy', undef, {
-    graph => 'signals',
+    graph => 'tests',
     value => 99,
     key   => 'new maximum',
 });
 ok( $fsm->{sigfns}{'sigmax'}, 'mark_buy signal added' );
 $fsm->add_signal('sigmin', 'mark_sell', undef, {
-    graph => 'signals',
+    graph => 'tests',
     value => 1,
     key   => 'new minimum',
 });
@@ -141,28 +141,28 @@ my $combistyle = {
 };
 
 my $combi1 = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'min',
     style  => $combistyle,
     key => 'min',
     signals => [ 'sigmin' ],
     shown => 1,
 );
-ok( $fss->choose_line('signals', $combi1, 1), 'combi1 line' );
+ok( $fss->choose_line('tests', $combi1, 1), 'combi1 line' );
 
 my $combi2 = $fsm->test(
-    graph1 => 'signals', line1 => $test1,
-    graph2 => 'signals', line2 => $test2,
-    graph  => 'signals',
+    graph1 => 'tests', line1 => $test1,
+    graph2 => 'tests', line2 => $test2,
+    graph  => 'tests',
     test   => 'max',
     style  => $combistyle,
     key => 'max',
     signals => [ 'sigmax' ],
     shown => 1,
 );
-ok( $fss->choose_line('signals', $combi2, 1), 'combi2 line' );
+ok( $fss->choose_line('tests', $combi2, 1), 'combi2 line' );
 
 ### Change line order
 my $lines = $fss->lines();
@@ -190,14 +190,14 @@ my $fsc = new Finance::Shares::Chart(
     volumes => {
 	percent => 20,
     },
-    signals => {
+    tests => {
 	percent => 40,
     },
 );
 
 my $count = 0;
 #print "Known lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	#print "  $g : $lineid\n";
 	$count++;

@@ -56,7 +56,7 @@ my $fsc = new Finance::Shares::Chart(
 
 my $count = 0;
 print "\nKnown lines...\n";
-foreach my $g (qw(prices volumes cycles signals)) {
+foreach my $g (qw(prices volumes cycles tests)) {
     foreach my $lineid ( $fss->known_lines($g) ) {
 	print "$g : $lineid\n";
 	$count++;
