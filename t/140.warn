@@ -1,0 +1,206 @@
+   canonical_names(compare, morrison/MRW.L/default)
+     found 'morrison/MRW.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, morrison/MRW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, morrison/MRW.L/default)
+       found 'morrison/MRW.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, morrison/MRW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(morrison/MRW.L/default/one, morrison/MRW.L/default)
+       processing 'morrison/MRW.L/default/one/'
+       samples: morrison
+         match_stock(morrison, MRW.L, )
+         stocks=MRW.L, tag=MRW.L, given=MRW.L
+         stocks: MRW.L
+         dates: default
+       matches: morrison/MRW.L/default/one
+       canonical_names(*///one, summary/<none>/default)
+         processing '*/<none>/default/one/'
+         samples: morrison, sainsbury, safeway, tesco
+           match_stock(morrison, <none>, )
+           stocks=MRW.L, tag=MRW.L, given=<none>
+           stocks: MRW.L
+           dates: default
+           match_stock(sainsbury, <none>, )
+           stocks=SBRY.L, tag=SBRY.L, given=<none>
+           stocks: SBRY.L
+           dates: default
+           match_stock(safeway, <none>, )
+           stocks=SFW.L, tag=SFW.L, given=<none>
+           stocks: SFW.L
+           dates: default
+           match_stock(tesco, <none>, )
+           stocks=TSCO.L, tag=TSCO.L, given=<none>
+           stocks: TSCO.L
+           dates: default
+         matches: morrison/MRW.L/default/one, sainsbury/SBRY.L/default/one, safeway/SFW.L/default/one, tesco/TSCO.L/default/one
+       canonical_names(morrison/MRW.L/default/one, summary/<none>/default)
+         processing 'morrison/MRW.L/default/one/'
+         samples: morrison
+           match_stock(morrison, MRW.L, )
+           stocks=MRW.L, tag=MRW.L, given=MRW.L
+           stocks: MRW.L
+           dates: default
+         matches: morrison/MRW.L/default/one
+       canonical_names(sainsbury/SBRY.L/default/one, summary/<none>/default)
+         processing 'sainsbury/SBRY.L/default/one/'
+         samples: sainsbury
+           match_stock(sainsbury, SBRY.L, )
+           stocks=SBRY.L, tag=SBRY.L, given=SBRY.L
+           stocks: SBRY.L
+           dates: default
+         matches: sainsbury/SBRY.L/default/one
+       canonical_names(safeway/SFW.L/default/one, summary/<none>/default)
+         processing 'safeway/SFW.L/default/one/'
+         samples: safeway
+           match_stock(safeway, SFW.L, )
+           stocks=SFW.L, tag=SFW.L, given=SFW.L
+           stocks: SFW.L
+           dates: default
+         matches: safeway/SFW.L/default/one
+       canonical_names(tesco/TSCO.L/default/one, summary/<none>/default)
+         processing 'tesco/TSCO.L/default/one/'
+         samples: tesco
+           match_stock(tesco, TSCO.L, )
+           stocks=TSCO.L, tag=TSCO.L, given=TSCO.L
+           stocks: TSCO.L
+           dates: default
+         matches: tesco/TSCO.L/default/one
+         canonical_names(data/close, morrison/MRW.L/default)
+           found 'morrison/MRW.L/default/data/close' (relative)
+         canonical_names(morrison/MRW.L/default/data/close, morrison/MRW.L/default)
+           processing 'morrison/MRW.L/default/data/close'
+           samples: morrison
+             match_stock(morrison, MRW.L, )
+             stocks=MRW.L, tag=MRW.L, given=MRW.L
+             stocks: MRW.L
+             dates: default
+           matches: morrison/MRW.L/default/data/close
+         canonical_names(data/close, sainsbury/SBRY.L/default)
+           found 'sainsbury/SBRY.L/default/data/close' (relative)
+         canonical_names(sainsbury/SBRY.L/default/data/close, sainsbury/SBRY.L/default)
+           processing 'sainsbury/SBRY.L/default/data/close'
+           samples: sainsbury
+             match_stock(sainsbury, SBRY.L, )
+             stocks=SBRY.L, tag=SBRY.L, given=SBRY.L
+             stocks: SBRY.L
+             dates: default
+           matches: sainsbury/SBRY.L/default/data/close
+         canonical_names(data/close, safeway/SFW.L/default)
+           found 'safeway/SFW.L/default/data/close' (relative)
+         canonical_names(safeway/SFW.L/default/data/close, safeway/SFW.L/default)
+           processing 'safeway/SFW.L/default/data/close'
+           samples: safeway
+             match_stock(safeway, SFW.L, )
+             stocks=SFW.L, tag=SFW.L, given=SFW.L
+             stocks: SFW.L
+             dates: default
+           matches: safeway/SFW.L/default/data/close
+         canonical_names(data/close, tesco/TSCO.L/default)
+           found 'tesco/TSCO.L/default/data/close' (relative)
+         canonical_names(tesco/TSCO.L/default/data/close, tesco/TSCO.L/default)
+           processing 'tesco/TSCO.L/default/data/close'
+           samples: tesco
+             match_stock(tesco, TSCO.L, )
+             stocks=TSCO.L, tag=TSCO.L, given=TSCO.L
+             stocks: TSCO.L
+             dates: default
+           matches: tesco/TSCO.L/default/data/close
+   canonical_names(compare, sainsbury/SBRY.L/default)
+     found 'sainsbury/SBRY.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, sainsbury/SBRY.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, sainsbury/SBRY.L/default)
+       found 'sainsbury/SBRY.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, sainsbury/SBRY.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(sainsbury/SBRY.L/default/one, sainsbury/SBRY.L/default)
+       processing 'sainsbury/SBRY.L/default/one/'
+       samples: sainsbury
+         match_stock(sainsbury, SBRY.L, )
+         stocks=SBRY.L, tag=SBRY.L, given=SBRY.L
+         stocks: SBRY.L
+         dates: default
+       matches: sainsbury/SBRY.L/default/one
+   canonical_names(compare, safeway/SFW.L/default)
+     found 'safeway/SFW.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, safeway/SFW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, safeway/SFW.L/default)
+       found 'safeway/SFW.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, safeway/SFW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(safeway/SFW.L/default/one, safeway/SFW.L/default)
+       processing 'safeway/SFW.L/default/one/'
+       samples: safeway
+         match_stock(safeway, SFW.L, )
+         stocks=SFW.L, tag=SFW.L, given=SFW.L
+         stocks: SFW.L
+         dates: default
+       matches: safeway/SFW.L/default/one
+   canonical_names(compare, tesco/TSCO.L/default)
+     found 'tesco/TSCO.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, tesco/TSCO.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, tesco/TSCO.L/default)
+       found 'tesco/TSCO.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, tesco/TSCO.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(tesco/TSCO.L/default/one, tesco/TSCO.L/default)
+       processing 'tesco/TSCO.L/default/one/'
+       samples: tesco
+         match_stock(tesco, TSCO.L, )
+         stocks=TSCO.L, tag=TSCO.L, given=TSCO.L
+         stocks: TSCO.L
+         dates: default
+       matches: tesco/TSCO.L/default/one
+   canonical_names(average, summary/<none>/default)
+     found 'summary/<none>/default/average' (relative)

@@ -1,162 +1,129 @@
 package Finance::Shares::Chart;
-our $VERSION = 0.17;
+our $VERSION = 1.00;
 use strict;
 use warnings;
-use Exporter;
-use PostScript::File	     1.00 qw(check_file str);
-use PostScript::Graph::Bar   0.03;
-use PostScript::Graph::Key   1.00;
-use PostScript::Graph::Paper 1.00;
-use PostScript::Graph::Style 1.00;
-use PostScript::Graph::XY    0.04;
-use Finance::Shares::Sample  0.14 qw(ymd_from_string day_of_week);
+use Log::Agent;
+use PostScript::File qw(check_file str);
+use PostScript::Graph::Style;
+use PostScript::Graph::Key;
+use PostScript::Graph::Paper;
+use PostScript::Graph::XY;
+use Finance::Shares::Support qw(
+	$highest_int $lowest_int $default_line_style
+	out out_indent show deep_copy
+	ymd_from_string day_of_week
+	today_as_string decrement_date
+	show
+    );
 
-our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(deep_copy);
-
-# These are the option keys for each graph
-our @graphs = qw(prices volumes cycles tests);
-our %titles = ( prices => 'Prices', volumes => 'Volumes', cycles => 'Cycles', tests => 'Tests');
-our $default_percent = 20;
-
-our $highest_int = 10 ** 20;	# how do you set these properly?
-our $lowest_int = -$highest_int;
-
+## user options allowed for each graph
+our $background = [1, 1, 0.93];
+our $glyph_ratio = 0.45;
+our $graph_options = {
+    percent => 20,
+    gtype => 'analysis',
+    show_dates => 0,
+    bars => {
+	color => [0.9, 0.9, 0.7],
+	inner_color => undef,
+	outer_color => undef,
+	width => 1,
+	inner_width => undef,
+	outer_width => undef,
+    },
+    points => {
+	shape => 'candle2',
+	color => [1.0, 0.2, 0.0],
+	inner_color => undef,
+	outer_color => undef,
+	width => 0.5,
+	inner_width => undef,
+	outer_width => undef,
+    },
+    layout => {
+	spacing => 0,
+	top_margin => 3,
+	right_margin => 15,
+    },
+    y_axis => {
+	color => 0.5,
+	heavy_color => undef,
+	mid_color => undef,
+	light_color => undef,
+	heavy_width => 0.75,
+	mid_width => 0.5,
+	light_width => 0.25,
+	title => undef,
+	mark_min => 0.5,
+	mark_max => 6,
+	label_gap => 30,
+	si_shift => undef,
+    },
+    ## Graph internal fields
+    # lines    => {},
+    # lineord  => [],
+    # gmin            logical min by gtype
+    # gmax            logical max by gtype
+    # pgp             PostScript::Graph::Paper
+    # name            user name of graph
+};
+    
 =head1 NAME
 
-Finance::Shares::Chart - Draw stock quotes on a PostScript graph
+Finance::Shares::Chart - construct shares graph
 
 =head1 SYNOPSIS
 
     use Finance::Shares::Chart;
-    use Finance::Shares::Chart 'deep_copy';
 
-    # ensure quotes data exists
-    my $fss = new Finance::Shares::Sample(...);
-    
-    # add data lines with e.g.
-    $fss->add_line('prices', $id, $data, $key, $style);
-    
-    # optional support objects
-    my $psf = new PostScript::File(...);
-    my $seq = new PostScript::Graph::Sequence;
-    $seq->setup(...);
-    $seq->auto(...);
-    
-    # create the Chart object
-    my $fsc = new Finance::Shares::Chart(
-	file	=> $psf,
-	sample	=> $fss,
-		
-	png           => 1,
-	ghostscript   => 'gswin32c',
-	dots_per_inch => 72,
-	background    => [1, 1, 0.9],
-	bgnd_outline  => 1,
-	reverse       => 1,
-	heading	      => 'Results chart',
+    my $fsc = new Finance::Shares::Chart( <options> );
+    $fsc->add_data($data);
+    $fsc->add_line($line);
+    $fsc->build();
+    $fsc->output($filename, $dir);
 
-	heading_font => {
-	    font => 'Times-Bold',
-	    size => 12,
-	    color => [0, 0, 0.7],
-	},
-	
-	normal_font => {
-	    # as heading_font
-	},
-	
-	key	    => {
-	    # see PostScript::Graph::Key
-	},
-	
-	x_axis	    => {
-	    show_lines  => 1,
-	    show_weekday=> 1,
-	    show_day    => 1,
-	    show_month  => 1,
-	    show_year   => 1,
-	    changes_only=> 0,
-	    # see PostScript::Graph::Paper
-	},
-
-	prices	=> {
-	    sequence	=> $seq,
-	    show_dates	=> 1,
-	    percent	=> 25,
-	    layout	=> {
-		# see PostScript::Graph::Paper
-	    },
-	    y_axis	=> {
-		smallest    => 4,
-		# see PostScript::Graph::Paper
-	    },
-	    points => {
-		# style settings
-	    },
-	},
-	
-	volumes	=> {
-	    # as prices, but with 'bars'
-	    # instead of 'points'
-	},
-	
-	cycles	=> {
-	    # as prices, but without 'points'
-	},
-	
-	tests	=> {
-	    # as prices, but without 'points'
-	},
-    );
-
-    # draw the chart and output it
-    $fsc->build_chart();
-    $fsc->output($filename);
+    $fsc->add_graph($name, $opt_hash);
+    $fsc->set_period($start, $end);
+    my $data = $fsc->data();
 
 =head1 DESCRIPTION
 
-The chart produced by this module is about A4 size by default and has up to four graphs stacked vertically,
-with key panels to the right of each one.
+This module provides the output for L<Finance::Shares::Model>.  It builds a series of graphs on a single page, with a key panel
+indicating the role of any lines added.  A Finance::Shares::data object may be declared, which provides stock price quotes and volume
+information.  Any number of Finance::Shares::Line objects may be displayed as well.  These are normally generated from
+Finance::Shares::Function objects (See L<Finance::Shares::Function> for details).
+
+There are four types of graphs.  Each type may appear as often as you wish (or not at all), but the first of each
+type gets used if none other is specified.
 
 =over 10
 
-=item prices
+=item price
 
-This panel must always be present.  It shows the share prices, usually showing opening and closing
-prices on a high-low range.  Lines drawn on this are usually functions acting on the price data.
+Price data can be displayed using normal open-close-high-low marks, Japanese candles, or just the closing
+positions for each day.  The Y axis is scaled for prices.
 
-=item volumes
+=item volume
 
-If volume data exists, it is placed on this chart.  Lines drawn here are usually functions acting on the volume
-data.
+Volume bars are displayed on this graph whose Y axis is typically scaled in millions.
 
-=item cycles
+=item analysis
 
-This axis has a negative as well as a positive range, designed for graphing functions describing how the prices
-change.
+There would typically be more than one 'analysis' graph on a chart.  The Y axis is usually scaled to show price
+movements which may be negative as well as positive.
 
-=item tests
+=item level
 
-Tests applied to functions from the other graphs would typically place their results here.  By default, the axis
-ranges from 0 to 100 to indicate a confidence percentage.
+Several of the available functions compare two other lines or signal whether conditions are true or false.  Their
+results would be shown on a 'level' graph.  The Y axis is often scaled 0 to 100%.
 
 =back
 
-Specifications are given to the constructor, the most important being the Finance::Shares::Sample holding the data
-and function and test lines.  Lines can be added to the sample until B<build_chart> is invoked, typically by
-calling the B<output> method.
+As there is only one Key panel shared by all graphs, each line is typically displayed in a different colour by
+default.  Like almost everything else, this behaviour is configurable.
 
-As can be seen from the L</SYNOPSIS> there are a number of top-level parameters which apply to all visible graphs,
-followed by a sub-group controlling each graph independently.  Of particular interest are the graph parameters
-B<percent> and B<show_dates> which control how the vertical space is allocated.  Horizontal space is allocated
-automatically, with the key panels taking up as much space as needed to describe the superimposed lines.
-
-Each graph also has its own B<sequence>.  This tries to make sure that the lines on that graph all have different
-characteristics in terms of colour, point shape, dash pattern and so on.
-
-If no PostScript::File is given to the constructor, one is generated.  However, passing an existing
-PostScript::File object means that several charts can be placed on the one file.  See L</build_chart>.
+All error, log and debug messages are controlled by Log::Agent.  By default this does the expected thing, but it
+does mean they may be routed differently as required.  See L<Log::Agent> for details.
 
 =head1 CONSTRUCTOR
 
@@ -164,134 +131,168 @@ PostScript::File object means that several charts can be placed on the one file.
 
 sub new {
     my $class = shift;
-    my $o = {};
-    if (@_ == 1) { $o = $_[0]; } else { %$o = @_; }
+
+    ## Defaults
+    # only these keys will be accepted
+    my $o = {
+	verbose => 1,
+	id => '',
+	model => undef,
+	hidden => 0,
+	background => $background,
+	bgnd_outline => 0,
+	dpi => 300,
+	directory => '~',
+	glyph_ratio => $glyph_ratio,
+	heading => '',
+	page => undef,
+	smallest => 3,
+	sequence => undef,
+	stock => '',
+	show_breaks => 1,
+	periods_before => undef,
+	by => 'weekdays',
+	start => undef,
+	end => undef,
+	periods_after => undef,
+	file => {
+	    paper => 'A4',
+	    width => undef,
+	    height => undef,
+	    landscape => 1,
+	    eps => 0,
+	    png => 0,
+	    gs => 'gs',
+	    left => 36,
+	    right => 36,
+	    top => 36,
+	    bottom => 36,
+	    clipping => 0,
+	    clip_command => 'clip',
+	    dir => undef,
+	    headings => 1,
+	    reencode => '',
+	    debug => 0,
+	    errors => 1,
+	    errx => 72,
+	    erry => 72,
+	},
+	heading_font => 'Times-Bold',
+	heading_size => 14,
+	heading_color => 0,
+	normal_font => 'Helvetica',
+	normal_size => 10,
+	normal_color => 0,
+	key => {
+	    background => $background,
+	    outline_color => 0,
+	    outline_width => 1,
+	    title => 'Key',
+	    title_font => 'Helvetica-Bold',
+	    title_size => 12,
+	    title_color => 0,
+	    text_font => 'Helvetica',
+	    text_size => 10,
+	    text_color => 0,
+	    spacing => 4,
+	    vert_spacing => undef,
+	    horz_spacing => undef,
+	    icon_width => undef,
+	    icon_height => undef,
+	    text_width => undef,
+	    glyph_ratio => $glyph_ratio,
+	},
+	x_axis => {
+	    show_lines => 1,
+	    changes_only => 1,
+	    show_weekday => undef,
+	    show_day => undef,
+	    show_month => undef,
+	    show_year => undef,
+	    color => 0.5,
+	    heavy_color => undef,
+	    mid_color => undef,
+	    light_color => undef,
+	    heavy_width => 0.75,
+	    mid_width => 0.5,
+	    light_width => 0.25,
+	    mark_min => 0.5,
+	    mark_max => 6,
+	},
+	graphs => [],
+
+	## Internal fields
+	# quotes            Finance::Shares::data
+	# gpapers   => {},  user name => settings ('graphs' is a user option arrayref)
+	# gpaperord => [],  user names in order
+	# labels   => [],   date labels
+	# dlabels  => [],   dummy date labels
+	# lblspc            vspace required for date labels
+	# pgk               PostScript::Graph::Key
+	# pgsq		    PostScript::Graph::Sequence
+	# kstyles  => {},   Styles to show on Key
+	# nlabels           Number of date labels
+	# totalpc           Sum of graph percents
+	# dgpaper           {gpapers} hash with date labels
+	# pxmin...pymax     page boundaries
+    };
+
+    ## Setup
     bless( $o, $class );
-    
-    ## Ensure PostScript::File exists
-    my $pf = $o->{file};
-    if (ref $pf eq 'PostScript::File') {
-	$o->{pf} = $pf;
-    } else {
-	my $of = $o->{pf};
-	$of->{paper}     = 'A4' unless (defined $of->{paper});
-	$of->{landscape} = 1    unless (defined $of->{landscape});
-	$of->{left}      = 36   unless (defined $of->{left});
-	$of->{right}     = 36   unless (defined $of->{right});
-	$of->{top}       = 36   unless (defined $of->{top});
-	$of->{bottom}    = 36   unless (defined $of->{bottom});
-	$of->{errors}    = 1    unless (defined $of->{errors});
-	$o->{pf} = new PostScript::File( $pf );
-    }
-    ## Ensure Sample known
-    warn 'No Finance::Shares::Sample' unless $o->{sample} and ref($o->{sample}) eq 'Finance::Shares::Sample';
-    $o->{sample}->chart($o);
-    
-    ## Defaults for common X axes
-    $o->{x_axis}    = {} unless defined $o->{x_axis};
-    my $x = $o->{x_axis};
-    $x->{show_lines} = 1 unless defined $x->{show_lines};
-    $x->{mark_max}   = 4 unless defined $x->{mark_max};
 
-    ## Defaults for prepare_labels
-    $o->{heading_font}{size} = 12  unless defined $o->{heading_font}{size};
-    $o->{normal_font}{size}  = 10  unless defined $o->{normal_font}{size};
-    $o->{glyph_ratio}        = 0.5 unless defined $o->{glyph_ratio};
-    $o->prepare_labels();
+    my $opts = {};
+    if (@_ == 1) { $opts = $_[0]; } else { %$opts = @_; }
+    $o->add_parameters(	$opts, $o, '' );
     
-    ## Common settings for Chart option hash
-    my $s = $o->{sample};
-    $o->{totalpc}   = 0;
-    $o->{totalx}    = 0;
-    my $dates_shown = 0;
-    foreach my $i (0 .. $#graphs) {
-	my $g = $graphs[$i];
-	$o->{$g} = {} unless defined $o->{$g};
-	my $h = $o->{$g};
-	
-	## top level
-	$h->{file} = $o->{pf};
-	unless (defined $h->{sequence} and ref($h->{sequence}) eq 'PostScript::Graph::Sequence') {
-	    $h->{sequence} = new PostScript::Graph::Sequence;
-	}
-	#warn "$g default Sequence = ", $h->{sequence}->id(), "\n";
-	unless ($dates_shown) {
-	    $h->{show_dates} = 1 unless defined $h->{show_dates};
-	    $dates_shown = $h->{show_dates};
-	}
-
-	## layout
-	$h->{layout} = {} unless defined $h->{layout};
-	my $l = $h->{layout};
-	$l->{dots_per_inch} = $o->{dots_per_inch};
-	$l->{background} = $o->{background};
-	$l->{heading_font} = $o->{heading_font}{font};
-	$l->{heading_font_size} = $o->{heading_font}{size};
-	$l->{heading_font_color} = $o->{heading_font}{color};
-	$l->{font} = $o->{normal_font}{font};
-	$l->{font_size} = $o->{normal_font}{size};
-	$l->{font_color} = $o->{normal_font}{color};
-	$l->{top_margin} = 3 unless defined $l->{top_margin};;
-	$l->{no_drawing} = 1;	# delay drawing until labels have been checked
-	if ($g eq 'prices') {
-	    my $s = $o->{sample};
-	    $l->{heading} = $o->{heading} ? $o->{heading} : ($s->symbol . ' ' . $s->dates_by . ' from ' . $s->start_date . ' to ' . $s->end_date);
-	    $l->{heading_height} = $l->{heading_font_size} unless defined $l->{heading_height};
-	} else {
-	    $l->{heading_height} = 5 unless defined $l->{heading_height};
-	}
-	
-	## x_axis
-	$h->{x_axis} = { %{$o->{x_axis}} } unless defined $h->{x_axis};
-	my $x = $h->{x_axis};
-	$x->{draw_fn} = 'xdrawstock';
-	$x->{offset} = 1;
-	$x->{sub_divisions} = 2;
-	$x->{center} = 0;
-	if ($h->{show_dates}) {
-	    $x->{labels} = $o->{labels};
-	    $x->{glyph_ratio} = $o->{glyph_ratio};
-	    $o->{totalx}++;
-	} else {
-	    $x->{labels} = $o->{dlabels};
-	    $x->{mark_max} = 0;
-	    #$x->{height} = 6;
-	}
-	
-	## y_axis
-	$h->{y_axis} = {} unless defined $h->{y_axis};
-	my $y = $h->{y_axis};
-	$y->{low} = $s->{$g}{min};
-	$y->{high} = $s->{$g}{max};
-	$y->{title} = $titles{$g};
-	$y->{smallest} = $o->{smallest} unless defined $y->{smallest};
-	
-	## key
-	$h->{key} = deep_copy($o->{key});
-    }
-    
-    ## Individual settings
-    {
-	$o->{prices}{points} = {} unless defined $o->{prices}{points};
-	my $pp = $o->{prices}{points};
-	$pp->{shape} = 'stock2' unless defined $pp->{shape};
-	$pp->{shape} = 'stock2' unless $pp->{shape} eq 'stock2' or $pp->{shape} eq 'stock'
-	    or $pp->{shape} eq 'candle' or $pp->{shape} eq 'candle2'
-	    or $pp->{shape} eq 'close2' or $pp->{shape} eq 'close';
-	
-	$o->{volumes}{bars} = {} unless defined $o->{volumes}{bars};
-	
-	$o->{prices}{y_axis}{si_shift} = 0 unless defined $o->{prices}{y_axis}{si_shift};
-    }
-
+    ## Finish
+    out($o, 4, "new $class");
     return $o;
 }
 
-=head2 new( options )
+=head1 new( options )
 
-C<options> can be a hash ref or a list of hash keys and values.  The top level keys are as follows.
+<options> must be a hash ref or a list of hash keys and values.  There are a lot of them - up to 250 or more.
+Many are just listed here.  See the indicated man pages for full details.  The options fit within a hash tree
+structure like the following.
 
-=over 4
+    my $fsc = new Finance::Shares::Chart(
+	background => [0.9, 0.95, 0.95],
+	stock      => 'MSFT',
+	period => {
+	    start  => '2003-01-01',
+	    by     => 'weeks',
+	},
+	graphs => [
+	    MACD => {
+		percent => 40,
+	    },
+	    Tests => {
+		gtype => 'level',
+		show_dates => 1,
+	    },
+	],
+    );
+
+Colours can be a decimal from 0 (black) to 1 (brightest), or a triple within an array ref when each decimal
+represents the brightness of red, green and blue.  Any measurements are in PostScript units (1/72"), so think
+point sizes.
+    
+=head2 Top level options
+
+=over 8
+
+=item verbose
+
+Controls the amount of feedback provided
+
+    0	silent
+    1	errors only (default)
+    2	slghtly more informative
+    3+	debugging
+
+=item iname
+
+A unique name assigned by L<Finance::Shares::Model>.  It identifies the chart and its associated data (if any).
 
 =item background
 
@@ -304,67 +305,114 @@ an array ref holding similar decimals for red, green and blue, e.g. [ 0.6, 0.4, 
 By default the price and volume marks are drawn with a contrasting outline.  Setting this to 1 makes this outline
 the same colour as the background.  (Default: 0)
 
-=item changes_only
-
-The dates can be shown with every part (day, month etc) shown on every label, or with these parts only shown when
-they change.  (Default: 1)
-
-=item cycles
-
-A hash ref controlling the appearance of the cycles graph.  See L</'Individual graphs'> for details.
-
-=item dots_per_inch
+=item dpi
 
 One of the advantages of PostScript output is that it can make the best use of each medium.  Setting this to 72
 produces output suitable for most computer monitors.  Use a higher figure for hard copy, depending on you
 printer's capabilities.  (Default: 300)
 
-=item file
+=item directory
 
-This can be either a PostScript::File object or a hash ref holding parameters suitable for creating one.  The
-default is to set up a landscape A4 page with half inch margins.
-
-=item ghostscript
-
-This sets the name of the ghostscript interpreter to use, e.g. 'gswin32' for Windows.  (Default: 'gs')
-
-Ghostscript is freely available from Artifex Software, at L<http://ghostscript.com> or from the Free Software
-Foundation at L<ftp://mirror.cs.wisc.edu/pub/mirrors/ghost/gnu/current/>.
+Optional directory prepended to the output file name.
 
 =item glyph_ratio
 
 Generating PostScript is a one-way process.  It is not possible to find out how much space will be taken up by
 a string using a proportional spaced font, so guesses are made.  This allows that guess to be fine tuned.
-(Default: 0.5)
+(Default: 0.44)
 
-=item heading_font
+=item heading
 
-A hash ref holding font settings for the main heading.  See B<normal_font> for details.
+Appears at the top of the page.  Defaults to something suitable.
 
-=item reverse
+=item page
 
-If true, the order in which lines are drawn is reversed.
+An optional string used as the PostScript page 'number'.  Although this may be anything many programs expect this
+to be short like a page number, with no spaces.
 
-=item key
+=item smallest
 
-A hash ref controlling the appearance of the key panels.  The following keys are recognized.  See
-L<PostScript::Graph::Key> for details.
+The underlying PostScript::Graph::Paper module will sometimes generate more subdivisions and axis lines than
+needed, especially at high resolutions.  C<smallest> provides some control over this for the Y axes.  It specifies
+the size of the smallest gap between lines; giving a larger number means fewer lines.  The default produces 3 dots
+at the resolution given to B<dots_per_inch>.
 
-    background	    outline_color	outline_width
-    title	    title_font		text_font
-    spacing	    horz_spacing	vert_spacing
-    text_width	    icon_height		icon_width
-    glyph_ratio
+Note that the only way to control the line density on the X axis is to plot fewer dates.  One way of doing this is
+to set the Finance::Shares::Sample contructor option C<by> to 'weeks' or 'months'.
 
-=item normal_font
+=item sequence
 
-A hash ref holding font settings for the text used for axis labels etc.  It may contain these keys:
+An internal L<PostScript::Graph::Sequence> controls the different colours given to each line displayed.  Assigning
+your own here gives you more control of how the lines appear.  Not that it is possible to override this behaviour
+completely by specifying C<auto => 'none'> within each line style hash.  See L<PostScript::Graph::Style>.
 
-=over 4
+=item stock
+
+This would be a code indicating the particular stock being displayed.  However, it could be anything as it is only
+used in constructing the default heading.
+
+=item show_breaks
+
+A value of 1 means that any undefined values show a break in the line, otherwise the line is continuous.
+(Default: 0)
+
+=back
+
+=head3 period
+
+The chart displays dates in a given range at a particular frequency - days, months etc.  It does not show all the
+dates in the associated Finance::Shares::data object, as a certain lead time is often required to establish reliable
+calculations.  The chart may also have an unfilled area after the end of the data to allow for a little
+extrapolation.
+
+These details are given within a C<period> sub-hash, which may have the following fields.
+
+=over 8
+
+=item start
+
+The first date to be displayed.  It should be in YYYY-MM-DD format.
+
+=item end
+
+The last date on the chart.  Again, in YYYY-MM-DD format.
+
+=item by
+
+Determines how the intervening dates are counted.  Suitable values are
+
+    quotes	weekdays
+    days	weeks
+    months
+
+=back
+
+=head3 file
+
+This can be either a PostScript::File object or a hash ref holding parameters suitable for creating one.  The
+default is to set up a landscape A4 page with half inch margins.  The hash ref may contain the following keys.
+See L<PostScript::File> for details.
+
+    paper	width
+    height	landscape
+    eps		dir
+    png		gs
+    left	right
+    top		bottom
+    clipping	clip_command
+    headings	reencode
+    debug	errors
+    errx	erry
+    
+=head3 heading_font
+
+A sub-hash controlling how the heading appears.  Recognized keys are:
+
+=over 8
 
 =item font
 
-The font family name which should be one of the following.  (Default: 'Helvetica')
+The font family name which should be one of the following.  (Default: 'Times-Bold')
 
     Courier
     Courier-Bold
@@ -382,7 +430,7 @@ The font family name which should be one of the following.  (Default: 'Helvetica
 
 =item size
 
-Point size to use.  (Default: 10)
+Point size to use.  (Default: 14)
 
 =item color
 
@@ -390,113 +438,70 @@ The normal colour format: either a grey value or an array ref holding [<red>,<gr
 
 =back
 
-=item page
+=head3 normal_font
 
-An optional string used as the PostScript page 'number'.  Although this may be anything many programs expect this
-to be short like a page number, with no spaces.
+This controls the font used to label the graphs.  The defaults are different ('Helvetica', 10pt) but the keys are
+the same as for B<heading_font>.
 
-=item png
+=head3 key
 
-If set to 1, the file is output in Portable Network Graphic rather than PostScript format.
-For this to work, the program C<ghostscript> must be installed.  See also the C<ghostscript> option.
+This sub-hash controls the appearance of the Key panel.  See L<PostScript::Graph::Key> for details of these
+possible entries.
 
-=item prices
+    background	    title
+    outline_color   outline_width
+    title_font	    text_font
+    spacing	    glyph_ratio
+    vert_spacing    horz_spacing
+    icon_width	    icon_height
+    text_width
+   
+=head3 x_axis
 
-A hash ref controlling the appearance of the prices graph.  See L</'Individual graphs'> for details.
+The dates axis is controlled by this sub-hash.  The C<show_> options largely refer to how the date labels are built
+up.  C<changes_only> controls whether the full label is shown (0) or only those parts that have changed (1).
+Other options are explained in L<PostScript::Graph::Paper>.
 
-=item sample
-
-The L<Finance::Shares::Sample> object holding the data to be displayed.  Required - no default.
-
-=item tests
-
-A hash ref controlling the appearance of the prices graph.  See L</'Individual graphs'> for details.
-
-=item smallest
-
-The underlying PostScript::Graph::Paper module will sometimes generate more subdivisions and axis lines than
-needed, especially at high resolutions.  C<smallest> provides some control over this for the Y axes.  It specifies
-the size of the smallest gap between lines; giving a larger number means fewer lines.  The default produces 3 dots
-at the resolution given to B<dots_per_inch>.
-
-Note that the only way to control the line density on the X axis is to plot fewer dates.  One way of doing this is
-to set the Finance::Shares::Sample contructor option C<dates_by> to 'weeks' or 'months'.
-
-=item volumes
-
-A hash ref controlling the appearance of the volumes graph.  See L</'Individual graphs'> for details.
-
-=item x_axis
-
-A hash ref controlling the appearance of the dates axis and the vertical grid lines.  These keys are defined in
-this module:
-
-=over 4
-
-=item show_lines
-
-True means that vertical lines are to be shown on all the graphs.  This can get a little crowded if a lot of dates
-are shown.  (Default: 1)
-
-=item show_weekday
-
-True means the day of the week is to be shown on the date axis.  (Default: 0)
-
-=item show_day
-
-True means the day of the month is to be shown on the date axis.  The default depends on the timescale of the sample.
-
-=item show_month
-
-True means the month abbreviation is to be shown on the date axis.  The default depends on the timescale of the
-sample.
-
-=item show_year
-
-True means the year is to be shown on the date axis.  The default depends on the timescale of the sample.
-
-=item changes_only
-
-The date labels can either show all parts (day, month etc.) on every date or only show them as they change.
-(Default: 1)
-
-=back
-
-These keys are also recognized within x_axis.  See L<PostScript::Graph::Paper> for details.
-
-    title	    color
-    heavy_color	    mid_color
-    heavy_width	    mid_width
+    show_lines	    changes_only
+    show_weekday    show_day
+    show_month	    show_year
     mark_min	    mark_max
+    color	    heavy_color
+    mid_color	    light_color
+    heavy_width	    mid_width
+    light_width
 
-'heavy' vertical lines are those marked with a date lablel.  Date positions whose labels have been omitted are
-marked with 'mid' lines.  Although there is no way to stop these from being drawn, the chart can be made visually
-simpler by setting C<mid_width> to 0 and/or C<mid_color> to the background color.
-    
-=back
+=head3 graphs
 
-=head3 Individual graphs
+This is an exception.  Where all the other headings describe hash refs, this is an array ref.  The array lists
+descriptions for each of the graphs to be shown on the page.  Each graph description is a hash ref keyed by the
+graph's title.
 
-B<prices>, B<volumes>, B<cycles> and B<tests> all use extensive hash refs.  More or less, these are passed on to
-L<PostScript::Graph::Paper> and friends.  To make them more manageable, they are broken down into sub-hashes.
-Here are the top level keys within each graph.
+    graphs => [
+	'Stock Prices' => {
+		gtype => 'price',
+		...
+	    },
+	'Trading Volumes' => {
+		gtype => 'volume',
+		...
+	    },
+	'Momentum' => {
+		gtype => 'analysis',
+		...
+	    },
+	'On-Balance Volume' => {
+		gtype => 'analysis',
+		...
+	    },
+	...
+    ],
 
-=over 4
+=head2 Graph options
 
-=item bars
+Each graph hash ref may include any of the following values or sub-hashes.
 
-A hash ref controlling how the volume data is to be displayed.  Only relevant for the volume graph.
-These are the recognized keys; see L<PostScript::Graph::Style> for details.
-
-    color	inner_color	outer_color
-    width	inner_width	outer_width
-
-=item layout
-
-A hash ref controlling some general aspects of the graph.  The following keys are recognized.  See
-L<PostScript::Graph::Paper> for details.
-
-    spacing	top_margin  right_margin
+=over 8
 
 =item percent
 
@@ -507,139 +512,167 @@ be problems if the value is less than 10, or so small the graph cannot physicall
 Some graphs will become visible automatically (provided their percent is not 0) if data or lines should be shown
 there.  They take a default value of 20.
 
-=item points
+=item gtype
 
-A hash ref controlling how the price data is to be displayed.  Only relevant for the price graph.
-These are the recognized keys; see L<PostScript::Graph::Style> for details.
+Identifies the type of Y axis to use.  Must be one of
 
-    size	shape*	    color	width
-    inner_color	outer_color inner_width	outer_width
-
-*The allowed values for shape are B<NOT> as listed under L<PostScript::Graph::Style/shape>.  Instead they are:
-
-=over 8
-
-=item stock2
-
-Draw the normal open, high-low, close mark in the normal colour (C<inner_color>) with an outer edge drawn in
-C<outer_color>.
-
-=item stock
-
-Draw the normal open, high-low, close mark in the normal colour (inner_color) with no outer edge.  This can make
-the drawing a little faster as no outline is drawn.
-
-=item close2
-
-Draw the close mark only in the normal colour (C<inner_color>) with an outer edge drawn in
-C<outer_color>.
-
-=item close
-
-Draw the close mark only in the normal colour (C<inner_color>) with no outer edge.
-
-=item candle2
-
-Draw a Japanese candlestick in C<outer_color>, filled with C<inner_color>.  Don't use this with C<bgnd_outline>
-set to 1 as most of the marks will disappear!
-
-=item candle
-
-Draw a Japanese candlestick in one pass, the filling and outline both in normal colour (C<inner_color>).
-
-=back
-
-=item sequence
-
-Lines added to a graph are shown by default with slightly differing styles controlled by
-a PostScript::Graph::Sequence object.  Each graph has a default sequence which can be accessed by the
-B<sequence()> method.  Alternatively, you can set up your own sequence and declare it here.  See
-L<PostScript::Graph::Style> for details.
+    price	volume
+    analysis	level
 
 =item show_dates
 
 True if the dates axis is to be shown under this chart.  By default the dates are placed under the first graph
 that hasn't specified show_dates => 0.
    
-=item y_axis
-
-These keys are recognized within y_axis.  See L<PostScript::Graph::Paper> for details.
-
-    color	heavy_color mid_color	light_color
-    smallest	heavy_width mid_width	light_width
-    title	mark_min    mark_max	label_gap
-    si_shift
-
 =back
 
+=head3 bars
+
+Only appropriate for the C<volume> type graph, this sub-hash specifies how the volume bars look.  See
+L<PostScript::Graph::Style>.
+
+    color	    width
+    inner_color	    outer_color
+    inner_width	    outer_width
+
+=head3 points
+
+Only appropriate for the C<price> type graph, this sub-hash specifies how the price marks look.  Values for
+C<shape> are as follows and NOT as described in L<PostScript::Graph::Style>.
+
+    stock   stock2
+    candle  candle2
+    close   close2
+    
+The other options are as B<bars>.
+
+=head3 layout
+
+See L<PostScript::Graph::Paper> for details.
+
+    spacing
+    top_margin
+    right_margin
+    
+=head3 y_axis
+
+See L<PostScript::Graph::Paper> for details.
+
+    title	    color
+    heavy_color	    mid_color
+    light_color	    heavy_width
+    mid_width	    light_width
+    mark_min	    mark_max
+    label_gap	    si_shift
+
 =cut
 
-=head1 MAIN METHODS
-
-=cut
-
-sub sequence {
-    my ($o, $graph) = @_;
-    return $o->{$graph}{sequence};
+sub add_data {
+    my ($o, $data) = @_;
+    return unless ref($data) and $data->isa('Finance::Shares::data');
+    out($o, 5, "Chart::add_data()");
+    $o->{quotes} = $data;
+    
+    # ensure there are graphs to display data on
+    $o->graph_for($data->line('close'));
+    $o->graph_for($data->line('volume'));
 }
 
-=head2 sequence( graph )
+=head2 add_data( data )
 
-This provides access to the PostScript::Graph::Sequence object which by default controls the styles of lines
-placed on each of the graphs.  C<graph> is one of 'prices', 'volumes', 'cycles', 'tests'.
+Declare the stock quote data associated with this chart - there should only be one.  C<data> must be a L<Finance::Shares::data>
+object.
 
-Example
-
-Here, a number of lines (moving averages) are drawn on a chart.  Each line will be given a different colour even
-though they are all have the same style options.
-
-    my $fss = Finance::Shares::Sample(
-	... );
-    my $fsc = Finance::Shares::Chart(
-	sample	 => $fss, ... );
-
-    my $pseq = $fsc->sequence( 'prices' );
-    $pseq->auto( qw(color dashes shape) );
-    
-    my $style = {
-	sequence => $pseq,
-	width	 => 2,
-    };
-    
-    $fss->simple_average(
-	period	 => 5,
-	style	 => $style,
-    );
-
-    $fss->simple_average(
-	period	 => 15,
-	style	 => $style,
-    );
-
-    $fss->simple_average(
-	period	 => 30,
-	style	 => $style,
-    );
-
-See L<PostScript::Graph::Style> for details concerning sequences and styles.
-    
 =cut
+
+sub add_line {
+    my ($o, $line) = @_;
+    logdie("$line should be a Line object") unless ref($line) eq 'Finance::Shares::Line';
+    my $gh = $o->graph_for($line);
+    my $lname = $line->name();
+    unless ($gh->{lines}{$lname}) {
+	$gh->{lines}{$lname} = $line;
+	push @{$gh->{lineord}}, $lname;
+	out($o, 5, "Chart::add_line: '$lname'");
+    }
+}
+# may be called multiple times checking same line is added
+
+=head2 add_line( line )
+
+Register a line with this chart.  C<line> should be a Finance::Shares::Line derived object.  It's graph is determined from its
+optional {graph} or mandatory {gtype} fields.
+
+=cut
+
+sub build {
+    my $o = shift;
+    out($o, 5, "Chart::build '$o->{id}'");
+    $o->{built}++, return if $o->{hidden};
+    out_indent(1);
     
+    ## Preparation
+    $o->ensure_period();
+    
+    logdie("Chart has no PostScript::File") unless ref($o->{file}) eq 'PostScript::File';
+    $o->{file}->set_page_label( $o->{page} ) if defined $o->{page};
+
+    PostScript::Graph::Paper->ps_functions( $o->{file} );
+    PostScript::Graph::Key->ps_functions( $o->{file} );
+    PostScript::Graph::XY->ps_functions( $o->{file} );
+    PostScript::Graph::Style->ps_functions( $o->{file} );
+    Finance::Shares::Chart->ps_functions( $o->{file} );
+
+    $o->{file}->add_to_page( <<END_INIT );
+	gpaperdict begin
+	gstyledict begin
+	xychartdict begin
+	gstockdict begin
+END_INIT
+
+    ## Create graphs
+    $o->prepare_labels();
+    my $keys    = $o->prepare_graphs();
+    my @pagebox = $o->{file}->get_page_bounding_box();
+    $o->{pxmin} = $pagebox[0];
+    $o->{pymin} = $pagebox[1];
+    $o->{pxmax} = $pagebox[2];
+    $o->{pymax} = $pagebox[3];
+    $o->{pgk}   = $o->create_key( $keys, \@pagebox ) if @$keys;
+    my $gpaper  = $o->create_graphs( \@pagebox );
+    
+    ## Draw graphs
+    $o->draw_grids();
+    if (@$keys) {
+	# kludge to get key by side of all charts
+	$gpaper->{ch}{gy1}    = $pagebox[3];
+	$gpaper->{ch}{bottom} = $pagebox[1];
+	$o->{pgk}->build_key($gpaper);
+    }
+    $o->draw_lines();
+    my $keyorder = $o->reorder_keys();
+    $o->draw_keys($keyorder);
+    
+    ## Finish
+    $o->{file}->add_to_page( "end end end end\n" );
+    $o->{built}++;
+    
+    out_indent(-1);
+}
+
+=head2 build( )
+
+Once the resources are gathered, this method puts them all together.  The chart is built in PostScript.
+If no PostScript::File object was given to the constructor one is created for this chart, otherwise the chart is
+written to the current page.
+
+=cut
+
 sub output {
     my ($o, $filename, $directory) = @_;
-    $o->build_chart() unless $o->{built};
-
-    if ($o->{png}) {
-	$o->{pf}->output($filename, $directory);
-	my $psfile  = "$filename.ps";
-	my $gs      = $o->ghostscript;
-	my $pngfile = check_file("$filename.png", $directory);
-	my @cmd = qq(cat $psfile | $gs -q -dBATCH -sDEVICE=png16m -sOutputFile=$pngfile -);
-	system @cmd;
-	unlink $psfile;
-    } else {
-	return $o->{pf}->output($filename, $directory);
-    }
+    $directory = $o->{directory} unless defined $directory;
+    $o->build() unless $o->{built};
+    $o->{file}->output($filename, $directory) unless $o->{hidden};
 }
 
 =head2 output( [filename [, directory]] )
@@ -651,528 +684,194 @@ If no filename is given, the PostScript text is returned.  This makes handling C
 
 =cut
 
-=head1 SUPPORT METHODS
+
+=head1 ACCESS METHODS
 
 =cut
 
-sub build_chart {
-    my ($o, $pf) = @_;
-    my $s = $o->{sample};
-    $o->{pf} = $pf if defined $pf;
-    $o->{pf}->set_page_label( $o->{page} ) if defined $o->{page};
-    my $t = $o->{test};	    # may be undef or 0
-
-    ## open dictionaries
-    PostScript::Graph::Paper->ps_functions( $o->{pf} );
-    PostScript::Graph::Key->ps_functions( $o->{pf} );
-    PostScript::Graph::XY->ps_functions( $o->{pf} );
-    Finance::Shares::Chart->ps_functions( $o->{pf} );
-    PostScript::Graph::Style->ps_functions( $o->{pf} );
-    
-    $o->{pf}->add_to_page( <<END_INIT );
-	gpaperdict begin
-	gstyledict begin
-	xychartdict begin
-	gstockdict begin
-END_INIT
-
-    ## Calculate height
-    my @pagebox = $o->{pf}->get_page_bounding_box();
-    my $label_space = $o->{totalx} * $o->{lblspc};
-    my $heading_space = $o->{heading_font}{size} - 5;
-    my $top = $pagebox[3]-1;
-    my $bottom = $pagebox[1]+1;
-    my $full_height = $top - $bottom - $heading_space - $label_space;
-
-    ## Check for visibility
-    $o->{totalpc} = 0;
-    foreach my $g (@graphs) {
-	my $h = $o->{$g};
-	if ($h->{reverse}) {
-	    my $lines = $s->line_order($g);
-	    @$lines = sort { -($s->{lines}{$g}{$a}{order} <=> $s->{lines}{$g}{$b}{order}) } @$lines if $lines;
-	}
-	my $hidden = (defined $h->{percent} && $h->{percent} == 0);
-	$h->{percent} = 0 unless defined $h->{percent};
-	$h->{visible} = 0;
-	if ($g eq 'prices') {
-	    $h->{percent} = $default_percent unless $h->{percent} > 0;
-	    $o->{totalpc} += $h->{percent};
-	    $h->{visible} = 1;
-	} elsif (not $hidden) {
-	    if ($g eq 'volumes' and $s->{volume} and %{$s->{volume}}) {
-		$h->{percent} = $default_percent unless $h->{percent} > 0;
-	    }
-	    foreach my $l (values %{$s->{lines}{$g}}) {
-		if ($o->visible($g, $l)) {
-		    $h->{percent} = $default_percent unless $h->{percent} > 0;
-		    last;
-		}
-	    }
-	    if ($h->{percent}) {
-		$h->{visible} = 1;
-		$o->{totalpc} += $h->{percent};
-	    }
-	}
-	#warn "Chart: $g = $h->{percent}% ($h->{visible}); total=$o->{totalpc}\n";
-    }
- 
-    ## create Key panels 
-    my $key_width = 0;
-    foreach my $g (@graphs) {
-	my $h = $o->{$g};
-	next unless $h->{percent};
-	$h->{height} = $full_height * $h->{percent}/$o->{totalpc};
-	$h->{height} += $heading_space if $g eq 'prices';
-	$h->{height} += $o->{lblspc} if $h->{show_dates};
-
-	if ($o->visible_lines($g)) {
-	    my @key_labels;
-	    my $maxlen  = 0;
-	    my $maxsize = $o->{normal_font}{size};
-	    my $lwidth  = 3;
-	    my $y = $h->{y_axis};
-	    $y->{high} = $lowest_int unless defined $y->{high};
-	    $y->{low} = $highest_int unless defined $y->{low};
-	    ##   create style
-	    my ($id, $base);
-	    while( ($id, $base) = each %{$s->{lines}{$g}} ) {
-		next unless $o->visible($g, $base);
-		my $style = $base->{style};
-		unless (defined($style) and ref($style) eq 'PostScript::Graph::Style') {
-		    $style = {} unless defined $style;
-		    my $none = (defined($style->{line}) or defined($style->{point}) or defined($style->{bar}));
-		    $style->{line} = {} unless $none;
-		    $style->{point} = {} unless $none;
-		    $style->{label} = $base->{key};
-		    $style->{sequence} = $h->{sequence} unless defined $style->{sequence};
-		    $style = $base->{style} = new PostScript::Graph::Style( $style ); 
-		}
-		#warn "build_chart $g id=$id, style=", $style->id(), "\n";
-		unless (defined $h->{line_styles}{$style}) {
-		    $h->{line_styles}{$style} = $base;	    # multiple styles must appear only once
-		    push @key_labels, $base->{key};
-		}
-		my $lw   = $style->use_line() ? $style->line_outer_width() : 0;
-		$lwidth  = $lw/2 if ($lw/2 > $lwidth);
-		my $size = $style->use_point() ? $style->point_size() + $lwidth : $lwidth;
-		$maxsize = $size if ($size > $maxsize);
-		my $len	 = length($base->{key});
-		$maxlen	 = $len if ($len > $maxlen);
-		# ensure scales fit around each line
-		$y->{low} = $base->{min} if $base->{min} < $y->{low};
-		$y->{high} = $base->{max} if $base->{max} > $y->{high};
-	    }
-	    
-	    $h->{key} = {} unless defined $h->{key};
-	    my $k = $h->{key};
-	    $k->{max_height}  = $h->{height} - $o->{normal_font}{size} * 1.5;
-	    $k->{item_labels} = \@key_labels;
-	    $k->{title}	      = $titles{$g} . ' key' unless defined $k->{title};
-	    $k->{icon_width}  = $maxsize * 3 unless defined $k->{icon_width};
-
-	    my $max_width     = 0.2 * ($pagebox[2] - $pagebox[0]);
-	    $max_width       -= ($k->{icon_width} - 3 * $lwidth);
-	    my $tsize         = defined($k->{text_size}) ? $k->{text_size} : 10;
-	    unless (defined $k->{text_width}) {
-		$k->{text_width}  = $maxlen * $tsize * $o->{glyph_ratio};
-		$k->{text_width}  = $max_width if $k->{text_width} > $max_width;
-	    }
-	    
-	    $k->{icon_height} = $maxsize * 1.2 unless defined $k->{icon_height};
-	    $k->{spacing}     = $lwidth unless defined $k->{spacing};
-	    $k->{file}	      = $o->{pf};
-	    $h->{pgk} = new PostScript::Graph::Key( $k );
-	    my $kw            = $h->{pgk}->width();
-	    $key_width        = $kw if ($kw > $key_width);
-	}
-    }
-    
-    ## Graph grids
-    foreach my $g (@graphs) {
-	my $h = $o->{$g};
-	next unless $h->{percent};
-	my $l = $h->{layout};
-	$l->{top_edge} = $top;
-	$top = $l->{bottom_edge} = $top - $h->{height};
-	$l->{key_width} = $key_width;
-	$h->{pgp} = new PostScript::Graph::Paper( $h );
-    }
- 
-    ## adjust date labels to fit
-    # Avoids date labels overwriting each other when there are too many
-    {
-	my $pgp = $o->{prices}{pgp};
-	my $space_reqd  = @{$o->{labels}} * $pgp->x_axis_font_size();
-	my $graph_width = $pgp->x_axis_width();
-	my $skip = int($space_reqd/$graph_width);
-	if ($space_reqd > $graph_width) {
-	    $o->prepare_labels($skip);
-	    foreach my $g (@graphs) {
-		my $h = $o->{$g};
-		next unless $h->{percent};
-		my $pgp = $h->{pgp};
-		if ($pgp) {
-		    if ($h->{show_dates}) {
-			$pgp->x_axis_labels( $o->{labels} );
-		    } else {
-			$pgp->x_axis_labels( $o->{dlabels} );
-		    }
-		    $pgp->draw_scales();
-		}
-	    }
-	} else {
-	    foreach my $g (@graphs) {
-		my $pgp = $o->{$g}{pgp};
-		$pgp->draw_scales() if $pgp;
-	    }
-	}
-    }
-    
-    ## Price marks
-    {
-	my $h = $o->{prices};
-	my $pgp = $h->{pgp};
-	my $sh = {
-	    auto  => 'none',
-	    same  => $o->{bgnd_outline},
-	    point => $h->{points}, 
-	};
-	my $pstyle = new PostScript::Graph::Style( $sh );
-	$pstyle->background( $pgp->layout_background() );
-	$pstyle->write( $o->{pf} );
-	my $open = $s->{open};
-	my $high = $s->{high};
-	my $low = $s->{low};
-	my $close = $s->{close};
-	my $lx = $s->{lx};
-	my $count = 0;
-	my $ymin = $highest_int;
-	my $ymax = $lowest_int;
-	foreach my $date (@{$s->{dates}}) {
-	    my $psx = $pgp->px( $lx->{$date} );
-	    if (defined $open->{$date}) {
-		my $oy = $pgp->py( $open->{$date} );
-		my $hy = $pgp->py( $high->{$date} );
-		my $ly = $pgp->py( $low->{$date} );
-		my $cy = $pgp->py( $close->{$date} );
-		$pgp->add_to_page("$psx $oy $ly $hy $cy ppshape\n");
-		$count++;
-		$ymin = $ly if $ly < $ymin;
-		$ymax = $hy if $hy > $ymax;
-	    }
-	}
-	if ($t) {
-	    $t->{prices_count} = $count;
-	    $t->{prices_ymin} = $ymin;
-	    $t->{prices_ymax} = $ymax;
-	}
-    }
-   
-    ## Volume marks
-    if ($o->{sample}{volume} and $o->{volumes}{percent}) {
-	my $h = $o->{volumes};
-	my $sh = {
-	    auto => 'none',
-	    same => $o->{bgnd_outline},
-	    bar  => $h->{bars},
-	};
-	my $pgp = $h->{pgp};
-	my $vstyle = new PostScript::Graph::Style( $sh );
-	$vstyle->background( $pgp->layout_background() );
-	$vstyle->write( $o->{pf} );
-	my $volume = $s->{volume};
-	my $lx = $s->{lx};
-	my $count = 0;
-	my $ymin = $highest_int;
-	my $ymax = $lowest_int;
-	foreach my $date (@{$s->{dates}}) {
-	    my $x = $lx->{$date};
-	    my $y = $volume->{$date};
-	    if (defined $y) {
-		my @bb     = $pgp->vertical_bar_area($x * 2, $y);
-		my $lwidth = $vstyle->bar_outer_width()/2;
-		$bb[0] += $lwidth;
-		$bb[1] += $lwidth;
-		$bb[2] -= $lwidth;
-		$bb[3] -= $lwidth;
-		$bb[3] = $bb[1] if ($bb[3] < $bb[1]);
-		$o->{pf}->add_to_page( <<END_BAR );
-		    $bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
-		    $bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
-END_BAR
-		$count++;
-		$ymin = $bb[1] if $bb[1] < $ymin;
-		$ymax = $bb[3] if $bb[3] > $ymax;
-	    }
-	}
-	$h->{percent} = 0 unless $count;
-	if ($t) {
-	    $t->{volumes_count} = $count;
-	    $t->{volumes_ymin} = $ymin;
-	    $t->{volumes_ymax} = $ymax;
-	}
-    }
-
-    ## Add lines
-    foreach my $g (@graphs) {
-	my $h = $o->{$g};
-	$h->{pgk}->build_key($h->{pgp}) if defined $h->{pgk};
-	$o->build_lines($g);
-    }
-
-    ## close dictionaries
-    $o->{pf}->add_to_page( "end end end end\n" );
-    $o->{built} = 1;
+sub name {
+    return $_[0]->{id};
 }
 
+=head2 name( )
 
-
-=head2 build_chart( [file] )
-
-If given, C<file> should be a PostScript::File object or a hash ref suitable for creating one.
-
-This writes the appropriate PostScript to either the file given or one created internally.  This is normally called by
-B<output()> and should only need calling directly if several charts are to be placed on the same file.
-
-Example
-
-    # Create the file
-    my $pf = new PostScript::File(...);
-
-    # Create the necessary samples
-    my $s1 = new Finance::Shares::Sample(...);
-    my $s2 = new Finance::Shares::Sample(...);
-    my $s3 = new Finance::Shares::Sample(...);
-    
-    # add lines as required
-    $s1->add_line(...);
-    $s2->add_line(...);
-    ...
-    
-    # Create a chart object for each sample
-    my $ch1 = new Finance::Shares::Chart(
-	file   => $pf,
-	sample => $s1,
-	... );
-    my $ch2 = new Finance::Shares::Chart(
-	file   => $pf,
-	sample => $s2,
-	... );
-    my $ch3 = new Finance::Shares::Chart(
-	file   => $pf,
-	sample => $s3,
-	... );
-
-    # add more lines if required
-    $s3->add_line(...);
-    
-    # Build the charts on seperate pages
-    $ch1->build_chart();
-    $pf->newpage();
-    
-    $ch2->build_chart();
-    $pf->newpage();
-    
-    $ch3->build_chart();
-    $pf->newpage();
-
-    # Output the file
-    $pf->output($filename);
-
-
+Returns the canonical name for this chart.
 
 =cut
 
-sub png {
-    return shift->{png};
-}
-
-=head2 png()
-
-Return true if the chart is to be output as a Portable Network Graphics file.
-
-=cut
-
-sub ghostscript {
+sub data {
     my $o = shift;
-    return defined($o->{ghostscript}) ? $o->{ghostscript} : 'gs'; 
+    return $o->{quotes};
 }
 
-=head2 ghostscript()
+=head2 data( )
 
-Return the ghostscript interpreter that would be used to output a Portable Network Graphics file.
+Return the L<Finance::Shares::data> object holding the stock quotes for this chart.
 
 =cut
 
-sub build_lines {
-    my ($o, $g) = @_;
-    my $s = $o->{sample};
-    my $h = $o->{$g};
-    return unless $h->{visible};
-    my $pgp = $h->{pgp};	# PostScript::Graph::Paper
-    my $pgk = $h->{pgk};	# PostScript::Graph::Key
-    my $t = $o->{test};		# may be undef, 0 or {...}
+sub graph_for {
+    my ($o, $line) = @_;
+    my $gname = $line->{graph} || $line->{gtype} || 'price';
+    my $gh;
+    if ($o->{gpapers}{$gname}) {
+	$gh = $o->{gpapers}{$gname};
+    } elsif (not $line->{graph}) {
+	# use the first suitable graph
+	foreach my $name (@{$o->{gpaperord}}) {
+	    my $g = $o->{gpapers}{$name};
+	    $gh = $g, last if $g->{gtype} eq $line->{gtype};
+	}
+    }
+    unless ($gh) {
+	# line starts a new graph
+	out($o, 7, "Chart: new graph '$gname' for line '" . $line->name . "'");
+	my $params = {
+	    gtype => $line->{gtype},
+	    graph => $line->{graph},
+	};
+	$gh = $o->add_graph($gname, $params);
+    }
+    out($o, 7, "Chart::graph_for(" . $line->name . ") = $gh->{name}");
+    return $gh;
+}
+
+=head2 graph_for( line )
+
+The most reliable way of determining which graph a particular L<Finance::Shares::Line> object will appear on.  A new graph is
+created if no existing graph is suitable.  C<line> must have at least a {gtype} field and optionally a {graph}
+field holding a graph name.
+
+=cut
+
+sub model {
+    return $_[0]->{model};
+}
+
+sub set_period {
+    my ($o, $start, $end) = @_;
+    $o->{start} = $start;
+    $o->{end}   = $end;
+}
+
+=head2 set_period( )
+
+Used by the associated L<Finance::Shares::data> object to ensure the dates used in the default title are correct.
+
+=cut
+
+sub hidden {
+    return $_[0]->{hidden};
+}
+
+=head2 hidden( )
+
+Returns true if the chart is not to be displayed.
+
+=cut
+
+### SUPPORT METHODS
+
+sub add_parameters {
+    my ($o, $opt, $ok, $entry ) = @_;
+    return unless defined $opt;
+    out($o, 7, "Chart::add_parameters($entry)");
+    out_indent(1);
     
-    my ($cmd, $keylines, $keyouter, $keyinner);
-    my $lines = $s->line_order($g);
-    foreach my $id (@$lines) {
-	my $base = $s->{lines}{$g}{$id};
-	next unless $o->visible($g, $base);
-	my $pgs = $base->{style};
-	#warn "build_line ", $s->id(), " $g, $id, ", $pgs->id(), ")\n";
-	die "Line style is not a Style\n" unless ref($pgs) eq "PostScript::Graph::Style";
-	$pgs->background( $pgp->layout_background() );
-	$pgs->write( $o->{pf} );
-
-	if ($pgs->use_bar()) {
-	    ## construct bar data
-	    foreach my $date (sort keys %{$base->{data}}) {
-		my $y = $base->{data}{$date};
-		if (defined $y) {
-		    my $x = $s->{lx}{$date};
-		    if (defined $x) {
-			my @bb = $pgp->vertical_bar_area($x * 2, $y);
-			my $lwidth = $pgs->bar_outer_width()/2;
-			$bb[0] += $lwidth;
-			$bb[1] += $lwidth;
-			$bb[2] -= $lwidth;
-			$bb[3] -= $lwidth;
-			$o->{pf}->add_to_page( <<END_BAR );
-			    $bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
-			    $bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
-END_BAR
-		    } else {
-			warn "UNKNOWN DATE: $date (y=$y) in line $id";
-		    }
-		}
-	    }
-	} else {
-	    ## construct point data
-	    my $points = "";
-	    my $npoints = -1;
-	    foreach my $date (sort keys %{$base->{data}}) {
-		my $y = $base->{data}{$date};
-		if (defined $y) {
-		    my $x = $s->{lx}{$date};
-		    if (defined $x) {
-			my $px = $pgp->px($x + 0.5);
-			my $py = $pgp->py($y);
-			$points = "$px $py " . $points;
-			$npoints += 2;
-		    } else {
-			warn "UNKNOWN DATE: $date (y=$y) in line $id";
-		    }
-		}
-	    }
-	    $t->{lines}{$id} = ($npoints+1)/2 if ($t);
-		
-	    ## prepare code for points and lines
-	    CASE: {
-		if (    $pgs->use_point() and     $pgs->use_line()) {
-		    $cmd = "xyboth";
-		    last CASE;
-		}
-		if (    $pgs->use_point() and not $pgs->use_line()) {
-		    $cmd = "xypoints";
-		    last CASE;
-		}
-		if (not $pgs->use_point() and     $pgs->use_line()) {
-		    $cmd = "xyline";
-		    last CASE;
-		}
-		$cmd = "";
-	    }
-	    $o->{pf}->add_to_page( "[ $points ] $npoints $cmd\n" ) if ($cmd);
+    if (ref($ok) eq 'ARRAY') {
+	# graph descriptions
+	logerr("array ref expected, found $opt"), return unless ref($opt) eq 'ARRAY';
+	logerr("odd number of elements in array"), return if (@$opt % 2);
+	for( my $i = 0; $i <= $#$opt; $i += 2 ) {
+	    my $key = $opt->[$i];
+	    my $value = $opt->[$i+1];
+	    logerr("'$key' value should be a hash ref"), return unless ref($value) eq 'HASH';
+	    my $gh = $o->add_graph($key, $value);
+	    push @$ok, $gh;
+	    $o->process_hash( $value, deep_copy($graph_options), "graph $key" );
 	}
-	$t->{nlines}++ if $t;
+    } elsif (ref $ok) {
+	$o->process_hash($opt, $ok, $entry);
+    } else {
+	logerr("Cannot assign $entry");
     }
+    out_indent(-1);
+}
+## add_parameters( given, acceptable )
+#
+# Over-write the acceptable settings with the given ones if presented at the right position.
+# Called recursively throughout tree.  Where any graphs are defined, the whole $graph_options tree is copied in at
+# that point.
 
-    ## make key entries
-    my @styles;
-    {	#TODO move this up so lines are drawn in the same order
-	my (@lines, @signals);
-	foreach my $entry (values %{$h->{line_styles}}) {
-	    my $id = $entry->{id};
-	    if ($id =~ /^signal/) {
-		push @signals, $entry;
-	    } else {
-		push @lines, $entry;
-	    }
+
+sub add_graph {
+    my ($o, $name, $params) = @_;
+    out($o, 7, "Chart::add_graph($name)");
+    out_indent(1);
+    
+    my $gh = deep_copy $graph_options;
+    $gh->{name} = $name;
+    $o->add_parameters( $params, $gh, "new graph '$name'" );
+    delete $gh->{points} unless $gh->{gtype} =~ /^price/;
+    delete $gh->{bars}   unless $gh->{gtype} =~ /^volume/;
+
+    $o->{gpaperord} = [] unless defined $o->{gpaperord};
+    push @{$o->{gpaperord}}, $name;
+    $o->{gpapers}{$name} = $gh;
+
+    $gh->{gmin}    = $highest_int;
+    $gh->{gmax}    = $lowest_int;
+    $gh->{lineord} = [];    # line names
+    $gh->{lines}   = {};    # line name => object
+
+    out_indent(-1);
+    return $gh;
+}
+
+sub ensure_period {
+    my $o = shift;
+    if ($o->{quotes}) {
+	my $d = $o->{quotes};
+	$o->{stock} = $d->{stock} if $d->{stock} and not $o->{stock};
+	$o->{start} = $d->start unless defined $o->{start};
+	$o->{by}   = $d->{by}  unless defined $o->{by};
+	$o->{end}   = $d->{end} unless defined $o->{end};
+    } else {    
+	my $by = $o->{by} || '';
+	my $ok = 0;
+	foreach my $period (qw(quotes weekdays days weeks months)) {
+	    $ok = 1, last if $by eq $period;
 	}
-	@signals = sort { $a->{order} <=> $b->{order} } @signals;
-	@lines = sort { $a->{order} <=> $b->{order} } @lines;
-	@styles = (@lines, @signals);
+	$o->{by} = 'weekdays' unless $ok;
+	$o->{end} = today_as_string() unless is_date $o->{end}; 
+	$o->{start} = decrement_date($o->{end}, 60, $o->{by}) unless is_date $o->{start};
     }
-    foreach my $sdata (@styles) {
-	my $pgs = $sdata->{style};
-	die "Not a Style\n" unless ref($pgs) eq "PostScript::Graph::Style";
-	$pgs->background( $pgp->layout_background() );
-	$pgs->write( $o->{pf} );
-	
-	if ($pgs->use_bar()) {
-	    ## prepare code for key bar entries
-	    my $colour = str($pgs->bar_inner_color());
-	    $pgk->add_key_item( $sdata->{key}, <<END_KEY ) if defined $pgk;
-	    8 dict begin
-		/cx kix0 kix1 add 2 div def
-		/cy kiy0 kiy1 add 2 div def
-		/dx kix1 kix0 sub 10 div def
-		/dy kiy1 kiy0 sub 4 div def
-		/x0 cx dx sub def
-		/x1 cx dx add def
-		/y0 cy dy sub def
-		/y1 cy dy add def
-		x0 y0 x1 y1 bocolor bowidth drawbox
-		x0 y0 x1 y1 bicolor bicolor biwidth fillbox
-	    end
-END_KEY
-	} else {
-	    ## prepare code for key points and lines
-	    CASE: {
-		if (    $pgs->use_point() and     $pgs->use_line()) {
-		    $keyouter = "point_outer kpx kpy draw1point";
-		    $keylines = "[ kix0 kiy0 kix1 kiy1 ] 3 2 copy line_outer drawxyline line_inner drawxyline";
-		    $keyinner = "point_inner kpx kpy draw1point";
-		    last CASE;
-		}
-		if (    $pgs->use_point() and not $pgs->use_line()) {
-		    $keyouter = "point_outer kpx kpy draw1point";
-		    $keylines = "";
-		    $keyinner = "point_inner kpx kpy draw1point";
-		    last CASE;
-		}
-		if (not $pgs->use_point() and     $pgs->use_line()) {
-		    $keyouter = "";
-		    $keylines = "[ kix0 kiy0 kix1 kiy1 ] 3 2 copy line_outer drawxyline line_inner drawxyline";
-		    $keyinner = "";
-		    last CASE;
-		}
-		$keyouter = "";
-		$keylines = "";
-		$keyinner = "";
-	    }
+     out($o, 5, "Chart::ensure_period '$o->{stock}' $o->{by} from $o->{start} to $o->{end}");
+}
 
-	    $pgk->add_key_item( $sdata->{key}, <<END_KEY ) if (defined $pgk);
-		2 dict begin
-		    /kpx kix0 kix1 add 2 div def
-		    /kpy kiy0 kiy1 add 2 div def
-		    $keyouter
-		    $keylines
-		    $keyinner
-		end
-END_KEY
+sub process_hash {
+    my ($o, $opt, $ok, $entry ) = @_;
+    return unless defined $opt;
+    foreach my $key (keys %$ok) {
+	my $acceptable = $ok->{$key};
+	my $given = $opt->{$key};
+	my $ref = ref($given);
+	if ($key eq 'graphs' or $ref eq 'HASH') {
+	    $o->add_parameters( $given, $acceptable, $key );
+	} else {
+	    # scalar or object
+	    if (defined $given) {
+		$ok->{$key} = $given;
+		out($o, 7, "$key = $given");
+	    }
 	}
     }
 }
 
-sub prepare_labels {
-    my ($o, $skip) = @_;
-    $skip = 0 unless defined $skip;
-    my $s = $o->{sample};
- 
-    ## Identify date options
-    my $dtype = $o->{sample}->dates_by();
+sub labels_defaults {
+    my $o = shift;
+    
+    my $dtype = $o->{by};
     my ($dsdow, $dsday, $dsmonth, $dsyear, $dsall);
     CASE: {
 	if ($dtype eq 'weeks') {
@@ -1187,14 +886,28 @@ sub prepare_labels {
 	    ($dsdow, $dsday, $dsmonth, $dsyear) = (0, 1, 1, 0);
     }
     my $x = $o->{x_axis};
-    $dsdow   = defined($x->{show_weekday}) ? $x->{show_weekday}        : $dsdow;
-    $dsday   = defined($x->{show_day})     ? $x->{show_day}            : $dsday;
-    $dsmonth = defined($x->{show_month})   ? $x->{show_month}          : $dsmonth;
-    $dsyear  = defined($x->{show_year})    ? $x->{show_year}           : $dsyear;
-    $dsall   = defined($x->{changes_only}) ? ($x->{changes_only} == 0) : 0;
-  
+    $x->{show_weekday} = $dsdow   unless defined($x->{show_weekday});
+    $x->{show_day}     = $dsday   unless defined($x->{show_day});
+    $x->{show_month}   = $dsmonth unless defined($x->{show_month});
+    $x->{show_year}    = $dsyear  unless defined($x->{show_year});
+
+    return;
+}
+
+sub prepare_labels {
+    my ($o, $skip) = @_;
+    out($o, 5, "Chart::prepare_labels()");
+    my $d = $o->{quotes};
+    unless ($d and @{$d->dates}) {
+	$o->{labels} = [$o->{start} || '', $o->{end} || ''];
+	$o->{dlabels}= [''];
+	$o->{lblspc} = $o->{x_axis}{mark_max} + $o->{normal_size};
+	return;
+    }
+ 
+    $o->labels_defaults();
+
     ## Prepare for label creation
-    warn 'No dates' unless @{$s->{dates}};
     my @days   = qw(- Mon Tue Wed Thu Fri Sat Sun);
     my @months = qw(- Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
     my (@labels, @dlabels);
@@ -1204,21 +917,19 @@ sub prepare_labels {
     my ($lday, $lmonth, $lyear) = (0, 0, 0);
     my $skip_count = 0;
     
-    my $open   = $s->{open};
-    my $high   = $s->{high};
-    my $low    = $s->{low};
-    my $close  = $s->{close};
-    my $volume = $s->{volume};
+    my $x      = $o->{x_axis};
+    my $dsall  = not $x->{changes_only};
     
     ## Create labels and calc min/max values
-    for my $date (@{$s->{dates}}) {
+    for my $date (@{$d->dates}) {
+	next unless $date ge $d->{start};
 	my ($year, $month, $day) = ymd_from_string($date);
 	my $dow = day_of_week($year, $month, $day);
 	my $label = '';
-	$label .= $days[$dow]     . ' ' if ($dsdow   and ($dsall or ($dow != $ldow)));
-	$label .= $day            . ' ' if ($dsday   and ($dsall or ($day != $lday)));
-	$label .= $months[$month] . ' ' if ($dsmonth and ($dsall or ($month != $lmonth)));
-	$label .= $year		  . ' ' if ($dsyear  and ($dsall or ($year != $lyear)));
+	$label .= $days[$dow]     . ' ' if $x->{show_weekday} and ($dsall or ($dow != $ldow));
+	$label .= $day            . ' ' if $x->{show_day}     and ($dsall or ($day != $lday));
+	$label .= $months[$month] . ' ' if $x->{show_month}   and ($dsall or ($month != $lmonth));
+	$label .= $year		  . ' ' if $x->{show_year}    and ($dsall or ($year != $lyear));
 	$label =~ s/\s+$//;
 	if ($skip) {
 	    if ($skip_count) {
@@ -1242,75 +953,673 @@ sub prepare_labels {
     ## Record results
     $o->{labels} = [ @labels ];
     $o->{dlabels}= [ @dlabels ];
-    $o->{lblspc} = $o->{x_axis}{mark_max} + (1 + $labellength * $o->{glyph_ratio}) * $o->{normal_font}{size};
-    $o->{volumes}{percent} = 0 unless defined $s->{volumes}{max};
+    $o->{lblspc} = $o->{x_axis}{mark_max} + (1 + $labellength * $o->{glyph_ratio}) * $o->{normal_size};
 }
 # If $skip > 0 the labels are being adjusted, so they must be in PostScript format, i.e. '(...)'
 
-sub visible_lines {
-    my ($o, $graph) = @_;
-    my $count = 0;
-    my $l = $o->{sample}{lines}{$graph};
-    if ($l) {
-	my ($id, $entry);
-	while( ($id, $entry) = each %$l ) {
-	    $count++ if $o->visible($graph, $entry);
+sub create_sequence {
+    my $o = shift;
+    out($o, 5, "Chart::create_sequence()");
+    my $seq = $o->{sequence};
+    
+    unless (ref($seq) eq 'PostScript::Graph::Sequence') {
+	$seq = new PostScript::Graph::Sequence;
+	$seq->setup('color', [
+	    [0,1,0],	    # bright green
+	    [0,0.6,0],	    # dark green
+	    [0,0.6,0.6],    # turquoise
+	    [0,1,1],	    # cyan
+	    [0,0,1],	    # bright blue
+	    [0.6,0,0.6],    # purple
+	    [1, 0, 1],	    # mauve
+	    [0.6,0,0],	    # dark red
+	    [1,0,0],	    # bright red
+	    [1,0.6,0],      # orange
+	    [1,1,0],	    # yellow
+	    [0.6,0.6,0],    # leaf green
+	]);
+	$seq->auto(qw(color dashes));
+    }
+    
+    $o->{pgsq} = $seq;
+}
+
+sub create_style {
+    my ($o, $line) = @_;
+    my $h = $line->{style};
+    out($o, 5, "Chart::create_style() for ". $line->name);
+    return $h if ref($h) eq 'PostScript::Graph::Style';
+    $h = $default_line_style unless $h;
+    my $none = (defined($h->{line}) or defined($h->{point}) or defined($h->{bar}));
+    $h->{line} = {} unless $none;
+    $h->{point} = {} unless $none;	# show lines & points if nothing chosen
+    $h->{sequence} = $o->{pgsq} unless defined $h->{sequence};
+    $h->{label} = $line->name;
+    return new PostScript::Graph::Style( $h );
+}
+
+sub create_key {
+    my ($o, $keys, $pagebox) = @_;
+    out($o, 5, "Chart::create_key()");
+
+    my $height = $pagebox->[3] - $pagebox->[1];
+    my $maxsize = $o->{normal_size};
+    my $lwidth  = 3;
+    my $maxlen  = 0;
+    foreach my $k (@$keys) {
+	my $len	 = length $k;
+	$maxlen	 = $len if ($len > $maxlen);
+    }
+
+    my $k = $o->{key};
+    $k->{max_height}  = $height;
+    $k->{item_labels} = $keys;
+    $k->{title}	      = 'Key' unless defined $k->{title};
+    $k->{icon_width}  = $maxsize * 3 unless defined $k->{icon_width};
+
+    my $max_width     = 0.2 * ($pagebox->[2] - $pagebox->[0]);
+    $max_width       -= ($k->{icon_width} - 3 * $lwidth);
+    my $tsize         = defined($k->{text_size}) ? $k->{text_size} : 10;
+    unless (defined $k->{text_width}) {
+	$k->{text_width}  = $maxlen * $tsize * $k->{glyph_ratio};
+	$k->{text_width}  = $max_width if $k->{text_width} > $max_width;
+    }
+    
+    $k->{icon_height} = $maxsize * 1.2 unless defined $k->{icon_height};
+    $k->{spacing}     = $lwidth unless defined $k->{spacing};
+    $k->{file}	      = $o->{file};
+    
+    my $f = {
+	font  => $k->{title_font},
+	size  => $k->{title_size},
+	color => $k->{title_color},
+    };
+    $k->{title_font} = $f;
+    $f = {
+	font  => $k->{text_font},
+	size  => $k->{text_size},
+	color => $k->{text_color},
+    };
+    $k->{text_font} = $f;
+
+    return new PostScript::Graph::Key( $k );
+}
+
+sub prepare_graphs {
+    my $o = shift;
+    out($o, 5, "Chart::prepare_graphs()");
+    $o->create_sequence;
+    
+    my @keys;
+    my %styles;
+    my $nlabels = 0;
+    foreach my $gname (@{$o->{gpaperord}}) {
+	my $g = $o->{gpapers}{$gname};
+	$g->{name}    = $gname;
+	$g->{file}    = $o->{file};
+
+	$o->graph_range($g);
+	next unless $g->{visible};
+	foreach my $lname (@{$g->{lineord}}) {
+	    my $l = $g->{lines}{$lname};
+	    if ($l->{shown}) {
+		my $pstyle = $o->create_style($l);
+		unless ($styles{$pstyle}) {	    # ensure appears in Key only once
+		    push @keys, $l->{key} || '';
+		    $l->{style} = $pstyle;
+		    $styles{$pstyle} = $l;
+		}
+	    }
+	}
+	$nlabels++ if $g->{show_dates};
+    }
+
+    $o->ensure_graphs;
+    
+    $o->{kstyles} = \%styles;
+    $o->{nlabels} = $nlabels;
+    return \@keys;
+}
+
+sub ensure_graphs {
+    my ($o, $given) = @_;
+    
+    my $totalpc = 0;
+    my (@gpaperord, %gpapers);
+    foreach my $gname (@{$o->{gpaperord}}) {
+	my $g = $o->{gpapers}{$gname};
+	$o->graph_set_range($g);
+	$totalpc += ($g->{percent} || 20) if $g->{visible};
+	$gpapers{$gname} = $g;
+	push @gpaperord, $gname;
+    }
+ 
+    unless ($totalpc) {
+	my $gname = 'default';
+	my $g = $o->add_graph($gname, { gtype => 'price' });
+	$o->graph_set_visible($g);
+	$o->graph_set_range($g);
+	$totalpc += $g->{percent};
+	$gpapers{$gname} = $g;
+	push @gpaperord, $gname;
+    }
+    
+    $o->{gpaperord} = \@gpaperord;
+    $o->{gpapers}   = \%gpapers;
+    $o->{totalpc}   = $totalpc;
+}
+
+
+sub create_graphs {
+    my ($o, $pagebox) = @_;
+    out($o, 5, "Chart::create_graphs()");
+    
+    my $heading = $o->{heading_size} - 5;
+    my $top     = $pagebox->[3]-1;
+    my $bottom  = $pagebox->[1]+1;
+    my $default = ($o->{nlabels} == 0);	    # {show_dates} is added to first graph if none specified
+    my $unitpc  = ($top - $bottom - $heading - ($o->{nlabels}+$default)*$o->{lblspc})/$o->{totalpc};
+    my $gpaper;
+
+    foreach my $gname (@{$o->{gpaperord}}) {
+	my $g = $o->{gpapers}{$gname};
+	next unless $g->{visible};
+	if ($heading) {
+	    $g->{show_dates} = 1 if $default;
+	    $o->{dgpaper} = $g;
+	}
+	## calculate height
+	my $height = $g->{percent} * $unitpc;
+	$height += $o->{lblspc} if $g->{show_dates};
+	$height += $heading;
+	
+	## layout options
+	my $l = $g->{layout};
+	$l->{background} = $o->{background};
+	$l->{top_edge} = $top;
+	$top = $l->{bottom_edge} = $top - $height;
+	$l->{key_width} = $o->{pgk} ? $o->{pgk}->width() : 0;
+	$l->{top_margin} = 3 unless defined $l->{top_margin};;
+	$l->{no_drawing} = 1;	# delay drawing until labels have been checked
+	if ($heading) {
+	    my $stock = ($o->{stock} eq 'default' ? '' : $o->{stock});
+	    $l->{heading} = $o->{heading} ? $o->{heading} : 
+		    "$stock $o->{by} from $o->{start} to $o->{end}";
+	    $l->{heading_height} = $l->{heading_font_size} unless defined $l->{heading_height};
+	} else {
+	    $l->{heading_height} = 5 unless defined $l->{heading_height};
+	}
+	
+	## x_axis options
+	my $x = $g->{x_axis} = deep_copy $o->{x_axis};
+	$x->{draw_fn} = 'xdrawstock';
+	$x->{offset} = 1;
+	$x->{sub_divisions} = 2;
+	$x->{center} = 0;
+	if ($g->{show_dates}) {
+	    $x->{labels} = $o->{labels};
+	    $x->{glyph_ratio} = $o->{glyph_ratio};
+	} else {
+	    $x->{labels} = $o->{dlabels};
+	    $x->{mark_max} = 0;
+	}
+
+	## y_axis options
+	my $y          = $g->{y_axis};
+	$y->{low}      = $g->{gmin};
+	$y->{high}     = $g->{gmax};
+	$y->{title}    = $g->{name};
+	$y->{smallest} = $o->{smallest} unless defined $y->{smallest};
+	$y->{si_shift} = 0 if $g->{gtype} eq 'price' and not defined $y->{si_shift};
+	
+	## create graph paper
+	$g->{file} = $o->{file};
+	#warn "gpaper opts...\n", show_deep($g);
+	$g->{pgp} = new PostScript::Graph::Paper( $g );
+	my $report = '(top=' . int($l->{top_edge}) .', btm=' . int($l->{bottom_edge}) . ')'
+	    . ($heading ? ' heading' : '') . ($g->{show_dates} ? ' dates' : '');
+	out($o, 4, "new Paper for $g->{name} $report");
+	
+	$gpaper = $g->{pgp} unless $gpaper;
+	$heading = 0;
+    }
+
+    return $gpaper;
+}
+
+sub draw_grids {
+    my $o = shift;
+    out($o, 5, "Chart::draw_grids()");
+    out_indent(1);
+
+    ## fit labels
+    my $pgp = $o->{dgpaper}{pgp};
+    return unless $pgp;
+    my $space_reqd  = @{$o->{labels}} * $pgp->x_axis_font_size();
+    my $graph_width = $pgp->x_axis_width();
+    my $skip = int($space_reqd/$graph_width);
+    if ($space_reqd > $graph_width) {
+	$o->prepare_labels($skip);
+	foreach my $gname (@{$o->{gpaperord}}) {
+	    my $g = $o->{gpapers}{$gname};
+	    next unless $g->{percent};
+	    my $pgp = $g->{pgp};
+	    if ($pgp) {
+		if ($g->{show_dates}) {
+		    $pgp->x_axis_labels( $o->{labels} );
+		} else {
+		    $pgp->x_axis_labels( $o->{dlabels} );
+		}
+		$pgp->draw_scales();
+	    }
+	}
+    } else {
+	foreach my $gname (@{$o->{gpaperord}}) {
+	    my $g = $o->{gpapers}{$gname};
+	    my $pgp = $g->{pgp};
+	    $pgp->draw_scales() if $pgp;
 	}
     }
-    return $count;
+
+    out_indent(-1);
 }
+# adjust date labels to fit
+# Avoids date labels overwriting each other when there are too many
 
-sub visible {
-    my ($o, $graph, $entry) = @_;
-    return $o->{$graph}{visible} unless defined $entry;
-    my $res = 0;
-    $res = 1 if $entry->{shown} and %{$entry->{data}};
-    return $res;
-}
-
-=head2 visible( graph [, entry ] )
-
-Returns true if the graph or line is visible.  C<graph> must be one of the graph names.  If C<entry> is given it
-should be a ref to the line's data structure, as stored in Sample.
-
-=cut
-
-sub sample {
+sub draw_lines {
     my $o = shift;
-    return $o->{sample};
+    out($o, 5, "Chart::draw_lines()");
+    out_indent(1);
+    
+    my $order = $lowest_int;
+    foreach my $gname (@{$o->{gpaperord}}) {
+	my $graph = $o->{gpapers}{$gname};
+	$o->reorder_lines($graph);
+	my $data_shown = 0;
+	foreach my $lname (@{$graph->{lineord}}) {
+	    my $line = $graph->{lines}{$lname};
+	    my $z = $line->order();
+	    if ($order < 0 and $z >= 0) {
+		if ($graph->{gtype} eq 'price') {
+		    $o->price_marks($graph);
+		} elsif ($graph->{gtype} eq 'volume') {
+		    $o->volume_marks($graph);
+		}
+		$data_shown = 1;
+		$order = 0;
+	    }
+	    $o->draw_line($graph, $line);
+	}
+	unless ($data_shown) {
+	    if ($graph->{gtype} eq 'price') {
+		$o->price_marks($graph);
+	    } elsif ($graph->{gtype} eq 'volume') {
+		$o->volume_marks($graph);
+	    }
+	}
+    }
+
+    out_indent(-1);
 }
 
-=head2 sample()
+sub price_marks {
+    my ($o, $g) = @_;
+    out($o, 5, "Chart::price_marks($g->{name})");
+    
+    my $pgp = $g->{pgp};
+    return unless $pgp;
+    my $sh = {
+	auto => 'none',
+	bgnd_outline => $o->{bgnd_outline},
+	point => $g->{points}, 
+    };
+    my $pstyle = new PostScript::Graph::Style( $sh );
+    $pstyle->background( $pgp->layout_background() );
+    $pstyle->write( $o->{file} );
+    my $d      = $o->{quotes};
+    my $open   = $d->line('open')->{data};
+    my $high   = $d->line('high')->{data};
+    my $low    = $d->line('low')->{data};
+    my $close  = $d->line('close')->{data};
+    my $count  = 0;
+    my $dates = $d->dates;
+    for (my $i = 0; $i <= $#$dates; $i++) {
+	my $x = $d->x_coord($i);
+	next unless $x >= 0;
+	my $psx = $pgp->px($x);
+	if (defined $open->[$i]) {
+	    my $oy = $pgp->py( $open->[$i] );
+	    my $hy = $pgp->py( $high->[$i] );
+	    my $ly = $pgp->py( $low->[$i] );
+	    my $cy = $pgp->py( $close->[$i] );
+	    $pgp->add_to_page("$psx $oy $ly $hy $cy ppshape\n");
+	    $count++;
+	}
+    }
+}
 
-Return the Finance::Shares::Sample holding the data for this chart.
+sub volume_marks {
+    my ($o, $g) = @_;
+    out($o, 5, "Chart::volume_marks($g->{name})");
+    
+    my $sh = {
+	auto => 'none',
+	bgnd_outline => $o->{bgnd_outline},
+	bar  => $g->{bars},
+    };
+    my $pgp = $g->{pgp};
+    return unless $pgp;
+    my $vstyle = new PostScript::Graph::Style( $sh );
+    $vstyle->background( $pgp->layout_background() );
+    $vstyle->write( $o->{file} );
+    my $d = $o->{quotes};
+    my $volume = $d->line('volume')->{data};
+    my $count = 0;
+    my $dates = $d->dates;
+    for (my $i = 0; $i <= $#$dates; $i++) {
+	my $x = $d->x_coord($i);
+	next unless $x >= 0;
+	my $y = $volume->[$i];
+	if (defined $y) {
+	    my @bb     = $pgp->vertical_bar_area($x * 2, $y);
+	    my $lwidth = $vstyle->bar_outer_width()/2;
+	    $bb[0] += $lwidth;
+	    $bb[1] += $lwidth;
+	    $bb[2] -= $lwidth;
+	    $bb[3] -= $lwidth;
+	    $bb[3] = $bb[1] if ($bb[3] < $bb[1]);
+	    $o->{file}->add_to_page( <<END_BAR );
+		$bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
+		$bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
+END_BAR
+	    $count++;
+	}
+    }
+}
 
-=cut
+sub reorder_lines {
+    my ($o, $graph) = @_;
 
-sub title {
+    my @ordering;
+    foreach my $lname (@{$graph->{lineord}}) {
+	my $line = $graph->{lines}{$lname};
+	push @ordering, [ $lname, $line->{order} ] unless $lname =~ /^data\//;
+    };
+    @{$graph->{lineord}} = map { $_->[0] } sort { $a->[1] <=> $b->[1] } @ordering;
+}
+
+sub draw_line {
+    my ($o, $graph, $line) = @_;
+    out($o, 5, "Chart::draw_line(" . $line->name . ')');
+
+    return unless $line->npoints;
+    my $pgp = $graph->{pgp};
+    return unless $pgp;
+    my $pgs = $line->{style};
+    return unless $line->{shown} and ref($pgs) eq 'PostScript::Graph::Style';
+
+    $pgs->background( $pgp->layout_background() );
+    $pgs->write( $o->{file} );
+
+    if ($pgs->use_bar) {
+	$o->construct_bars($pgp, $pgs, $line);
+    } else {
+	$o->construct_points($pgp, $pgs, $line);
+    }
+}
+
+sub construct_bars {
+    my ($o, $pgp, $pgs, $line) = @_;
+    
+    my $q = $o->{quotes};
+    my $d = $line->display;
+    my $dates = $q->dates;
+    for (my $i = 0; $i <= $#$dates; $i++) {
+	my $y = $d->[$i];
+	if (defined $y) {
+	    my $x = $q->x_coord($i);
+	    if (defined $x) {
+		next unless $x >= 0;
+		my @bb = $pgp->vertical_bar_area($x * 2, $y);
+		my $lwidth = $pgs->bar_outer_width()/2;
+		$bb[0] += $lwidth;
+		$bb[1] += $lwidth;
+		$bb[2] -= $lwidth;
+		$bb[3] -= $lwidth;
+		$o->{file}->add_to_page( <<END_BAR );
+		    $bb[0] $bb[1] $bb[2] $bb[3] bocolor bowidth drawbox
+		    $bb[0] $bb[1] $bb[2] $bb[3] bicolor bicolor biwidth fillbox
+END_BAR
+	    } else {
+		my $date = $q->idx_to_date($i);
+		logerr("UNKNOWN DATE: $date (y=$y) in line '" . $line->name . "'");
+	    }
+	}
+    }
+}
+
+sub construct_points {
+    my ($o, $pgp, $pgs, $line) = @_;
+    
+    my $q = $o->{quotes};
+    my $showgaps = defined($o->{show_breaks}) ? $o->{show_breaks} : 0;
+    my $points   = "";
+    my $npoints  = -1;
+    my $out_of_range = 0;
+    my $d        = $line->display;
+    my @sections;
+    my $dates = $q->dates;
+    for (my $i = 0; $i <= $#$dates; $i++) {
+	my $y = $d->[$i];
+	if (defined $y) {
+	    #warn "$i, y=$y";
+	    my $x = $q->x_coord($i);
+	    if (defined $x) {
+		next unless $x >= 0;
+		my $px = $pgp->px($x + 0.5);
+		my $py = $pgp->py($y);
+		if ($py >= $o->{pymin} and $py <= $o->{pymax}) {
+		    $points = "$px $py " . $points;
+		    $npoints += 2;
+		} else {
+		    $out_of_range++;
+		}
+	    } else {
+		my $date = $q->idx_to_date($i);
+		logerr("UNKNOWN DATE: $date (y=$y) in line '" . $line->name . "'");
+	    }
+	} elsif ($showgaps and $points) {
+	    push @sections, [ $points, $npoints ];
+	    $points = '';
+	    $npoints = -1;
+	}
+    }
+    push @sections, [ $points, $npoints ] if $showgaps and $points;
+    logerr("$out_of_range points out of range") if $out_of_range;
+
+    ## prepare code for points and lines
+    my $cmd;
+    CASE: {
+	if (    $pgs->use_point() and     $pgs->use_line()) {
+	    $cmd = "xyboth";
+	    last CASE;
+	}
+	if (    $pgs->use_point() and not $pgs->use_line()) {
+	    $cmd = "xypoints";
+	    last CASE;
+	}
+	if (not $pgs->use_point() and     $pgs->use_line()) {
+	    $cmd = "xyline";
+	    last CASE;
+	}
+	$cmd = "";
+    }
+
+    if ($showgaps) {
+	foreach my $section (@sections) {
+	    my ($points, $npoints) = @$section;
+	    $o->{file}->add_to_page( "[ $points ] $npoints $cmd\n" ) if ($cmd);
+	}
+    } else {
+	$o->{file}->add_to_page( "[ $points ] $npoints $cmd\n" ) if ($cmd);
+    }
+}
+
+sub reorder_keys {
     my $o = shift;
-    return $o->{prices}{layout}{heading} || '';
+    
+    my @ordering;
+    foreach my $ks (keys %{$o->{kstyles}}) {
+	my $line = $o->{kstyles}{$ks};
+	push @ordering, [ $ks, $line->{order} ];
+    };
+    @ordering = map { $_->[0] } sort { $a->[1] <=> $b->[1] } @ordering;
+    return \@ordering;
 }
 
-=head2 title()
+sub draw_keys {
+    my ($o, $order) = @_;
+    foreach my $ks (@$order) {
+	my $line = $o->{kstyles}{$ks};
+	my $pgs = $line->{style};
+	logerr("$pgs is not a Style"), next unless $pgs->isa('PostScript::Graph::Style');
+	my $g = $o->graph_for($line);
+	$pgs->background( $g->{pgp}->layout_background() );
+	$pgs->write( $o->{file} );
 
-Return the heading printed at the top of the chart.
-
-=cut
-
-sub page {
-    my ($o, $page) = @_;
-    my $old = $o->{page};
-    $o->{page} = $page if defined $page;
-    return $old;
+	if ($pgs->use_bar) {
+	    $o->key_bars($o->{pgk}, $pgs, $line);
+	} else {
+	    $o->key_points($o->{pgk}, $pgs, $line);
+	}
+    }
 }
 
-=head2 page( [id] )
+sub key_bars {
+    my ($o, $pgk, $pgs, $line) = @_;
+    $pgk->add_key_item( $line->{key}, <<END_KEY ) if defined $pgk;
+    8 dict begin
+	/cx kix0 kix1 add 2 div def
+	/cy kiy0 kiy1 add 2 div def
+	/dx kix1 kix0 sub 10 div def
+	/dy kiy1 kiy0 sub 4 div def
+	/x0 cx dx sub def
+	/x1 cx dx add def
+	/y0 cy dy sub def
+	/y1 cy dy add def
+	x0 y0 x1 y1 bocolor bowidth drawbox
+	x0 y0 x1 y1 bicolor bicolor biwidth fillbox
+    end
+END_KEY
+}
 
-Return the page identifier, if any.
+sub key_points {
+    my ($o, $pgk, $pgs, $line) = @_;
+    my ($keyouter, $keyinner, $keylines);
+    CASE: {
+	if (    $pgs->use_point() and     $pgs->use_line()) {
+	    $keyouter = "point_outer kpx kpy draw1point";
+	    $keylines = "[ kix0 kiy0 kix1 kiy1 ] 3 2 copy line_outer drawxyline line_inner drawxyline";
+	    $keyinner = "point_inner kpx kpy draw1point";
+	    last CASE;
+	}
+	if (    $pgs->use_point() and not $pgs->use_line()) {
+	    $keyouter = "point_outer kpx kpy draw1point";
+	    $keylines = "";
+	    $keyinner = "point_inner kpx kpy draw1point";
+	    last CASE;
+	}
+	if (not $pgs->use_point() and     $pgs->use_line()) {
+	    $keyouter = "";
+	    $keylines = "[ kix0 kiy0 kix1 kiy1 ] 3 2 copy line_outer drawxyline line_inner drawxyline";
+	    $keyinner = "";
+	    last CASE;
+	}
+	$keyouter = "";
+	$keylines = "";
+	$keyinner = "";
+    }
 
-If C<id> is given this replaces the returned value.
+    $pgk->add_key_item( $line->{key}, <<END_KEY ) if (defined $pgk);
+	2 dict begin
+	    /kpx kix0 kix1 add 2 div def
+	    /kpy kiy0 kiy1 add 2 div def
+	    $keyouter
+	    $keylines
+	    $keyinner
+	end
+END_KEY
+}
 
-=cut
+sub graph_range {
+    my ($o, $g) = @_;
+    out($o, 6, "graph_range");
+    $g->{visible} = not (defined($g->{percent}) and $g->{percent} == 0);
+
+    my $q = $o->{quotes};
+    if ($g->{gtype} eq 'price') {
+	$o->graph_line_range($g, $q->line('open') );
+	$o->graph_line_range($g, $q->line('high') );
+	$o->graph_line_range($g, $q->line('low') );
+	$o->graph_line_range($g, $q->line('close') );
+    } elsif ($g->{gtype} eq 'volume') {
+	$g->{gmin} = 0;
+	$o->graph_line_range($g, $q->line('volume') );
+	$g->{visible} = 0 unless $g->{gmax} > $lowest_int;
+    }
+
+    my $visible = $g->{visible};
+    foreach my $lname (@{$g->{lineord}}) {
+	my $l = $g->{lines}{$lname};
+	$g->{visible} = 1 if ($l->{shown} and $l->npoints);
+	$o->graph_line_range($g, $l) if $g->{visible} and not $l->for_scaling;
+    }
+    $o->graph_set_visible($g) if $visible != $g->{visible};
+}
+# Used by prepare_graphs() 
+# and Finance::Shares::Line::scale() to ensure gmin and gmax are valid
+
+sub graph_set_visible {
+    my ($o, $g) = @_;
+
+    $g->{percent} = 20 unless $g->{percent} and $g->{percent} > 20;
+    $g->{visible} = 1;
+}
+
+sub graph_set_range {
+    my ($o, $g) = @_;
+    out($o, 6, "Chart::graph_set_range($g->{name}) min=$g->{gmin}, max=$g->{gmax}");
+    unless ($g->{gmin} < $highest_int and $g->{gmax} > $lowest_int) {
+	$g->{gmin} = 0;
+	$g->{gmax} = 100;
+    }
+}
+
+sub graph_line_range {
+    my ($o, $g, $l) = @_;
+    $g->{gmin} = $l->{lmin} if $l->{lmin} < $g->{gmin};
+    $g->{gmax} = $l->{lmax} if $l->{lmax} > $g->{gmax};
+    out($o, 6, "Chart::graph_line_range($g->{name}, ", $l->name, ") min=$g->{gmin}, max=$g->{gmax}");
+}
+
+sub axis_margin {
+    my ($o, $gh) = @_;
+    my $frac = 0.05;
+    my $size = 5;
+    my $pgp = $gh->{pgp};
+    
+    $o->graph_set_range($gh);
+    if ($pgp) {
+	my $pmax = $pgp->py( $gh->{gmax} );
+	my $pmin = $pgp->py( $gh->{gmin} );
+	my $pmargin = $frac * ($pmax - $pmin);
+	$pmargin = ($pmargin > $size) ? $pmargin : $size;
+	return $pgp->ly( $pmargin );
+    } else {
+	return $frac * ($gh->{gmax} - $gh->{gmin});
+    }
+}
+# used by Finance::Shares::Line::value_range() to determine where 'min' and 'max' lines should go.
 
 =head1 CLASS METHODS
 
@@ -1319,10 +1628,12 @@ The PostScript code is a class method so that it may be available to other class
 The useful functions in the 'gstockdict' dictionary draw a stock chart mark and a close mark in
 either one or two colours.
 
-   make_stock
-   make_stock2
-   make_close
-   make_close2
+    make_candle
+    make_candle2
+    make_stock
+    make_stock2
+    make_close
+    make_close2
 
 The all consume 5 numbers from the stack (even if they aren't all used):
 
@@ -1504,59 +1815,48 @@ name.  It should take 5 parameters similar to the code for C<shape => 'stock'> w
     
 =cut
 
-=head1 EXPORTED FUNCTIONS
-
-=cut
-
-sub deep_copy {
-    my ($orig) = @_;
-    return undef unless defined $orig;
-    my $ref = ref $orig;
-    my $copy;
-
-    if ($ref eq 'HASH') {
-	$copy = {};
-	foreach my $key (keys %$orig) {
-	    my $value = $orig->{$key};
-	    $copy->{$key} = deep_copy($value);
-	}
-    } elsif ($ref eq 'ARRAY') {
-	$copy = [];
-	foreach my $value (@$orig) {
-	    push @$copy, deep_copy($value);
-	}
-    } else {
-	$copy = $orig;
-    }
-
-    return $copy;
-}
-
-=head2 deep_copy( var )
-
-C<var> is returned unless it is, or contains, a hash ref or  an array ref.  These are copied recursively and the
-copy is returned.
-
-=cut
-
 =head1 BUGS
 
-The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
-Please do let me know when you suspect something isn't right.  A short script working from a CSV file
-demonstrating the problem would be very helpful.
+Please do let me know when you suspect something isn't right.  A short script
+working from a CSV file demonstrating the problem would be very helpful.
 
 =head1 AUTHOR
 
 Chris Willmot, chris@willmot.org.uk
 
+=head1 LICENCE
+
+Copyright (c) 2003 Christopher P Willmot
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+A copy can be found at L<http://www.gnu.org/copyleft/gpl.html>
+
 =head1 SEE ALSO
 
-L<Finance::Shares::Sample>,
-L<PostScript::Graph::Style> and
-L<Finance::Shares::Model>.
+L<Finance::Shares::Overview> provides an introduction to the suite, and
+L<fsmodel> is the principal script.
 
-There is also an introduction, L<Finance::Shares::Overview> and a tutorial beginning with
-L<Finance::Shares::Lesson1>.
+Modules involved in processing the model include L<Finance::Shares::Model>,
+L<Finance::Shares::MySQL>, L<Finance::Shares::Chart>.
+Chart and file details may be found in L<PostScript::File>,
+L<PostScript::Graph::Paper>, L<PostScript::Graph::Key>,
+L<PostScript::Graph::Style>.
+
+Functions are invoked from their own modules, all with lower-case names such
+as L<Finance::Shares::moving_average>.  The nitty-gritty on how to write each
+line specification are found there.
+
+The quote data is stored in a L<Finance::Shares::data> object.
+For information on writing additional line functions see
+L<Finance::Share::Function> and L<Finance::Share::Line>.
+Also, L<Finance::Share::test> covers writing your own tests.
 
 =cut
 

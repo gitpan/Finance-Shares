@@ -1,0 +1,227 @@
+   canonical_names(compare, retail/MRW.L/default)
+     found 'retail/MRW.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, retail/MRW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, retail/MRW.L/default)
+       found 'retail/MRW.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, retail/MRW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(retail/MRW.L/default/one, retail/MRW.L/default)
+       processing 'retail/MRW.L/default/one/'
+       samples: retail
+         match_stock(retail, MRW.L, )
+         stocks=MRW.L, tag=_stock0, given=MRW.L
+         stocks: MRW.L
+         dates: default
+       matches: retail/MRW.L/default/one
+       canonical_names(retail/*/default/one, summary/<none>/default)
+         processing 'retail/*/default/one/'
+         samples: retail
+           match_stock(retail, .*, <none>)
+           stocks=.*, tag=_stock0, given=.*
+           stocks: MRW.L, SBRY.L, SFW.L, TSCO.L
+           dates: default
+         matches: retail/MRW.L/default/one, retail/SBRY.L/default/one, retail/SFW.L/default/one, retail/TSCO.L/default/one
+       canonical_names(retail/MRW.L/default/one, summary/<none>/default)
+         processing 'retail/MRW.L/default/one/'
+         samples: retail
+           match_stock(retail, MRW.L, )
+           stocks=MRW.L, tag=_stock0, given=MRW.L
+           stocks: MRW.L
+           dates: default
+         matches: retail/MRW.L/default/one
+       canonical_names(retail/SBRY.L/default/one, summary/<none>/default)
+         processing 'retail/SBRY.L/default/one/'
+         samples: retail
+           match_stock(retail, SBRY.L, )
+           stocks=SBRY.L, tag=_stock0, given=SBRY.L
+           stocks: SBRY.L
+           dates: default
+         matches: retail/SBRY.L/default/one
+       canonical_names(retail/SFW.L/default/one, summary/<none>/default)
+         processing 'retail/SFW.L/default/one/'
+         samples: retail
+           match_stock(retail, SFW.L, )
+           stocks=SFW.L, tag=_stock0, given=SFW.L
+           stocks: SFW.L
+           dates: default
+         matches: retail/SFW.L/default/one
+       canonical_names(retail/TSCO.L/default/one, summary/<none>/default)
+         processing 'retail/TSCO.L/default/one/'
+         samples: retail
+           match_stock(retail, TSCO.L, )
+           stocks=TSCO.L, tag=_stock0, given=TSCO.L
+           stocks: TSCO.L
+           dates: default
+         matches: retail/TSCO.L/default/one
+         canonical_names(data/close, retail/MRW.L/default)
+           found 'retail/MRW.L/default/data/close' (relative)
+         canonical_names(retail/MRW.L/default/data/close, retail/MRW.L/default)
+           processing 'retail/MRW.L/default/data/close'
+           samples: retail
+             match_stock(retail, MRW.L, )
+             stocks=MRW.L, tag=_stock0, given=MRW.L
+             stocks: MRW.L
+             dates: default
+           matches: retail/MRW.L/default/data/close
+         canonical_names(data/close, retail/SBRY.L/default)
+           found 'retail/SBRY.L/default/data/close' (relative)
+         canonical_names(retail/SBRY.L/default/data/close, retail/SBRY.L/default)
+           processing 'retail/SBRY.L/default/data/close'
+           samples: retail
+             match_stock(retail, SBRY.L, )
+             stocks=SBRY.L, tag=_stock0, given=SBRY.L
+             stocks: SBRY.L
+             dates: default
+           matches: retail/SBRY.L/default/data/close
+         canonical_names(data/close, retail/SFW.L/default)
+           found 'retail/SFW.L/default/data/close' (relative)
+         canonical_names(retail/SFW.L/default/data/close, retail/SFW.L/default)
+           processing 'retail/SFW.L/default/data/close'
+           samples: retail
+             match_stock(retail, SFW.L, )
+             stocks=SFW.L, tag=_stock0, given=SFW.L
+             stocks: SFW.L
+             dates: default
+           matches: retail/SFW.L/default/data/close
+         canonical_names(data/close, retail/TSCO.L/default)
+           found 'retail/TSCO.L/default/data/close' (relative)
+         canonical_names(retail/TSCO.L/default/data/close, retail/TSCO.L/default)
+           processing 'retail/TSCO.L/default/data/close'
+           samples: retail
+             match_stock(retail, TSCO.L, )
+             stocks=TSCO.L, tag=_stock0, given=TSCO.L
+             stocks: TSCO.L
+             dates: default
+           matches: retail/TSCO.L/default/data/close
+   canonical_names(compare, retail/SBRY.L/default)
+     found 'retail/SBRY.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, retail/SBRY.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, retail/SBRY.L/default)
+       found 'retail/SBRY.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, retail/SBRY.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(retail/SBRY.L/default/one, retail/SBRY.L/default)
+       processing 'retail/SBRY.L/default/one/'
+       samples: retail
+         match_stock(retail, SBRY.L, )
+         stocks=SBRY.L, tag=_stock0, given=SBRY.L
+         stocks: SBRY.L
+         dates: default
+       matches: retail/SBRY.L/default/one
+   canonical_names(compare, retail/SFW.L/default)
+     found 'retail/SFW.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, retail/SFW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, retail/SFW.L/default)
+       found 'retail/SFW.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, retail/SFW.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(retail/SFW.L/default/one, retail/SFW.L/default)
+       processing 'retail/SFW.L/default/one/'
+       samples: retail
+         match_stock(retail, SFW.L, )
+         stocks=SFW.L, tag=_stock0, given=SFW.L
+         stocks: SFW.L
+         dates: default
+       matches: retail/SFW.L/default/one
+   canonical_names(compare, retail/TSCO.L/default)
+     found 'retail/TSCO.L/default/compare' (relative)
+     canonical_names(summary/<none>/default/average, retail/TSCO.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(one, retail/TSCO.L/default)
+       found 'retail/TSCO.L/default/one' (relative)
+     canonical_names(summary/<none>/default/average, retail/TSCO.L/default)
+       processing 'summary/<none>/default/average/'
+       samples: summary
+         match_stock(summary, <none>, )
+         stocks=<none>, tag=<none>, given=<none>
+         stocks: <none>
+         dates: default
+       matches: summary/<none>/default/average
+     canonical_names(retail/TSCO.L/default/one, retail/TSCO.L/default)
+       processing 'retail/TSCO.L/default/one/'
+       samples: retail
+         match_stock(retail, TSCO.L, )
+         stocks=TSCO.L, tag=_stock0, given=TSCO.L
+         stocks: TSCO.L
+         dates: default
+       matches: retail/TSCO.L/default/one
+   canonical_names(average, summary/<none>/default)
+     found 'summary/<none>/default/average' (relative)
+Requesting MRW.L from 2003-04-01 to 2003-06-26
+Requesting SBRY.L from 2003-04-01 to 2003-06-26
+Requesting SFW.L from 2003-04-01 to 2003-06-26
+Requesting TSCO.L from 2003-04-01 to 2003-06-26
+Known functions:
+    retail/MRW.L/default/compare => Finance::Shares::compare=HASH(0x885da9c)
+    retail/MRW.L/default/data => Finance::Shares::data=HASH(0x882562c)
+    retail/MRW.L/default/one => Finance::Shares::moving_average=HASH(0x8863574)
+    retail/SBRY.L/default/compare => Finance::Shares::compare=HASH(0x8867dc0)
+    retail/SBRY.L/default/data => Finance::Shares::data=HASH(0x882b5f4)
+    retail/SBRY.L/default/one => Finance::Shares::moving_average=HASH(0x8865d18)
+    retail/SFW.L/default/compare => Finance::Shares::compare=HASH(0x886926c)
+    retail/SFW.L/default/data => Finance::Shares::data=HASH(0x882ec4c)
+    retail/SFW.L/default/one => Finance::Shares::moving_average=HASH(0x8865fdc)
+    retail/TSCO.L/default/compare => Finance::Shares::compare=HASH(0x886ac74)
+    retail/TSCO.L/default/data => Finance::Shares::data=HASH(0x8831c78)
+    retail/TSCO.L/default/one => Finance::Shares::moving_average=HASH(0x88671fc)
+    summary/<none>/default/average => Finance::Shares::multiline_mean=HASH(0x88610d4)
+    summary/<none>/default/data => Finance::Shares::data=HASH(0x8834cbc)
+Known lines:
+    retail/MRW.L/default/compare/retail_MRW.L_default_one => Finance::Shares::Line=HASH(0x883f104)
+    retail/MRW.L/default/data/close => Finance::Shares::Line=HASH(0x88290ac)
+    retail/MRW.L/default/one/mov => Finance::Shares::Line=HASH(0x8864354)
+    retail/SBRY.L/default/compare/retail_SBRY.L_default_one => Finance::Shares::Line=HASH(0x8869254)
+    retail/SBRY.L/default/data/close => Finance::Shares::Line=HASH(0x882cffc)
+    retail/SBRY.L/default/one/mov => Finance::Shares::Line=HASH(0x8865e5c)
+    retail/SFW.L/default/compare/retail_SFW.L_default_one => Finance::Shares::Line=HASH(0x886ac5c)
+    retail/SFW.L/default/data/close => Finance::Shares::Line=HASH(0x8830010)
+    retail/SFW.L/default/one/mov => Finance::Shares::Line=HASH(0x886707c)
+    retail/TSCO.L/default/compare/retail_TSCO.L_default_one => Finance::Shares::Line=HASH(0x886b834)
+    retail/TSCO.L/default/data/close => Finance::Shares::Line=HASH(0x8833024)
+    retail/TSCO.L/default/one/mov => Finance::Shares::Line=HASH(0x8867340)
+    summary/<none>/default/average/mean => Finance::Shares::Line=HASH(0x8862344)

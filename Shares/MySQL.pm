@@ -1,9 +1,10 @@
 package Finance::Shares::MySQL;
-our $VERSION = 1.05;
+our $VERSION = 1.06;
 use strict;
 use warnings;
 use DBIx::Namespace 0.03;
 use LWP::UserAgent;
+use Finance::Shares::Support qw(show);
 
 # Prototypes of local functions only
  sub search_array ($$;$);
@@ -219,6 +220,7 @@ sub fetch {
     $f{symbol} = uc($f{symbol});
     $f{symbol} =~ m/^(\w+)[^\w]?(\w*)$/;
     $f{name}     = $1         unless $f{name};
+    $f{name}     = $f{symbol} unless $f{name};
     $f{exchange} = $2         unless $f{exchange};
     $f{exchange} = 'US'       unless $f{exchange};
     $o->{exch}   = $f{exchange} if $f{exchange};
@@ -258,18 +260,24 @@ sub fetch {
 	    }
 	};
 	if (not $last or $@) {
-	} else {
+	    out($o, 3, "No data in table $table");
 	}
     }
     
     my @rows;
     if ($o->{mode} eq 'offline') {
-	my $cols = 'Qdate, Open, High, Low, Close, Volume';
+	my $cols = 'qdate, open, high, low, close, volume';
 	my $query = 'qdate >= ? and qdate <= ? order by qdate';
 	@rows = $o->sql_select("$cols from $table where $query", $o->{start}, $o->{end});
     } else {
 	undef $table if $o->{mode} eq 'online';
-	@rows = $o->stock_fetch($f{symbol}, $o->{start}, $o->{end}, $table);
+	eval {
+	    @rows = $o->stock_fetch($f{symbol}, $o->{start}, $o->{end}, $table);
+	};
+	if ($@) {
+	    chomp $@;
+	    out($o, 1, "    '$f{symbol}' failed: $@") if $@;
+	}
     }
     return @rows;
 }
@@ -448,7 +456,7 @@ sub start_date {
     return $o->{start} || '';
 }
 
-=head2 start_date()
+=head2 start_date( )
 
 Returns the start date used by fetch().
 
@@ -459,7 +467,7 @@ sub end_date {
     return $o->{end} || '';
 }
 
-=head2 end_date()
+=head2 end_date( )
 
 Returns the end date used by fetch().
 
@@ -500,6 +508,7 @@ not have been created on the way.
 
 sub stock_fetch {
     my ($o, $symbol, $start, $end, $table) = @_;
+    $o->out(3, "stock_fetch($symbol, $start, $end, $table)");
     die "No stock code\n" unless $symbol;
     die "No start date\n" unless $start;
     die "No end date\n"   unless $end;
@@ -539,7 +548,7 @@ sub stock_fetch {
 		$o->out(2, "    $symbol from $sdstr to $edstr requested");
 		my $res = $o->{ua}->request($req);
 		if (not $res->is_success) {
-		    if ($o->{verbose} >=2) {
+		    if ($o->{verbose} >= 2) {
 			$o->out(2, "    Unsuccessful request:\n\t\"$reqfile\"");
 		    } else {
 			$o->out(1, "    $symbol from $sdstr to $edstr failed");
@@ -719,6 +728,7 @@ sub yahoo {
     $url .= ("?a=" . ($month-1) . "&b=" . $day . "&c=" . $year);
     ($year, $month, $day) = $o->ymd_from_days( $end_day );
     $url .= ("&d=" . ($month-1) . "&e=" . $day . "&f=" . $year . "&s=$symbol");
+    $url .= '&g=d';
     return $url;
 }
 # $block_end = end_of_block( $block_start, $max_end )

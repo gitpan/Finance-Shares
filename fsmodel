@@ -1,0 +1,298 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use Log::Agent;
+require Log::Agent::Driver::File;
+use PostScript::File qw(check_file);
+use Finance::Shares::Model    1.00;
+use Finance::Shares::Support  1.00 qw(
+	add_show_objects show_addresses 
+	show_indent show_seperator
+	show_deep check_filesize
+	deep_copy
+    );
+
+### Debugging
+add_show_objects (
+	#'Finance::Shares::Model',
+	#'Finance::Shares::MySQL',
+	#'Finance::Shares::Chart',
+	'Finance::Shares::Line',
+	#'Finance::Shares::data',
+	#'Finance::Shares::moving_average',
+	#'Finance::Shares::gt',
+	#'Finance::Shares::value',
+	'Finance::Shares::compare',
+    );
+show_addresses(1);
+show_indent('.   ', '\.   ');
+
+our $help;
+our $config   = '~/.fs/default.conf';
+our $dir      = '';
+our $stocks   = '';
+our $model    = '';
+our $filename = '';
+our $start    = '';
+our $end      = '';
+our $by       = '';
+our $csv      = '';
+our $nocharts = 0;
+our $verbose  = '-1';
+our $debug    = 0;
+
+GetOptions(
+    'help|h'      => \$help,
+    'config|c=s'  => \$config,
+    'model|m=s'   => \$model,
+    'stocks|s=s'  => \$stocks,
+    'file|f=s'    => \$filename,
+    'dir|d=s'     => \$dir,
+    'start|t=s'   => \$start,
+    'end|e=s'     => \$end,
+    'by|b=s'      => \$by,
+    'csv|w=s'     => \$csv,
+    'nocharts|n'  => \$nocharts,
+    'debug|g=s'	  => \$debug,
+    'verbose|v=s' => \$verbose,
+) or $help = 1;
+my $config_ok = $config ? -e check_file($config) : 0;
+pod2usage(-verbose => 1) if $help;
+#unless ($config_ok or $model) {
+#    print "\nPlease specify either a model or a config file.\n\n";
+#    pod2usage(-verbose => 1); 
+#}
+
+$model =~ s/\..*$//;
+$filename =~ s/\..*$//;
+
+### Log::Agent config
+if ($debug & 1) {
+    my $logfile = "$model.log";
+    warn "logging to '$logfile', verbose level $verbose\n" if abs($verbose);
+    my $driver = Log::Agent::Driver::File->make(
+	-file => ">$logfile",
+	-stampfmt => 'none',
+	-magic_open => 1,
+    );
+
+    logconfig(-driver => $driver); 
+} else {
+    warn "default logging, verbose level $verbose\n" if $verbose > 0;
+    logconfig();
+}
+
+### Run model
+my $mdlfile = "$model.mdl";
+my @res;
+if (-e $mdlfile) {
+    @res = do $mdlfile;
+    die "Cannot read '$mdlfile' : $!\n" if $!;
+    die "Error reading '$mdlfile' : $@\n" if $@;
+}
+
+my @pre;
+push @pre, config    => $config                if $config_ok;
+push @res, verbose   => $verbose               if $verbose > -1;
+push @res, filename  => $filename              if $filename;
+push @res, start     => $start                 if $start;
+push @res, end       => $end                   if $end;
+push @res, by        => $by                    if $by;
+push @res, directory => $dir                   if $dir;
+push @res, write_csv => $csv                   if $csv;
+push @res, no_charts => $nocharts;
+push @res, stocks    => [ default => $stocks ] if $stocks;
+push @res, stocks    => [ default => [@ARGV] ] if @ARGV;
+
+my $fsm = new Finance::Shares::Model( \@pre, @res );
+my ($nlines, $npages, @files) = $fsm->build();
+warn ("output to ", join(', ', map { "'$_'" } @files), "\n") if @files and abs($verbose);
+
+### Debugging dump
+if ($debug & 2) {
+    my $datafile = $model . '.data';
+    open(FILE, '>', $datafile) or die "Unable to open $datafile for writing : $!";
+    print FILE "model (==$fsm==)...\n", show_deep($fsm);
+    close FILE;
+    warn "saved data to '$datafile'\n" if abs($verbose);
+}
+
+__END__
+
+=head1 NAME
+
+fsmodel - Run a Finance::Shares::Model
+
+=head1 SYNOPSIS
+
+    fs_model --help
+    fs_model [ options ] [ stocks ]
+
+'options' can be any of the following.
+
+  -c <file> | --config=<file>  File holding common spec
+  -s <file> | --stocks=<file>  File listing stock codes
+  -m <file> | --model=<file>   Model specification
+  -f <file> | --file=<file>    Default output file name
+  
+  -t <date> | --start=<date>   Start date as 'YYYY-MM-DD'
+  -e <date> | --end=<date>     End date as 'YYYY-MM-DD'
+  -b <itvl> | --by=<interval>  quotes/weekdays/days/weeks/months  
+  
+  -d <dir>  | --dir=<dir>      Optional directory for files
+  -w <file> | --csv=<file>     Write quotes to CSV file
+  -n        | --nocharts       Don't output any charts
+  
+  -v <num>  | --verbose=<num>  0=none, 1,2=normal, 3+=debug
+  -g <num>  | --debug=<num>    1=log, 2=data, 3=both
+
+See the Finance::Shares::Model manpage for details of the
+config/model file format. There should at least be a 'source'.
+
+'stocks' are a list of Yahoo stock symbols such as
+    MSFT BA.L RENA.PA
+
+
+=head1 DESCRIPTION
+
+This runs a Finance::Shares::Model.  The specification is placed in a file and run against
+stocks given on the command line.  The following options are recognized.
+
+=over 4
+
+=item --config=<filename>
+
+Part of the model specication may be stored in a configuration file.  This would
+typically hold C<source>, C<file> or C<chart> settings.  See
+L<Finance::Shares::Model> for details.  (Default: '~/.fs/default.conf')
+
+=item --model=<filename>
+
+This file is evaluated using the Perl B<do> command. It should return list of
+keys and values.  See L<Finance::Shares::Model> for details.
+
+=item --stocks=<filename>
+
+Stock symbols may be declared in any of three ways.  They can be embedded in the specification as part of
+a B<samples> resource, a list of them can be given on the command line, or they can be listed in the file named
+here.
+
+The format of the file is fairly flexible.  Stock symbols may be in upper or lower case, seperated by spaces,
+commas or on their own lines.  Anything after a '#' is ignored, as are blank lines.
+
+=item --file=<filename>
+
+If only one file is being used, this setting overrides the often
+unsuitable name C<default>.  There is no need to include a '.ps' extension.
+
+=item --start=<date>
+
+This provides a default start day for the default date, and should be in the
+form 'YYYY-MM-DD'.  (Defaults to 60 days before the end date)
+
+=item --end=<date>
+
+This provides a default end day for the default date, and should be in the
+form 'YYYY-MM-DD'.  (Defaults to today's date)
+
+=item --by=<interval>
+
+This provides a default end day for the default date.  It should be one of the
+following.  (Default: 'weekdays')
+
+    quotes	weekdays
+    days	weeks
+    months
+
+=item --dir=<directory>
+
+If a directory is specified here, it is used for C<stocks>, C<model> and C<file>
+if none of those have a directory component in the name.  (Defaults to the
+current directory)
+
+=item --csv=<filename>
+
+Write the quote data to the named file in CSV format.  If more than one sample is used (or <filename> is '1'),
+a suitable name is generated for each sample fetched.
+    
+=item --nocharts
+
+Suppress chart output.  Useful when only fetching CSV data, for example.
+
+=item --verbose=<num>
+
+Gives some control over the number of messages.  C<debug> controls where they go. (Default: 1)
+
+    0	Only fatal messages
+    1	Minimal
+    2	Report each process
+    3+	Debugging
+
+=item --debug=<num>
+
+Determines where the debug output goes. '1' routes logging to a file named <model>.log.  '2' dumps internal data
+to  the file <model>.data.  '3' does both.  (Default: 0)
+
+=back
+
+=head2 Examples
+
+These all assume a configuration file, F<~/.fs/default.conf> has the following
+entry.
+
+    source => {
+	user     => 'test',
+	password => 'test',
+	database => 'test',
+    },
+
+The MySQL database must have been set up as described in
+L<Finance::Shares::Overview/Preparation>.   And of course internet access is
+required for fetching the quotes.
+
+=head3 The simplest possible
+
+Fetch London quotes for Legal & General over the last 60 days, showing
+them on a graph saved as F<default.ps>.
+
+    fsmodel LGEN.L
+
+=head3 More direct detail
+
+Microsoft and Hewlett Packard quotes for the year 2000, shown as weekly data on
+a chart called F<comp.ps>.  (As one command line...)
+
+    fsmodel --start='2000-01-01' 
+            --end='2000-12-31'
+	    --by='weeks'
+	    --file='comp.ps'
+	    MSFT HPQ
+
+=head3 Using a model
+
+This assumes F<oversold.mdl> holds details of which lines are to be shown,
+how the charts should appear and which dates we are interested in.  F<banks>
+should be a file listing the stock codes to be studied.
+
+    fsmodel --model='oversold.mdl'
+            --stocks='banks'
+    
+=head1 BUGS
+
+Please do let me know when you suspect something isn't right.  A short script working from a CSV file
+demonstrating the problem would be very helpful.
+
+=head1 AUTHOR
+
+Chris Willmot, chris@willmot.org.uk
+
+=head1 SEE ALSO
+
+L<Finance::Shares::Model>,
+L<Finance::Shares::MySQL>,
+L<Finance::Shares::Chart>.
+
+=cut
+

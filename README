@@ -1,23 +1,47 @@
-Finance::Shares 0.91
-====================
+Finance::Shares::Model version 1
+================================
 
-This collection of modules provides a toolkit for developing stock market
-strategies.  There is an introduction, Finance::Shares::Overview and a tutorial
-introducing the modules, starting with Finance::Shares::Lesson1.
+     *********************************************************************
+     *********************************************************************
+     **									**
+     **   WARNING: The version number (1) merely indicates a new major  **
+     **   version since v0.91.  Most of the code has been completely    **
+     **   re-written with very different aims and internal structures.  **
+     **   Therefore,							**
+     **									**
+     **	    If it works, it is a suprise;				**
+     **	    any stability is a bonus.					**
+     **									**
+     **   This version will NOT work with Finance::Share::CGI or with   **
+     **   any of the scripts or files used for version 0.		**
+     **									**
+     *********************************************************************
+     *********************************************************************
+ 
 
-As indicated by the version number, this suite is near a major version change.
-Most development work now is on version 1.
+PREPARATION
+===========
 
+It is assumed you have an internet connection.  A package that fetches quotes
+from !Yahoo won't be much use to you without one.  You will also need mysql.
 
-INSTALLATION
-============
+Installation should work without mysql being set up because the tests will just
+be skipped.  If you wish to try out the software, you will have to set up your
+mysql server anyway, so why not do it now?
 
-To install this module type the following:
+To set up the necessary mysql permissions, as root, log on to mysql and give any
+password requested (just press return if you haven't set one up):
 
-    perl Makefile.PL
-    make
-    make test
-    make install
+    root@here# mysql -u root -p
+    Password:
+
+Within B<mysql> declare that user 'test' is allowed to access the 'test'
+database using the password 'test'.  This is what the tests expect.
+
+    mysql> grant all privileges on "test".* to "test"
+	   identified by "test";
+
+You might like to add a real user while your at it.
 
 
 DEPENDENCIES
@@ -31,47 +55,57 @@ They can all be found on CPAN (http://www.cpan.org)
     Date::Calc
     Text::CSV_XS
     LWP::UserAgent
-    DBIx::Namespace   0.03
-    PostScript::File  1.00
-    PostScript::Graph 1.00
+    DBIx::Namespace   0.04
+    PostScript::File  1.01
+    PostScript::Graph 1.01
+
+
+INSTALLATION
+============
+
+If you have set up the mysql test database, please make sure an internet
+connection is available as some of the tests will fetch quotes.
+
+To install this module type the following:
+
+    perl Makefile.PL
+    make
+    make test
+    make install
 
 
 ADDITIONAL FILES
 ================
 
-A number of support scripts are provided although only fs_model and fs_fetch are
-installed.
+This is the main script in this package and the only one installed to your
+system.  
 
-fs_model
-    This is the main script in this package and the only one installed to your
-    system.  By setting up a suitable specifications file, any number of stocks
+fsmodel
+    By setting up a suitable specifications file, any number of stocks
     can be put through the same treatment.  The resulting charts can be stored
     as a single PostScript file or as individual files.  It has its own man
-    page, but see also Finance::Shares::Model.  Try:
+    page, but see also Finance::S0::Model.
     
-	man fs_model
-	fs_model --help
-	fs_model --model=model/multiple
-	fs_model --model=model/minimal --codes=stock/misc3
-
-fs_fetch
-    A script to fetch quotes from the internet.  It assumes the mysql database
-    has been set up correctly.  See Finance::Shares::MySQL.  Try:
-
-	fs_fetch --help
-	fs_fetch --start '2003-01-01' MSFT HPQ
-
-    Note that the start and end dates now have useful defaults (which also apply
-    to fs_model and fs_fetch_csv).  'end' defaults to today.  'start' defaults
-    to the day after the last date in the database, or fetches the last few
-    days.
-
-fs_fetch_csv
-    This also fetches quotes from the internet, but it can also fetch cached
-    quotes and save them as a CSV file.  Try:
+    Examples
     
-	fs_fetch_csv --help
-	fs_fetch_csv --stocks=stock/misc3
+	man fsmodel
+	fsmodel --help
+
+    [Assuming:
+    (a)	mysql has been set up as in PREPARATION above;
+    (b)	there is an open internet connection;
+    (c)	'models/default.conf' has been copied to '~/.fs/default.conf;
+    then these commands may be given from the distribution top level directory,
+    producing *.ps files as their output.]
+
+	fsmodel --model=models/greater MSFT
+	fsmodel --model=models/less --file=less GSK.L AZN.L
+	fsmodel -m models/compare -s stocks/FTSE-media -f media
+	fsmodel -m models/convergence -s stocks/FTSE-mining -v 3
+
+
+These two utilities are included as they support low level access to the mysql
+database.  They are not installed; copy them to a bin directory if required.
 
 fs_list_tables
     Shows the mapping between DBIx::Namespace names and their underlying mysql
@@ -88,22 +122,16 @@ fs_drop_table
 
 	fs_drop_table Known::Family::Table
 
-[fs_reset_size has been dropped - running the test twice resets the file
-size error.]
-
-TestFuncs.pm
-    This module is only used by the t/*.t tests.
-
 
 COPYRIGHT AND LICENCE
 =====================
 
-Copyright (C) 2002 Christopher P Willmot.  All rights reserved.
+Copyright (C) 2002, 2003 Christopher P Willmot.  All rights reserved.
 
 This work is published under the same terms as Perl itself, which may be found
 at http://www.perl.org.  
 
 There is no warranty whatsoever.  Use at your own risk.  Just because it is here
-and is documented does not mean that it is fit for any purpose implied by the
-code or accompanying documentation.  
+and is documented does not mean that any part of this package is fit for any
+purpose implied by the code or accompanying documentation.  
 

@@ -1,0 +1,38 @@
+# Compare stocks on the command line with the FTSE 100
+
+use Finance::Shares::compare;
+
+chart => {
+    graphs => [
+	price => {
+	    gtype => 'price',
+	    percent => 30,
+	},
+	volume => {
+	    gtype => 'volume',
+	    percent => 0,
+	},
+	'Comparing closing price' => {
+	    gtype => 'analysis',
+	    percent => 70,
+	},
+    ],
+},
+
+lines => [
+    comp => {
+	function => 'compare',
+	lines    => ['ftse/^FTSE/default/data/close', 'default/.*/default/data/close'],
+    },
+],
+
+samples => [
+    default => {
+	chart => '<none>',
+    },
+    ftse => {
+	line => 'comp',
+	stock => '^FTSE',
+    },
+],
+

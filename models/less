@@ -1,0 +1,31 @@
+# Model Specification for Finance::Shares::Model version 1.00
+#
+# Simulating the 'less_than' module using a test.
+
+lines => [
+    result => {
+	function => 'mark',
+	gtype    => 'level',
+	style    => {
+	    line => {
+		width => 2,
+	    },
+	},
+    },
+],
+
+tests => <<'END'
+    if (defined $close) {
+	if ($close > $open) {
+	    mark($result, 100);
+	} else {
+	    mark($result, 0);
+	}
+    }
+END
+,
+
+sample => {
+    test => 'default',
+},
+

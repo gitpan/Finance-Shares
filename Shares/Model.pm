@@ -1,59 +1,1483 @@
 package Finance::Shares::Model;
-our $VERSION = 0.16;
+our $VERSION = 1.00;
 use strict;
 use warnings;
-use PostScript::File	     1.00 qw(check_file);
-use Finance::Shares::Sample  0.14 qw(line_id call_function %function);
-use Finance::Shares::Chart   0.17 qw(deep_copy);
+use Log::Agent;
+use PostScript::File 1.00 qw(check_file);
+use Finance::Shares::Support qw(
+    $number_regex
+    unique_name
+    today_as_string check_dates is_date
+    read_config deep_copy extract_list name_join name_split
+    out out_indent show show_deep
+);
+use Finance::Shares::Chart;
+use Finance::Shares::MySQL;
+use Finance::Shares::data;
+use Finance::Shares::value;
+use Finance::Shares::test;
+use Finance::Shares::mark;
 
-our %testfunc;
-$testfunc{gt} = \&test_gt;
-$testfunc{lt} = \&test_lt;
-$testfunc{ge} = \&test_ge;
-$testfunc{le} = \&test_le;
-$testfunc{eq} = \&test_eq;
-$testfunc{ne} = \&test_ne;
-$testfunc{min} = \&test_min;
-$testfunc{max} = \&test_max;
-$testfunc{diff} = \&test_diff;
-$testfunc{sum} = \&test_sum;
-$testfunc{and} = \&test_and;
-$testfunc{or} = \&test_or;
-$testfunc{not} = \&test_not;
-$testfunc{test} = \&test_test;
+our %data_lines = qw(open 1 high 1 low 1 close 1 volume 1);
 
-our %testpre;
-$testpre{min} = 'lowest of';
-$testpre{max} = 'highest of';
-$testpre{not} = 'not';
-$testpre{test} = 'test';
+sub new {
+    my $class = shift;
+    my $argv  = shift || [];
+    my %argh  = @$argv;
 
-our %testname;
-$testname{gt} = 'above';
-$testname{lt} = 'below';
-$testname{ge} = 'above or touching';
-$testname{le} = 'below or touching';
-$testname{eq} = 'same as';
-$testname{ne} = 'different from';
-$testname{min} = 'and';
-$testname{max} = 'and';
-$testname{diff} = 'minus';
-$testname{sum} = 'plus';
-$testname{and} = 'and';
-$testname{or} = 'or';
+    my $o = {
+	## Input
+	# given or defaults
+	
+	config   => $argh{config},
+	verbose  => $argh{verbose} || 1,
+	filename => '',
+	null     => '<none>',
 
-our %sigfunc;
-$sigfunc{mark}         = \&signal_mark;
-$sigfunc{mark_buy}     = \&signal_mark_buy;
-$sigfunc{mark_sell}    = \&signal_mark_sell;
-$sigfunc{print}        = \&signal_print;
-$sigfunc{print_values} = \&signal_print_values;
-$sigfunc{custom}       = \&signal_custom;
-$sigfunc{buy}    = \&signal_mark_buy;
-$sigfunc{sell}   = \&signal_mark_sell;
-$sigfunc{values} = \&signal_print_values;
+	# user specification
+	sources => [],
+	stocks  => [],
+	dates   => [],
+	files   => [],
+	charts  => [],
+	groups  => [],
+	samples => [],
+	lines   => [],
+	tests   => [],
 
-our $points_margin = 0.02;	# logical 0/1 is mark_range -/+ points_margin * mark_range
+	## Preparation
+	# set up by constructor
+	
+	alias       => {},  # user spec 'names'
+
+	# date fields
+	dname   => [],
+	dby     => [],
+	dstart  => [],
+	dend    => [],
+	dbefore => [],
+	dafter  => [],
+
+	# sample fields
+	sname   => [],
+	scodes  => [],
+	sdates  => [],
+	slines  => [],
+	ssource => [],
+	sfile   => [],
+	schart  => [],
+	spage   => [],
+
+	## Create objects
+	# used by build()
+	
+	# file fields
+	fname   => [],	    # the file name
+	fpsf    => [],	    # PostScript::File
+	fpages  => [],	    # page numbers shown in this file
+	
+	# page fields
+	pname   => [],	    # in form "$sample/$stock/$date"
+	psource => [],	    # may be Finance::Shares::MySQL
+	plines  => [],	    # the sample's line entry
+	pfsd    => [],	    # Finance::Shares::data
+	pfsc    => [],	    # Finance::Shares::Chart
+
+	known_codes => {},  # stock codes
+	known_fns   => {},  # Finance::Shares::Function objects
+	known_lines => {},  # Finance::Shares::Line objects
+	scale       => [],  # lines that need scaling to their graphs
+    };
+    bless $o, $class;
+
+    ## Configure
+    my @cfg = read_config($o->{config});
+    $o->collect_options( \@cfg );
+    $o->collect_options( \@_ );
+    $o->collect_options( $argv );
+   
+    $o->ensure_default('files', $o->{filename} || 'default');
+    $o->ensure_default('groups',  {});
+    $o->ensure_default('samples', {});
+    
+    $o->prepare_dates;
+    $o->prepare_stocks;
+    $o->prepare_lines;
+    $o->prepare_samples;
+
+    return $o;
+}
+
+sub build {
+    my $o = shift;
+
+    $o->create_pages;
+    $o->create_lines;
+    $o->lead_times;
+    $o->fetch_data;
+
+    my $nlines = 0;
+    my $npages = 0;
+    my @filenames;
+    my $files = $o->{fname};
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $fname = $o->{fname}[$fp];
+	out($o, 3, "Model::build pages for file $fp '$fname'");
+	my $pages = $o->{fpages}[$fp];
+
+	# build lines
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    my $pname = $o->{pname}[$pp];
+	    
+	    out($o, 3, "Model::build lines on page $pp '$pname'");
+	    my $fsd = $o->{pfsd}[$pp];
+	    my $funcs = $o->{pfsls}[$pp];
+	    foreach my $fns (@$funcs) {
+		$nlines += $o->build_function($fns);
+	    }
+
+	    out($o, 5, "Model::build tests on page $pp '$pname'");
+	    my $tests = $o->{ptests}[$pp];
+	    foreach my $t (@$tests) {
+		$t->build();
+	    }
+	}
+	$o->scale_foreign_lines;
+    }
+
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $pages = $o->{fpages}[$fp];
+	
+	# build charts
+	my $psf = $o->{fpsf}[$fp];
+	my $multiple = 0;
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    if ($o->{write_csv}) {
+		my $fsd = $o->{pfsd}[$pp];
+		my $file = $multiple ? '1' : $o->{write_csv};
+		my $res = $fsd->write_csv( $file, $o->{directory} );
+		out($o, 1, "CSV file ", ($res ? "'$res' saved" : "failed to save"));
+	    }
+	    my $fsc = $o->{pfsc}[$pp];
+	    next if $o->{no_chart};
+	    unless ($fsc->hidden) {
+		out($o, 3, "Model::build chart for page $pp '",$o->{pname}[$pp],"'");
+		$psf->newpage if $multiple;
+		$multiple++;	# npages for this file only
+		$npages++;	# total returned for testing
+		$fsc->build;
+	    }
+	}
+
+	# output file
+	unless ($o->{no_chart}) {
+	    my $tag = $o->{ffile}[$fp];
+	    my $filename = $tag;
+	    my $entry = $o->find_option('files', $tag);
+	    if (ref $entry eq 'HASH') {
+		$filename = $entry->{filename} if $entry->{filename};
+	    }
+	    $filename = $o->{filename} if $o->{filename};
+	    push @filenames, check_file("$filename.ps", $o->{directory});
+	    $psf->output( $filename, $o->{directory} );
+	}
+    }
+    return ($nlines, $npages, @filenames);
+}
+
+###== RESOURCES =============================================================== 
+
+
+sub collect_options {
+    my ($o, $ar) = @_;
+    return unless ref($ar) eq 'ARRAY';
+
+    for (my $i = 0; $i <= $#$ar; $i += 2) {
+	my $key = $ar->[$i];
+	my $val = $ar->[$i+1];
+	next unless $key;
+	$key = lc($key);
+	$key =~ s/s$//;
+	if ($key eq 'stock'and $val and ref $val eq 'ARRAY') {
+	    my $ar = $o->stock_file($val);
+	    $val = [ 'default', $ar ] if $ar;
+	}
+	if (index('source stock date file chart group sample line test', $key) >= 0) {
+	    # normal - array or single hash/string
+	    my $option = $key . 's';
+	    if (ref($val) eq 'ARRAY') {
+		for( my $i = 0; $i < $#$val; $i += 2) {
+		    $o->add_option($option, $val->[$i], $val->[$i+1]);
+		}
+	    } else {
+		$o->add_option( $option, 'default', $val);
+	    }
+	} elsif (index('name', $key) >= 0) {
+	    # special treatment for alias hash
+	    if (ref($val) eq 'ARRAY') {
+		for( my $i = 0; $i < $#$val; $i += 2) {
+		    $o->{alias}{ $val->[$i] } = $val->[$i+1];
+		}
+	    }
+	} elsif (index('start end', $key) >= 0) {
+	    # cmd line dates.
+	    $o->{$key} = $val if is_date($val);
+	} elsif (index('verbose filename directory by show_value write_csv
+		no_chart null', $key) >= 0) {
+	    # cmd line options etc.
+	    $o->{$key} = $val;
+	}
+    }
+}
+# NB: $key has no trailing 's', even if the option has one
+
+sub add_option {
+    my ($o, $option, $tag, $entry) = @_;
+    my $array = $o->{$option};
+    logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
+    
+    my $p;
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	$p = $i, last if $array->[$i] eq $tag;
+    }
+    $p = @$array unless defined $p;
+    
+    $array->[$p] = $tag;
+    $array->[$p+1] = $entry;
+
+}
+
+
+sub find_option {
+    my ($o, $option, $tag) = @_;
+    my $array = $o->{$option};
+    logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	next unless defined $array->[$i];
+	return $array->[$i+1] if $array->[$i] eq $tag;
+    }
+    return undef;
+}
+
+sub show_option {
+    my ($o, $option) = @_;
+    my $array = $o->{$option};
+    logdie("No option array for '$option'") unless ref($array) eq 'ARRAY';
+    my $res = "Options for '$option':\n";
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	$res .= "    $array->[$i] = $array->[$i+1]\n";
+	$res .= show_deep($array->[$i+1], 1) if ref($array->[$i+1]);
+    }
+    return $res;
+}
+
+sub set_alias {
+    my ($o, $short, $long) = @_;
+    $o->{alias}{$short} = $long;
+}
+
+sub get_alias {
+    my ($o, $short) = @_;
+    return ($o->{alias}{$short} || $short);
+}
+
+sub show_aliases {
+    my $o = shift;
+    my $res = "Aliases:\n";
+    foreach my $key (sort keys %{$o->{alias}}) {
+	$res .= "    $key = '$o->{alias}{$key}'\n";
+    }
+    return $res;
+}
+
+sub ensure_default {
+    my ($o, $option, $default) = @_;
+    logdie("No option array for '$option'") unless ref($o->{$option}) eq 'ARRAY';
+
+    unless ($o->{$option}[0]) {
+	$o->{$option}[0] = 'default';
+	$o->{$option}[1] = $default; 
+    }
+    return $o->{$option}[0];
+}
+
+###== PREPARATION ============================================================= 
+
+sub prepare_samples {
+    my $o = shift;
+
+    my $sp = 0;
+    my $array = $o->{samples};
+    for (my $i = 0; $i < $#$array; $i += 2, $sp++) {
+	my $tag = $array->[$i];
+	my $hash = $array->[$i+1];
+	my %s = $o->expand_groups($tag, $hash);
+	my $val;
+	
+	$o->{sname}[$sp]  = $tag;
+	$o->{spage}[$sp]  = $s{page};
+	$o->{sfname}[$sp] = $s{file} || 'default';
+	$o->{sfspec}[$sp] = $o->ensure_entry('files', $o->{sfname}[$sp]);
+	
+	if ($s{filename}) {
+	    my $tag = $o->{sfspec}[$sp];
+	    my $entry = $o->find_option('files', $tag);
+	    $entry->{filename} = $s{filename} if ref $entry eq 'HASH';
+	}
+
+	$val = $s{source};
+	$val = $o->ensure_entry('sources', $val) if defined $val;
+	$val = $o->ensure_default('sources', '') unless defined $val;
+	$o->{ssource}[$sp] = $val;
+	
+	$val = $s{stock};
+	if (ref($val) eq 'ARRAY') {
+	    foreach my $entry (@$val) {
+		$o->{known_codes}{$entry}++;
+	    }
+	    $val = $o->ensure_entry('stocks', $val); 
+	} elsif ($val) {
+	    my $opt = $o->find_option('stocks', $val);
+	    my $file = $o->stock_file($val);
+	    if ($opt || $file) {
+		$val = $opt || $file;
+	    } else {
+		$o->{known_codes}{$val}++;
+	    }
+	}
+	$val = $o->ensure_default('stocks', '') unless defined $val;
+	$o->{scodes}[$sp] = $val;
+	
+	$val = $s{date};
+	if (ref $val eq 'ARRAY') {
+	    foreach my $item (@$val) {
+		unless (ref($item) eq 'HASH') {
+		    my $fd = $o->find_option('dates', $item);
+		    logdie "No date known as '$item'" unless ref($fd) eq 'HASH';
+		    $item = $fd;
+		}
+		check_dates($item, $o->{start}, $o->{end}, $o->{by});
+		$item = $o->ensure_entry('dates', $item);
+	    }
+	}
+	$val = $o->ensure_entry('dates', $val) if defined $val;
+	$val = $o->ensure_default('dates', {}) unless defined $val;
+	$o->{sdates}[$sp] = $val;
+	
+	$val = $s{chart};
+	$val = $o->ensure_default('charts', {}) unless $val;
+	$o->{schart}[$sp] = $val;
+	
+	$val = $s{line};
+	$val = [] unless $val;
+	$val = [ $val ] unless ref($val) eq 'ARRAY';
+	$o->{slines}[$sp] = $val;
+
+	$val = $s{test};
+	$val = [] unless $val;
+	$val = [ $val ] unless ref($val) eq 'ARRAY';
+	$o->{stests}[$sp] = $val; 
+    }
+}
+
+sub prepare_lines {
+    my $o = shift;
+
+    my $array = $o->{lines};
+    for (my $i = 0; $i < $#$array; $i += 2) {
+	my $key = $array->[$i];
+	my $hash = $array->[$i+1];
+    
+	my @list = ( extract_list($hash->{lines}), extract_list($hash->{line}) );
+	$hash->{line} = \@list;
+	delete $hash->{lines};
+    }
+}
+# Ensure the user definition for each function has a 'line' entry that is an
+# array ref, handling 'lines' variant.
+
+sub prepare_dates {
+    my $o = shift;
+
+    my $d = 0;
+    my $array = $o->{dates};
+    for (my $i = 0; $i < $#$array; $i += 2, $d++) {
+	my $key = $array->[$i];
+	my $hash = $array->[$i+1];
+	check_dates($hash, $o->{start}, $o->{end}, $o->{by}) if ref($hash) eq 'HASH';
+    }
+}
+
+sub prepare_stocks {
+    my $o = shift;
+    my $stocks = $o->{stocks};
+    return unless defined $stocks;
+    
+    my $i = 0;
+    while ($i < $#$stocks) {
+	my $key = $stocks->[$i];
+	my $val = $stocks->[$i+1];
+	
+	my $ar = $o->stock_file($val);
+	$val = $stocks->[$i+1] = $ar if $ar; 
+
+	if (ref $val eq 'ARRAY') {
+	    foreach my $entry (@$val) {
+		$o->{known_codes}{$entry}++;
+	    }
+	} else {
+	    $o->{known_codes}{$val}++;
+	}
+
+	$i += 2;
+    }
+}
+
+sub stock_file {
+    my ($o, $stock) = @_;
+    return unless $stock;
+    my @codes;
+    
+    open(SYMBOLS, '<', $stock) or return undef;
+    while( <SYMBOLS> ) {
+	chomp;
+	s/#.*//;
+	next if /^\s*$/;
+	my @line = split /[,\s]+/;
+	push @codes, @line;
+    }
+    close SYMBOLS;
+    
+    #print "Stocks=", join(',', @codes), "\n";
+    return \@codes;
+}
+
+sub ensure_entry {
+    my ($o, $option, $entry) = @_;
+    if (defined $o->find_option($option, $entry)) {
+	return $entry; 
+    } else {
+	my $type = $option;
+	chop $type;	    # remove 's'
+	my $name = unique_name( $type );
+	$o->add_option($option, $name, $entry);
+	return $name;
+    }
+}
+
+sub expand_groups {
+    my ($o, $name, $hash) = @_;
+    my @all;
+
+    # expand all 'group' entries to start of list
+    my $group;
+    while( my($key, $val) = each %$hash ) {
+	if (lc($key) =~ /^group/) {
+	    $group = $o->find_option('groups', $val);
+	    logdie("Sample '$name' refers to unknown group '$val'") unless ref($group) eq 'HASH';
+	    unshift @all, %$group;
+	} else {
+	    push @all, $key, $val;
+	}
+    }
+
+    # use default if none specified
+    unless ($group) {
+	$group = $o->{groups}[1];
+	unshift @all, %$group;
+    }
+    
+    # standardize keys
+    # NB: this silently folds plural and singular names to same key
+    for (my $i = 0; $i < $#all; $i += 2) {
+	my $key = $all[$i];
+	$key = lc($key);
+	$key =~ s/s$//;
+	$all[$i] = $key;
+    }
+
+    return @all;
+}
+# given a sample tag and hash,
+# returns list of all entries, including the contents of named groups.
+
+###== CREATE OBJECTS ========================================================== 
+
+sub create_pages {
+    my $o = shift;
+    out($o, 3, "Model::create_pages");
+    out_indent(1);
+
+    my $snames = $o->{sname};
+    for (my $sp = 0; $sp <= $#$snames; $sp++) {
+	my $sname = $o->{sname}[$sp];
+	out($o, 3, "sample $sp '$sname'");
+
+	# create source
+	my $qname = $o->{ssource}[$sp];
+	$o->{ssource}[$sp] = $o->create_source($qname) if $qname;
+	out($o, 6, "ssource[$sp]=$o->{ssource}[$sp]");
+	
+	# create psfile
+	my $fname = $o->{sfname}[$sp];
+	my $fp = $o->find_resource('fname', $fname);
+	$fp = $o->create_psfile($sp, $fname) unless defined $fp;
+
+	# access stock code(s)
+	my $cname = $o->{scodes}[$sp];
+	my $codes = $o->find_option('stocks', $cname);
+	$codes = $cname || '' unless $codes;
+	$codes = [ $codes ] unless ref($codes) eq 'ARRAY';
+
+	# access date(s)
+	my $dname = $o->{sdates}[$sp];
+	my $dates = $o->find_option('dates', $dname);
+	logdie("Sample '$sname' has no date entry") unless $dates;
+	$dates = [ $dates ] unless ref($dates) eq 'ARRAY';
+
+	foreach my $code (@$codes) {
+	    foreach my $date (@$dates) {
+		my $dh = $date;
+		unless (ref($dh) eq 'HASH') {
+		    $dh = $o->find_option('dates', $date); 
+		    $dname = $date;
+		}
+
+		check_dates($dh, $o->{start}, $o->{end}, $o->{by});
+		my $pname = name_join($sname, $code, $dname);
+		my $pp = $o->add_resource('pname', $pname);
+		out($o, 3, "creating page $pp '$pname'");
+		
+		# create chart before data
+		$o->{pfsc}[$pp] = $o->create_chart($pname, $sp, $code, $dh, $fp);
+		$o->{pfsd}[$pp] = $o->create_data($pname, $sp, $code, $dh, $pp);
+		out($o, 6, "page $pp\: date=$o->{pfsd}[$pp], chart=$o->{pfsc}[$pp]");
+
+		push @{$o->{fpages}[$fp]}, $pp; 
+		$o->{plines}[$pp] = $o->{slines}[$sp];
+		$o->{ptests}[$pp] = $o->{stests}[$sp];
+		$o->{pbefore}[$pp] = $dh->{before};
+	   }
+	}
+    }
+    out_indent(-1);
+}
+
+sub create_source {
+    my ($o, $name) = @_;
+    return if $name eq $o->{null};
+    my $h = $o->find_option('sources', $name);
+    return $h if ref($h) eq 'Finance::Shares::MySQL';
+    return $h unless ref($h) eq 'HASH';
+
+    $h->{verbose} = $o->{verbose} unless defined $h->{verbose};
+    out($o, 4, "new Finance::Shares::MySQL");
+    return new Finance::Shares::MySQL($h);
+}
+# create_source( name )
+#
+# name	    A {sources} identifier
+#
+# Before:   Resources must be set up.
+# Process:  Create new mysql source from hash spec.
+# After:    Returns either a Finance::Shares::MySQL object or the name of 
+#	    a CSV file (or nothing).
+
+sub create_psfile {
+    my ($o, $sp, $fname) = @_;
+    return if $fname eq $o->{null};
+    my $filename = $fname;
+    my $fh = $o->find_option('files', $fname);
+    my $psf;
+    if (ref($fh) eq 'PostScript::File') {
+	# PSFile was given in user spec
+	$psf = $fh;
+    } else {
+	# user spec was hash or filename
+	$filename = $fh, $fh = {} unless ref($fh) eq 'HASH';
+	$psf = new PostScript::File(
+		headings  => 1,
+		paper     => 'A4',
+		landscape => 1,
+		left      => 36,
+		right     => 36,
+		top       => 36,
+		bottom    => 36,
+		errors    => 1,
+		%$fh,
+	    );
+    }
+    out($o, 4, "new PostScript::File");
+
+    # register new file
+    my $fp = $o->add_resource('fname', $fname);
+    $o->{ffile}[$fp]  = $filename;
+    $o->{fpsf}[$fp]   = $psf;
+    $o->{fpages}[$fp] = [];
+    out($o, 6, "fpsf[$fp]=$psf");
+
+    return $fp;
+}
+# create_psfile( name )
+#
+# name	    The {files} key identifying the user spec. for this
+#	    postscript file.
+#
+# Before:   No requirements.
+# Process:  A PostScript::File object is created, if necessary.
+# After:    The PostScript::File described by the named resource
+#	    is returned.
+
+
+sub create_chart {
+    my ($o, $pname, $sp, $code, $dh, $fp) = @_;
+    out($o, 3, "Model::create_chart '$pname'");
+
+    my $chartname = $o->{schart}[$sp];
+    my $h;
+    if ($chartname eq $o->{null}) {
+	$h = { 
+	    hidden => 1,
+	};
+    } else {
+	$h = $o->find_option('charts', $chartname);
+	logdie "No chart called '$chartname'" unless ref($h) eq 'HASH';
+    }
+    
+    return new Finance::Shares::Chart(
+	verbose => $o->{verbose},
+	%$h,
+	model   => $o,
+	id      => $pname,
+	file    => $o->{fpsf}[$fp],
+	page    => $o->{spage}[$sp],
+	stock   => $code,
+	by      => $dh->{by} || '',
+	# dates are set at build time
+    );
+}
+
+sub create_data {
+    my ($o, $pname, $sn, $code, $dh, $pn) = @_;
+    out($o, 3, "Model::create_data '$pname'");
+    
+    ## prepare options
+    my $name = name_join( $pname, 'data' );
+    my $chart = $o->{pfsc}[$pn];
+    my $h = {
+	function => 'data',
+	fsc      => $chart,
+	source   => $o->{ssource}[$sn],
+	stock    => $code,
+	%$dh,
+    };
+ 
+    ## create data object
+    my $fn = eval "Finance::Shares::data->new(verbose => $o->{verbose})";
+    logerr("Can't create data object : $@"), return () unless $fn;
+    $fn->add_parameters( %$h );
+
+    $chart->add_data($fn);
+    $o->{known_fns}{$name} = $fn;
+    foreach my $tag ($fn->line_ids) {
+	my $line_id = name_join($name, $tag);
+	$o->{known_line}{$line_id} = $fn->line($tag);
+	$o->set_alias($tag, name_join('data', $tag));
+    }
+    $o->add_option('lines', 'data', $h);
+
+    return $fn;
+}
+
+
+sub create_lines {
+    my $o = shift;
+    out($o, 3, "Model::create_lines");
+    out_indent(1);
+
+    my $files = $o->{fname};
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $pages = $o->{fpages}[$fp];
+	for (my $pp = 0; $pp <= $#$pages; $pp++) {
+	    my $pname = $o->{pname}[$pp];
+
+	    # convert [ <regexp_pattern>,          <user_tag>, ... ]
+	    # to      [ fullname1, fullname2, ..., fullname3,  ... ]
+	    my $fullnames = $o->expand_line_names( $o->{plines}[$pp], $pname );
+	    $o->{plines}[$pp] = $fullnames;
+	    
+	    # create each named line
+	    my ($fsts, $larray);
+	    my @lines;
+	    foreach my $fqln (@$fullnames) {
+		$larray = $o->create_line($fqln, $pp, $larray);
+		push @lines, $larray;
+	    }
+
+	    # add tests lines onto end of dependent FS::Lines list
+	    ($fsts, $larray) = $o->create_tests( $o->{ptests}[$pp], $pp );
+	    $o->{ptests}[$pp] = $fsts;
+	    $o->{ptfsls}[$pp] = $larray;
+	    push @lines, $larray;
+	    
+	    $o->{pfsls}[$pp] = \@lines;
+	}
+    }
+    out_indent(-1);
+}
+
+sub expand_line_names {
+    my ($o, $ar, $pname) = @_;
+    my (%hash, @array);
+   
+    foreach my $lname (@$ar) {
+	$lname = $o->create_value($lname) if $lname =~ /$number_regex/;
+	out($o, 7, "expand_line_names: '$lname' for page '$pname'");
+	my @lines = $o->canonical_names($lname, $pname);
+	logdie("Line '$lname' not recognized") unless @lines;
+	out($o, 7, "'$lname' expanded to '", join(', ',@lines), "'");
+	foreach my $linex (@lines) {
+	    unless ($hash{$linex}) {	# remove duplicates
+		$hash{$linex}++;
+		push @array, $linex;	# maintain order given
+	    }
+	}
+    }
+	
+    return \@array;
+}
+# expand_line_names( lnames, pname )
+#
+# lnames    an array ref holding a list of user given line tags, fqlns or
+#	    regular expressions  
+# pname	    full name of page
+# 
+# Before:   The {lines} entry can be a single string or an array ref
+#	    containing such strings.  The strings can be one of these forms:
+#		alias tag
+#		tag/line
+#		*/tag
+#		*/tag/line
+#		regex1/regex2/regex3/tag
+#		regex1/regex2/regex3/tag/line
+#	    where each regex is a regular expression matching:
+#		regex1	sample tag(s)
+#		regex2	stock tag(s)
+#		regex3	date tag(s)
+#	    They may also be '*' which is expanded to '.*' or '' which becomes
+#	    the default tag for that position.
+# Process:  Each string is expanded to a list of strings which refer to
+#	    a specific line (data set).
+# After:    {line} is an array ref containing names identifying unique function
+#	    lines.  Returns the array ref.
+
+sub canonical_names {
+    my ($o, $line, $page) = @_;
+    $line = $o->get_alias($line);
+    out($o, 6, "canonical_names($line, $page)");
+    out_indent(1);
+    my @f = name_split $line;
+    my (@x, @star);
+    my $res;
+    
+    ## identify sections
+    my ($fnchart, $fntag, $fnline);
+    if ($f[3]) {
+	# absolute
+	$fnchart = name_join($f[0], $f[1], $f[2]);
+	$fntag  = $f[3];
+	$fnline = $f[4] || '';
+    } else {
+	# relative
+	$fnchart = $page;
+	$fntag   = $f[0];
+	$fnline  = $f[1] || '';
+
+	# might be sample/fntag[/line] for single page sample
+	my $alias = $o->get_alias($fntag);
+	if ($alias ne $fntag) {
+	    $fnchart = $alias;
+	    $fntag   = $f[1];
+	    $fnline  = $f[2] || '';
+	}
+
+	# no need to expand further if page and function known
+	if ($o->find_option('lines', $fntag)) {
+	    if ($fnline) {
+		$res = name_join( $fnchart, $fntag, $fnline );
+	    } else {
+		# avoid trailing undef
+		$res = name_join( $fnchart, $fntag );
+	    }
+	    out($o, 6, "found '$res' (relative)");
+	    out_indent(-1);
+	    return $res;
+	}
+    }
+
+    my ($psample, $pstock,  $pdate) = name_split $page;
+    my ($sample,  $stock,   $date)  = name_split $fnchart;
+    # sample, stock, date may be tags, regexps, '*' or empty
+    # fntag should be a lines tag, fnline is optional
+    
+    $sample = $psample unless $sample;
+    $stock  = $pstock  unless $stock;
+    $date   = $pdate   unless $date;
+    out($o, 7, "processing '$sample/$stock/$date/$fntag/$fnline'");
+
+    my ($xsample, $xstock, $xdate);
+    $sample = '.*', $xsample = $psample if $sample eq '*';
+    $stock  = '.*', $xstock  = $pstock  if $stock  eq '*';
+    $date   = '.*', $xdate   = $pdate   if $date   eq '*';
+
+    my @list;
+    my @samples = $o->match_sample($sample, $xsample);
+    #out($o, 7, "samples: ", join(', ', @samples));
+    out_indent(1);
+    foreach my $sample (@samples) {
+	my @stocks = $o->match_stock($sample, $stock, $xstock);
+	#out($o, 7, "stocks: ", join(', ', @stocks));
+	my @dates  = $o->match_date( $sample, $date,  $xdate);
+	#out($o, 7, "dates: ", join(', ', @dates));
+	foreach my $code (@stocks) {
+	    foreach my $date (@dates) {
+		if ($fnline) {
+		    $res = name_join( $sample, $code, $date, $fntag, $fnline );
+		} else {
+		    $res = name_join( $sample, $code, $date, $fntag );
+		}
+		push @list, $res;
+	    }
+	}
+    }
+    out_indent(-1);
+
+    out($o, 6, "matches: ", join(', ', @list));
+    out_indent(-1);
+    return @list;
+}
+
+sub match_sample {
+    my ($o, $sample, $except) = @_;
+    $except = '' unless defined $except;
+    my $array = $o->{samples};
+
+    my $entry = $o->find_resource('sname', $sample);
+    return ($sample) if $entry;
+    
+    my $regexp = eval { qr/$sample/; };
+    logdie("Cannot compile sample '$sample' as regular expression : $@") unless defined $regexp;
+    my @found;
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	my $name = $array->[$i];
+	next unless defined $name;
+	next if $name eq $except;
+	push @found, $name if $name =~ /$regexp/;
+    }
+
+    if (@found) {
+	return @found;
+    } else {
+	logdie("Sample '$sample' not recognized");
+    }
+}
+
+sub match_stock {
+    my ($o, $sample, $given, $except) = @_;
+    $except = '' unless defined $except;
+    #out($o, 1, "match_stock($sample, $given, $except)");
+    my $array = $o->{stocks};
+
+    my $stocks = $given;
+    my $sn = $o->find_resource('sname', $sample);
+    my $tag = $o->{scodes}[$sn];	# stocks may be a tag, literal or array
+    if ($tag) {
+	if ($o->{known_codes}{$tag}) {
+	    # sample entry is literal code
+	    $stocks = $tag; 
+	} else {
+	    my $entry = $o->find_option('stocks', $tag);
+	    if (ref($entry) eq 'ARRAY') {
+		# sample entry is tag to list and given is one of these
+		$stocks = $given;
+	    } if ($o->{known_codes}{$entry}) {
+		# sample entry is tag to literal code
+		$stocks = $entry;
+	    }
+	}
+    }
+    #out($o, 1, "stocks=$stocks, tag=", $tag || '', ", given=", $given || '');
+    
+    if (ref($stocks) eq 'ARRAY') {
+	# literal array given (must be list of codes)
+	return @$stocks; 
+    } else {
+	my $entry = $o->find_option('stocks', $stocks);
+	if ($entry) {
+	    if (ref $entry eq 'ARRAY') {
+		# tag indicating a list of codes
+		return @$entry;
+	    } else {
+		# tag indicating single code
+		return ($entry);
+	    }
+	}
+    }
+
+    # may be single literal or regexp
+    my $regexp = eval { qr/$stocks/; };
+    logdie("Cannot compile stock '$stocks' as regular expression : $@") unless defined $regexp;
+    my @found;
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	my $name = $array->[$i];
+	my $list = $array->[$i+1];
+	next unless defined $name;
+	next if $name eq $except;
+	if ($name =~ /$regexp/) {
+	    if (ref $list eq 'ARRAY') {
+		push @found, @$list;
+	    } else {
+		push @found, ($list);
+	    }
+	}
+    }
+    
+    if (@found) {
+	# was a regexp matching a tag
+	return @found;
+    } else {
+	# assume a literal stock code
+	return ($stocks);
+    }
+}
+
+sub match_date {
+    my ($o, $sample, $match, $except) = @_;
+    $except = '' unless defined $except;
+    my $array = $o->{dates};
+
+    my $sn = $o->find_resource('sname', $sample);
+    my $dates = $o->{sdates}[$sn];
+    $dates = $match unless $dates;	# use page/fqln date if none given
+    
+    my $entry = $o->find_option('dates', $dates);
+    return ($dates) if $entry;	# was a date tag
+
+    # may be a regexp
+    my $regexp = eval { qr/$dates/; };
+    logdie("Cannot compile date '$dates' as regular expression : $@") unless defined $regexp;
+    my @found;
+    for( my $i = 0; $i < $#$array; $i += 2) {
+	my $name = $array->[$i];
+	my $list = $array->[$i+1];
+	next unless defined $name;
+	next if $name eq $except;
+	push @found, @$list if $name =~ /$regexp/;
+    }
+    
+    if (@found) {
+	# was a regexp matching a tag
+	return @found;
+    } else {
+	logdie("date '$dates' not recognized");
+    }
+}
+
+sub create_line {
+    my ($o, $fqln, $defaultpp, $arg) = @_;
+    my @f     = name_split $fqln;
+    my $page  = name_join @f[0 .. 2];
+    my $pp    = $o->find_resource('pname', $page);
+    $pp = $defaultpp unless defined $pp;
+    my $fsc   = $o->{pfsc}[$pp];
+    my $uname = $f[3]              || logdie("No user name for '$fqln'");
+    my $fname = name_join $page, $uname;   # function name
+    my $lname = $f[4]              || '';   # line id
+    my $line;
+    out($o, 3, "Model::create_line('$fqln')");
+    out_indent(1);
+
+    ## check for line
+    my $fsl = $o->known_line( $fqln );
+    if ($fsl) {
+	out($o, 5, "using existing line '", $fsl->name, "'");
+	out_indent(-1);
+	return [ $fsl ];
+    }
+    
+    ## check for function
+    my $lh = $o->find_option('lines', $uname) || logdie("No line known as '$uname'");
+    my $class = $lh->{function} || logdie("'$uname' has no function field");
+    $class = $o->get_alias($class);
+    my $fn = $o->known_function( $fname );
+    
+    unless ($fn) {
+	## create function
+	out($o, 5, "creating function '$fname'");
+	$fn    = eval "Finance::Shares::$class->new(verbose => $o->{verbose})"
+			|| logdie("Can't create function '$class' : $@");
+	$o->declare_known_function( $fname, $fn );
+	
+	my $fh = deep_copy($lh);
+	if ($class eq 'value' and ref($arg) eq 'ARRAY') {
+	    $fh->{gtype} = $arg->[0]{gtype};
+	    $fh->{graph} = $arg->[0]{graph};
+	}
+	$fh->{verbose} = $o->{verbose};
+	$fh->{fsc}     = $fsc;
+	$fh->{id}      = $uname;
+	
+	# expand names for initialize() 
+	$fh->{line} = $o->expand_line_names( $fh->{line}, $page );
+	
+	$fn->add_parameters( %$fh );	# and suitable defaults
+	
+	## create dependent lines
+	my $fullnames = $o->expand_line_names( $fn->{line}, $page );
+	$fn->{line} = $fullnames;	# including lines set as defaults
+	if (@$fullnames) {
+	    my (@lines, $lref);
+	    foreach my $fqln (@$fullnames) {
+		$lref = $o->create_line( $fqln, $pp, $lref );
+		push @lines, $lref;
+	    }
+	    $fn->{line} = \@lines;
+	    out($o, 6, "Lines= ", $fn->show_lines, " created for '$fname'");
+	}
+	out($o, 5, "created line(s) '$fqln'");
+    }
+
+    ## finish
+    my $lines = $fn->line_list( $lname );
+    foreach my $line (@$lines) {
+	$fsc->add_line($line);
+	$o->ensure_known_line($line);
+    }
+    out_indent(-1);
+    return $lines;
+}
+# create_line( name, pp, [, arg] )
+#
+# name	    Absolute line name
+# pp	    Default page number to use if name not fully qualified
+# arg	    Optional argument:
+#		previous Line object (if any)
+#
+# Before:   Charts should be objects
+# Process:  Recursively check that line object exists,
+#	    creating function objects as required.
+# After:    An array ref is returned holding one or more
+#	    Finance::Shares::Line objects.
+
+sub ensure_known_line {
+    my ($o, $line) = @_;
+    my $name = $line->name;
+    return if $o->{known_lines}{$name};
+    $o->declare_known_line( $name, $line );
+
+    # add new line to page it appears on
+    my @f     = name_split $name;
+    my $page  = name_join @f[0 .. 2];
+    my $pp    = $o->find_resource('pname', $page);
+    my $fnlines = $o->{pfsls}[$pp];
+    $fnlines= $o->{pfsls}[$pp] = [] unless defined $fnlines;
+    foreach my $ar (@$fnlines) {
+	foreach my $l (@$ar) {
+	    return if $l == $line;
+	}
+    }
+    push @$fnlines, [ $line ];
+}
+# Ensure dependent lines (which might be on a different page)
+# are displayed when that page is built
+
+sub create_value {
+    my ($o, $value) = @_;
+    my $username = unique_name( 'value' );
+    out($o, 5, "Model::create_value() for '$value'");
+    my $h = {
+	function => 'value',
+	value    => $value,
+	uname    => $username,
+	shown    => $o->{show_value},
+    };
+    $o->add_option('lines', $username, $h);
+    return $username;
+}
+# create_value( value )
+#
+# value	    The number to be made into a line
+#
+# This patch allows {lines} resources to contain
+# numbers.  This will not work if a number is the first
+# dependent line tag.  Use as e.g.
+#
+#   lines => [
+#	aaa => {
+#	    function => 'greater_than',
+#	    lines => ['bbb', 666],
+#	}
+#   ]
+#
+# A suitable lines entry is made and the tag is returned.
+
+sub create_tests {
+    my ($o, $test_opts, $pp) = @_;
+    out($o, 3, "Model::create_tests");
+    out_indent(1);
+
+    my %code;
+    my $tests = $o->{tests};
+    for( my $i = 0; $i < $#$tests; $i += 2) {
+	my $tag = $tests->[$i];
+	my $val = $tests->[$i+1];
+	$code{$tag} = $val if ref($val) eq 'CODE';
+    }
+
+    my (@tests, @lines);
+    foreach my $tag (@$test_opts) {
+	my (@mk1, @li1);
+	my $t = $o->find_option('tests', $tag);
+	next unless $t;
+	my $ref = ref $t;
+	if ($ref eq 'HASH') {
+	    $t->{before} = $o->prepare_eval($tag, $t->{before}, $pp, \@mk1, \@li1);
+	    $t->{during} = $o->prepare_eval($tag, $t->{during}, $pp, \@mk1, \@li1);
+	    $t->{after}  = $o->prepare_eval($tag, $t->{after}, $pp, \@mk1, \@li1);
+	    push @tests, $o->create_test($tag, $t->{before}, $t->{during}, $t->{after}, $pp, \@mk1, \@li1, \%code);
+	} elsif ($ref eq '') {
+	    $t = $o->prepare_eval($tag, $t, $pp, \@mk1, \@li1);
+	    push @tests, $o->create_test($tag, undef, $t, undef, $pp, \@mk1, \@li1, \%code);
+	}
+	push @lines, @li1;
+    }
+
+    my (%hash, @array);
+    foreach my $linex (@lines) {
+	unless ($hash{$linex}) {	# remove duplicates
+	    $hash{$linex}++;
+	    push @array, $linex;	# maintain order given
+	}
+    }
+
+    out_indent(-1);
+    return (\@tests, \@array);
+}
+
+sub prepare_eval {
+    my ($o, $tag, $str, $pp, $ms, $ls) = @_;
+    out($o, 6, "prepare_eval: tag=$tag, str=$str");
+    my $page = $o->{pname}[$pp];
+
+    # identify $word type entries and remember lines referenced
+    my %vars;			# map tag to accessing code
+    my (@lines, %lhash);	# list of unique FS::Lines
+    my (@marks, %mhash);	# list of mark functions
+    
+    while ($str =~ /\$(\w+)/g) {
+	my $tag = $1;
+	$tag = $o->get_alias($tag);
+	my @f = name_split $tag;
+	my $entry = $o->find_option('lines', $f[0]);
+	next unless $entry;
+	my @fqlns = $o->canonical_names($tag, $page);
+	next unless @fqlns;
+	my $larray = $o->create_line($fqlns[0], $pp);
+	next unless $larray;
+	
+	foreach my $fsl (@$larray) {
+	    # this is nth unique line tag
+	    my $uname = $fsl->name;
+	    my $n = $lhash{$uname};
+	    unless (defined $n) {
+		push @lines, $fsl;
+		$n = $lhash{$uname} = $#lines;
+	    }
+
+	    if ($entry->{function} eq 'mark') {
+		my $mark = $fsl->function;
+		unless ($mhash{$mark}) {
+		    push @marks, $mark;
+		    $mhash{$mark}++;
+		}
+		$fsl->{data} = [];
+		$vars{$1} = "_l_->[$n]{data}";
+	    } else {
+		$vars{$1} = "_l_->[$n]{data}[\$i]";
+	    }
+	}
+    }
+
+    # replace line refs with code to access them
+    while( my ($var, $val) = each %vars ) {
+	$str =~ s/\$$var/\$$val/g;
+    }
+    $str =~ s/mark\(\s*\$_l_->\[(\d+)\]([^\)]*)\)/mark(\$_v_->[$1], \$i, \$_l_->[$1]$2)/g;
+    $str =~ s/call\(([^\),]*)([^\)]*)\)/call(\$_c_->{$1}$2)/g;
+    #warn "str=$str";
+    
+    push @$ms, @marks;
+    push @$ls, @lines;
+
+    return $str;
+}
+
+sub create_test {
+    my ($o, $tag, $before, $during, $after, $pp, $marks, $lines, $code) = @_;
+
+    # create test object for this code string
+    my $test = new Finance::Shares::test(verbose => $o->{verbose});
+    $test->add_parameters(
+	id     => $tag,
+	fsc    => $o->{pfsc}[$pp],
+	before => $before,
+	during => $during,
+	after  => $after,
+	line   => $lines,
+	mark   => $marks,
+	code   => $code,
+    );
+
+    return $test;
+}
+
+###== BUILD =================================================================== 
+
+sub lead_times {
+    my $o = shift;
+    out($o, 3, "Model::lead_times");
+    out_indent(1);
+
+    my $files = $o->{fname};
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $pages = $o->{fpages}[$fp];
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    my $name = $o->{pname}[$pp];
+	    my $max = 0;
+	    my $fnlines = $o->{pfsls}[$pp];
+	    foreach my $ar (@$fnlines) {
+		my $line = $ar->[0];
+		next unless defined $line;
+		my $fn = $line->function;
+		my $lead = $fn->longest_lead_time();
+		$max = $lead if $lead > $max;
+	    }
+	    out($o, 6, "lead_time for page '$name' is $max");
+	    my $data  = $o->{pfsd}[$pp];
+	    my $given = $o->{pbefore}[$pp];
+	    $data->{before} = defined($given) ? $given : $max;
+	}
+    }
+    out_indent(-1);
+}
+## lead_times()
+#
+# Before:   All objects must have been built.
+# Process:  Each page object is visited along every function
+#	    path from every chart, to evaluate the greatest lead
+#	    time required by the function calculations.
+# After:    The Finance::Shares::data objects have reliable 'lead' values
+#	    which can be used to establish first and last
+#	    dates to fetch.
+
+sub fetch_data {
+    my $o = shift;
+    my $files = $o->{fname};
+    for (my $fp = 0; $fp <= $#$files; $fp++) {
+	my $fname = $o->{fname}[$fp];
+	my $pages = $o->{fpages}[$fp];
+	for (my $pp = 0 ; $pp <= $#$pages; $pp++) {
+	    my $pname = $o->{pname}[$pp];
+	    my $fsd = $o->{pfsd}[$pp];
+	    $fsd->build;
+	}
+    }	
+}
+
+sub build_function {
+    my ($o, $array) = @_;
+    
+    my $line_count = 0;
+    foreach my $fsl (@$array) {
+	my $name = $fsl->name;
+	out($o, 3, "Model::build_line '$name'");
+	
+	my $fn = $fsl->function;
+	if ($fn->{built}) {
+	    out($o, 6, "Model::build_line '$name' already built");
+	    next;
+	}
+
+	out_indent(1);
+	if (ref($fn->{line}) eq 'ARRAY') {
+	    foreach my $line (@{$fn->{line}}) {
+		$line_count += $o->build_function($line);
+	    }
+	}
+	out_indent(-1);
+	
+	$fn->build;
+	$fn->finalize;
+	$line_count++;
+	out($o, 6, "built '$name', $line_count line(s)");
+    }
+    return $line_count;
+}
+## build_line( array )
+#
+# array     An array ref holding Finance::Shares::Line 
+#	    objects to be built
+#
+# Before:   All objects must exist and Finance::Shares::data objects
+#	    must have all the information required to fetch
+#	    the quotes.
+# Process:  Each dependent line is built, then these lines are
+#	    built.
+# After:    The Finance::Shares::Line and all its dependent lines now
+#	    have data ready for display.
+
+sub mark_for_scaling {
+    my ($o, $fsl) = @_;
+    push @{$o->{scale}}, $fsl;
+}
+
+sub scale_foreign_lines {
+    my $o = shift;
+    out($o, 5, "Model::scale_foreign_lines()");
+    out_indent(1);
+    foreach my $fsl (@{$o->{scale}}) {
+	$fsl->scale;
+    }
+    out_indent(-1);
+}
+
+###== SUPPORT METHODS ========================================================= 
+
+sub add_resource {
+    my ($o, $name, $value, $pp) = @_;
+    my $array = $o->{$name};
+    unless (defined $pp) {
+	$pp = @$array;
+	for (my $i = 0; $i <= $#$array; $i++) {
+	    $pp = $i, last if $array->[$i] eq $value;
+	}
+	out($o, 7, "add_resource($name, $value) at $pp");
+    }
+    
+    $array->[$pp] = $value;
+    return $pp;
+}
+# $value added to end of $name array unless position $pp given
+
+sub find_resource {
+    my ($o, $name, $tag) = @_;
+    my $array = $o->{$name};
+    for( my $i = 0; $i <= $#$array; $i++) {
+	return $i if $array->[$i] eq $tag;
+    }
+    return undef;
+}
+
+sub show_resource {
+    my ($o, $name) = @_;
+    my $array = $o->{$name};
+    my $res = "Array '$name':\n";
+    for( my $i = 0; $i <= $#$array; $i++) {
+	my $entry = $array->[$i];
+	$res .= "   $i ";
+	if (ref($entry) eq 'ARRAY') {
+	    $res .= join(', ', @$entry);
+	} else {
+	    $res .= $entry;
+	}
+	$res .= "\n";
+    }
+    return $res;
+}
+
+sub null_value {
+    return $_[0]->{null};
+}
+
+sub page_number {
+    my ($o, $fsd) = @_;
+    my $pfsds = $o->{pfsd};
+    for (my $pp = 0; $pp <= $#$pfsds; $pp++) {
+	return $pp if $pfsds->[$pp] == $fsd;
+    }
+    return undef;
+}
+## page_number( fsd )
+#
+# fsd	    FS::data object
+#
+# Return the model page using the given data set
+
+sub page_name {
+    my ($o, $pp) = @_;
+    return $o->{pname}[$pp];
+}
+
+sub known_function {
+    my ($o, $fname) = @_;
+    return $o->{known_fns}{$fname};
+}
+
+sub declare_known_function {
+    my ($o, $fname, $fsfn) = @_;
+    return unless ref($fsfn);
+    return unless $fsfn->isa('Finance::Shares::Function');
+    $o->{known_fns}{$fname} = $fsfn;
+}
+
+sub show_known_functions {
+    my $o = shift;
+    my $res = "Known functions:\n";
+    my @keys = sort keys %{$o->{known_fns}};
+    foreach my $key (@keys) {
+	my $fsfn = $o->{known_fns}{$key};
+	$res .= "    $key => $fsfn\n";
+    }
+    return $res;
+}
+
+sub known_line {
+    my ($o, $lname) = @_;
+    return $o->{known_lines}{$lname};
+}
+
+sub declare_known_line {
+    my ($o, $lname, $fsl) = @_;
+    return unless ref($fsl);
+    return unless $fsl->isa('Finance::Shares::Line');
+    $o->{known_lines}{$lname} = $fsl;
+}
+    
+sub show_known_lines {
+    my $o = shift;
+    my $res = "Known lines:\n";
+    my @keys = sort keys %{$o->{known_lines}};
+    foreach my $key (@keys) {
+	my $fsfn = $o->{known_lines}{$key};
+	$res .= "    $key => $fsfn\n";
+    }
+    return $res;
+}
+
+###== SUPPORT FUNCTIONS ======================================================= 
+
+sub option {
+    my $name = shift;
+    my $val;
+    for( my $i = 0; $i < $#_; $i += 2) {
+	my $key = $_[$i];
+	$val = $_[$i+1] if $key eq $name;
+    }
+    return $val;
+}
+
+__END__
+###== DOCUMENTATION =========================================================== 
 
 =head1 NAME
 
@@ -63,201 +1487,392 @@ Finance::Shares::Model - Apply tests to series of stock quotes
 
     use Finance::Shares::Model;
 
-There are two ways to use this module.  Either all the data can be given to the constructor, with the model run
-immediately, or tests can be administered piece by piece in a script.
+    my $fsm = new Finance::Shares::Model( @spec );
+    $fsm->build();
 
-These two approaches are illustrated here.  Both draw circles around the volume where a day's highest price is
-more than 3% above the previous closing price.
-
-=head2 Packaged model
-
-    my $fsm = new Finance::Shares::Model(
-	sources => [
-	    db => {
-		# Finance::Shares::MySQL options
-	    },
-	],
-    
-	charts => [
-	    main => {
-		# Finance::Shares::Chart options
-	    },
-	],
-
-	files => [
-	    myfile => {
-		# PostScript::File options
-	    },
-	],
-
-	functions => [
-	    env => {
-		function => 'envelope',
-		percent  => 3,
-	    },
-	],
-
-	tests => [
-	    good_vol => {
-		graph1 => 'prices', line1 => 'env_high',
-		graph2 => 'prices', line2 => 'high',
-		test   => 'ge',
-		graph  => 'tests',
-		signal => [ 'highlight_volume' ],
-	    },
-	],
-
-	signals => [
-	    highlight_volume => [ 'mark', {
-		graph => 'volumes',
-		line  => 'volume',
-		key   => 'price above envelope',
-		style => {
-		    point => {
-			color => [1, 0, 0],
-			shape => 'circle',
-			size  => 15,
-		    },
-		},
-	    }],
-	],
-
-	groups => [
-	    main => {
-		source    => 'db',
-		functions => ['env'],
-		tests     => ['good_vol'],
-		chart     => 'main',
-		file      => 'myfile',
-	    },
-	],
-
-	samples => [
-	    stock1 => {
-		# Finance::Shares::Sample options
-	    },
-	],
-    );
-    
-    $fsm->output();
-    
-=head2 Low level control
-
-    use Finance::Shares::Model;
-    use Finance::Shares::MySQL;
-    use Finance::Shares::Sample;
-    use Finance::Shares::Bands;
-    use Finance::Shares::Chart;
-    use PostScript::File;
-    
-    my $sql = new Finance::Shares::MySQL(...);
-    my $psf = new PostScript::File(...);
-    my $fss = new Finance::Shares::Sample(
-	source     => $sql,
-	file       => $psf,
-	...
-    );
-    
-    my $fsm = new Finance::Shares::Model;
-    $fsm->add_sample( $fss );
-    $fsm->add_signal('highlight_volume', 'mark', undef, {
-	graph => 'volumes',
-	line  => 'volume',
-	key   => 'price above envelope',
-	style => {
-	    point => {
-		color => [1, 0, 0],
-		shape => 'circle',
-		size  => 15,
-	    },
-	},
-    });
-
-    my ($high, $low) = $fss->envelope( percent => 3 );
-    $fsm->test(
-	graph1 => 'prices', line1 => $high,
-	graph2 => 'prices', line2 => 'high',
-	test   => 'ge',
-	graph  => 'tests',
-	signal => [ 'highlight_volume' ],
-    );
-
-    my $fsc = new Finance::Shares::Chart(
-	sample => $fss,
-	...
-    );
-    $fsc->output('myfile');       
-	
 =head1 DESCRIPTION
 
-This module provides the testing enviroment for the Finance::Shares suite.  A model brings a group of
-L<Finance::Shares::Samples> together and applies tests to them all.  The tests usually rely on functions from other
-modules such as L<Finance::Shares::Averages>, and the results are displayed on a L<Finance::Shares::Chart>.
+One or more graphs are built from a specification in the form of a list of
+hash/array references.  Apart from a few configuration entries documented under
+L<CONSTRUCTOR>, the specification deals with ten types of resource:
 
-Either the Finance::Shares::Model constructor is passed no options or it is passed details of the whole model.
+=over 8
 
-If the constructor has no options, nothing will happen until B<add_sample> has been called at least once (and
-B<add_signals> if signals are used in the tests).  Tests are applied to all samples, which don't need to
-have anything in common with each other.  However, if the date ranges are completely different it would probably
-be better to run seperate models.  This is because the Model's date range covered by each of the tests is
-made from all dates in all samples.
+=item sources
 
-=head2 Model specification
+Declare where the price and volume data comes from.
 
-If the constructor has any options, it is assumed to be the full specification and the model is normally run
-immediately.  This specification can either be coded into a script as constructor options,
-or it can be a file passed to the script C<fs_model>.  See L<fs_model> for more details.  A full list of keys that
-may be found in the package directory under F<model/all_options> while F<model/minimal> shows what is essential.
+=item charts
 
-The specification consists of eight resources: sources, files, charts, functions, tests, signals, groups and
-samples.  If the name is plural, it should refer to an array holding several named hashes each describing one of
-them.  A singular name indicates the default settings used throughout and given the name 'default'.
+These determine the charts' features, and can have a large number of sometimes
+deeply nested options.
 
-Example 1
+=item files
 
-    functions => [
-	slow => {...},
-	g    => {...},
-	vol5 => {...},
-    ],
+Control how the charts are output.
 
-These are part of a list of key/value pairs, so each specification would normally be terminated by a comma.
+=item stocks
 
-The key/value pairs are a named group of settings, typically used to constuct an object.  The name can be used
-anywhere else in the model specification; whenever that object needs referred to.
+Lists or individual stock abbreviations.
 
-Example 2
+=item dates
+
+These entries specify the time period considered and how frequently graph
+entries occur.
+
+=item samples
+
+The heart of the model, these determine which stocks, dates, charts, lines etc.
+are to be used to produce one or more chart pages.
+
+=item groups
+
+Named groups of C<sample> settings.
+
+=item names
+
+It is possible to use short aliases for function names, for example.
+
+=item lines
+
+These control how the data is processed and how the various functions are used.
+
+=item tests
+
+Segments of perl code invoking a variety of actions depending on programmed
+conditions.
+
+=back
+
+To fetch any data, there must be a B<source> and a B<stock> code specified.
+B<dates>, B<files> and B<charts> have suitable defaults, and B<groups> and
+B<names> are optional.  Nothing much happens without specifying at least one
+B<line> or B<test> and, of course, a B<sample> entry to bring them all together.
+
+The examples and tests tend to show the resources in the same order because
+they are easier to find that way.  But this is not a requirement - any order
+will do.
+
+=head2 The fsmodel Script
+
+The normal way of using this module would be via the script F<fsmodel> which has
+its own man page.  Although B<fsmodel> can fetch data and draw charts without
+one, non-trivial usage requires a model specification - a perl file ending with
+a list of resource definitions.
+
+See L<Finance::Shares::Overview/Using the fsmodel Script> for how to set it up
+and some examples to try.  Also see the manpage L<fsmodel> for further details.
+
+=head2 Specification Format
+
+A model is specified as a list of these resource definitions.  If nothing is
+given to the constructor, a blank graph called F<default.ps> is output.  But
+that isn't much use.
+
+A minimal model might specify a source, with a stock and a date group.  This
+would then just display the price and volume data.
+
+B<Example>
+
+    my @spec = (
+	filename => 'hpq2',
+	source => 'hpq.csv',
+	stock  => 'HPQ',
+	date   => {
+	    start => '2003-04-01',
+	    end   => '2003-06-30',
+	    by    => 'weekdays'
+	},
+    );
+
+The file F<hpq.csv> would hold daily quotes for Hewlett Packard from April 1st
+to June 30th 2003 in CSV format.  The price and volume data will appear as two
+graphs on the same page, saved as F<hpq2.ps>.
+
+You will notice that most examples here terminate the hash/array definition with
+a comma (,) rather than a semi-colon (;).  This is because they are part
+of a specification B<list>.  The B<fsmodel> script expects a perl file with such
+a list as the last item. It might be pages long, but it's still one list.
+
+=head3 Keys and Tags
+
+Typically, the entries are in either an array or a hash ref.  The array ref is
+most common as it may hold any number of entries.  A specification may have any
+number of blocks with the same key.  They are merged together with only the last
+tag entry counting if there are duplicates.
+
+B<Example>
 
     files => [
-	stock1 => { ... },
-	stock2 => { ... },
+	small => {
+	    width  => 400,
+	    height => 500,
+	},
+	tall => {
+	    landscape => 0,
+	},
+	letter => {
+	    paper => 'US-Letter',
+	},
     ],
 
-    charts => [
-	chart1 => {
-	    file => 'stock2',
-	    ...
-	}
-    ],
+Here three different PostScript file formats are specified.
 
-In an array, the first entry is treated as the default and is used where that resource is not specified.
+Outer, system defined resource identifiers (like C<files>, here) will be referred to as
+B<keys>, while the inner, user-chosen identifiers (small, tall, letter) are
+B<tags>.
 
-Example 3
+=head3 Singular and Plural
+
+Generally, the keys identifying the resources can be either singular or plural
+(e.g.  C<file> or C<files>).  Both forms may be used interchangeably.
+
+Tags, on the other hand must always be used exactly as defined.  All identifiers
+are case sensitive.
+
+[C<line> and C<test> tags may become perl variables and so should be of that
+form.  C<file> and some C<chart> tags may be in quotes and contain spaces, as
+they are file names and graph titles.  Anomalies like this are noted as they
+arise.]
+
+=head3 Default Entries
+
+The other, hash ref, format specifies a single entry which normally becomes the
+default.  That is, it is used if a needed resource has not been specified.
+Unlike the array ref form, there can only be one default, so only the last is
+used if several hash refs for the same key are given.
+
+B<Example>
 
     file => {
-	paper     => 'A4',
 	landscape => 1,
     },
 
-Here, the file takes on the name 'default', so would be saved as F<default.ps>.
+This declares a default entry which will be used if the B<sample> hasn't
+specified a B<file> resource.  No tag is specified, but the module assigns
+the tag C<default>.
+
+Single default entries like this are purely a convenience.  If they are not
+present, the first entry in the array format is used as the default instead.
+
+There are a couple of cases where the tag name has a special meaning.
+
+=over
+
+=item defaults
+
+If one of the array entries is given the tag C<default>, that is used instead of
+the first entry.  
+
+=item file names
+
+For the C<files> resource, tags specify the file name to use.  The default file
+name can be specified seperately using the C<filename> option.  (See
+L<CONSTRUCTOR>.)
+
+=back
+
+=head3 Page Names
+
+A B<page> refers to the chart, where all the graphs for a particular data set
+are shown on the same page.
+
+Mostly, functions use lines and data from their own chart page and return their
+own results there too.  However, one of the motivations for this rewrite was to
+allow functions to use data from other charts, something which was impossible in
+the previous version.
+
+Each page is created when a B<sample> specifies a B<stock> over a given B<date>
+range.  This combination uniquely identifies the quotes to be graphed
+and worked on.  The page name is made from these tags seperated by forward
+slashes:
+
+    <sample_tag> / <stock_tag> / <dates_tag>
+
+e.g.
+
+    shops/MKS.L/july
+
+The output PostScript file may contain multiple pages.  There are two ways to
+generate them.
+
+Most straight-forward is the use of multiple B<sample> entries, each specifying
+its own date and stock.  One advantage here is that pages can be individually
+named.
+
+    dates => [
+	by_days => {
+	    start => '2003-03-01',
+	    end   => '2003-05-31',
+	    by    => 'weekdays',
+	},
+	by_weeks => {
+	    start => '2003-06-01',
+	    end   => '2003-08-31',
+	    by    => 'weeks',
+	},
+    ],
     
-Notice that the singular resource name must refer to a hash.  There is no singular item 'signal' as individual
-signals are specified as arrays and not hashes.
+    samples => [
+	one => {
+	    stock => 'AZN.L',
+	    dates => 'by_weeks',
+	    page  => 'astra',
+	},
+	two => {
+	    stock => 'GSK.L',
+	    dates => 'by_weeks',
+	    page  => 'glaxo',
+	},
+    ],
 
-=head3 Sources
+The names of the two pages would be
 
-A C<source> entry is anything that can be passed to the Finance::Shares::Sample option of the same name.  So this
-could be one of the following.
+    one/AZN.L/by_weeks
+    two/GSK.L/by_weeks
+
+Alternatively multiple B<stocks>/B<dates> can be specified from a single sample.
+This is more powerful, and is the mode used by B<fsmodel>.
+
+    # dates as above
+    
+    sample => {
+	stocks => [qw(AZN.L GSK.L SHP.L)],
+	dates  => ['by_days', 'by_weeks'],
+    },
+
+The names of the six pages (3 stocks x 2 dates) would be
+
+    default/AZN.L/by_days
+    default/AZN.L/by_weeks
+    default/GSK.L/by_days
+    default/GSK.L/by_weeks
+    default/SHP.L/by_days
+    default/SHP.L/by_weeks
+
+So how can these data sets be used?  
+
+=head3 Fully Qualified Line Names
+
+Function names are appended to page names, with optional line identifiers (if
+the function produces several lines).  These would be fully qualified line names
+(FQLN):
+
+    one/AZN.L/by_weeks/avg
+    one/AZN.L/by_weeks/bollinger/high
+    
+    default/AZN.L/by_days/data/close
+    default/AZN.L/by_days/data/volume
+    
+B<line> entries for functions (like B<moving_average>) usually have a C<line>
+field inside the specification which indicates the source data to use in their
+calculations.  C<avg> above would be the tag for such a line specification.
+
+Normally the line is referred to simply by its tag.  But when referring to
+a line on a different page, the fully qualified name is needed.
+
+So it would be possible to indicate AstraZenica's volume on GlaxoSmithKline's
+chart in the following example.
+
+    lines => [
+	astra => {
+	    function => 'moving_average',
+	    period   => 3,
+	    gtype    => 'volume',
+	    line     => 'astra///data/volume',
+	},
+    ],
+    
+    samples => [
+	astra => {
+	    stock => 'AZN.L',
+	},
+	glaxo => {
+	    stock => 'GSK.L',
+	    line  => 'astra',
+	},
+    ],
+
+A few things are worth noting.
+
+=over
+
+=item Tags are typed
+
+The tag 'astra' can be used for both lines and samples without confusion.
+
+=item Using defaults in FQLNs
+
+The fully qualified line name is not written as
+
+    astra/AZK.L/default/data/close
+
+(although it may have been).  Provided there is no ambiguity, any of the entries
+in a page/line name may be omitted.  Here 'astra' (the sample) has only one
+stock entry and uses the default date option, so they may be left blank.
+
+=item Compatable graph types
+
+The line used has volume-sized numbers but, like most functions, moving_average
+works with prices by default.  If it were used directly, the glaxo price graph
+would either be scaled to include the foreign line or the new line would be
+scaled to fit the host chart.  Neither is very useful, so it is a good idea to
+include at least a C<gtype> (or C<graph>) entry in every line specification.
+
+=back
+
+=head3 Wild Cards
+
+Some functions use more than one source line.  These are specified within an
+array.
+
+    lines => [
+	comp1 => {
+	    function => 'compare',
+	    lines    => [qw( /AZN.L//data/close /GKN.L//data/close )],
+	},
+    ],
+
+    sample => {
+	stocks => [qw(AZN.L GKN.L)],
+	line   => 'comp1',
+    },
+
+To avoid writing out a lot of similar FQLNs the sample, stock and date sections
+of line/page names may be regular expressions.  Also a single '*' in
+a field stands for 'all but this one'.  Some examples:
+
+=over
+
+=item '/.+N.L/.*/average'
+
+This would match the 'average' line on a number of pages:
+
+    default/AZN.L/by_days/average
+    default/AZN.L/by_weeks/average
+    default/GKN.L/by_days/average
+    default/GKN.L/by_weeks/average
+
+=item '*//'
+
+Matches every sample except the one being evaluated.  Useful on a summary sheet
+which doesn't have the relevant lines anyway.  The empty stock and date fields
+assume that the 'other' samples all have these set.
+
+=item '.*/.*/*'
+
+Every sample, every stock and every B<other> date set.
+
+=back
+
+[B<NB:> This facility is not at all solid.  If you can make it work, fine.
+If it fails, write out all the FQLN's by hand.  Look at the tests for patterns
+that work.]
+
+=head2 Sources
+
+A C<source> entry specifies where the price and volume data comes from.  It can
+be one of the following.
 
 =over 8
 
@@ -279,8 +1894,9 @@ A Finance::Shares::MySQL object created elsewhere.
 
 =back
 
-There must be at least one source, and the hash ref is probably the most useful.  See L<Finance::Shares::MySQL>
-for full details, but the top level keys that can be used here include:
+To be much use there must be at least one source, and the hash ref is probably
+the most useful.  See L<Finance::Shares::MySQL> for full details, but the top
+level keys that can be used here include:
 
     hostname	    port
     user	    password
@@ -288,7 +1904,7 @@ for full details, but the top level keys that can be used here include:
     start_date	    end_date
     mode	    tries
 
-Example 4
+B<Example>
 
     sources => [
 	database => {
@@ -299,109 +1915,396 @@ Example 4
 	test => 'test_file.csv',
     ],
 
-=head3 Files
+=head2 Charts
 
-Each hash ref holds options for creating a PostScript::File object.  It will be created once and any charts using
-it will be added on a new page.
+These are the Finance::Shares::Chart options that control what the graphs look
+like.  Throughout this document a C<chart> refers to a collection of grids (the
+C<graphs>) that appear on the same PostScript page.
 
-If the C<files> (plural) resource has been declared, it contains one or more named hash refs.  These key names become
-the name of the file, with '.ps' appended.  Any chart resource using this name as it's C<file> entry specifies
-(one of) the layout(s) that will appear there.  Each sample using that chart specification is therefore put in
-that chart's file.
+See L<Finance::Shares::Chart> for full details, but these top level sub-hash
+keys may be used in a chart resource:
 
-See L<PostScript::File> for full details but these are the more useful sub-hash keys:
+    bgnd_outline    background
+    heading	    glyph_ratio
+    show_breaks	    smallest
+    heading_font    normal_font
+    heading_size    normal_size
+    heading_color   normal_color
+    dpi		    key
+    x_axis	    graphs
+
+[B<NB:> Chart keys C<sample>, C<file> and C<page> are ignored as they are filled
+internally.]
+
+C<graphs> is a special array listing descriptions for the graph grids that will
+appear on the page. Each graph sub-hash may contain the following keys, although
+'points' is only for prices and 'bars' only for volumes.  Generally, C<gtype>
+and C<percent> are essential.  C<gtype> must be one of C<price>, C<volume>,
+C<analysis> or C<level>.
+
+    gtype	    percent
+    points	    bars
+    y_axis	    layout
+    show_dates
+    
+It is probably a good idea to pre-define repeated elements (e.g.
+colours, styles) using perl variables as values in the hash or sub-hashes.
+
+B<Example>
+
+    my $bgnd = [1, 1, 0.95];
+    ...
+    
+    chart => {
+	dpi => 72,
+	background => $bgnd,
+	show_breaks => 1,
+	key => {
+	    background => $bgnd,
+	},
+	graphs => [
+	    'Quotes' => {
+		percent => 60,
+		gtype   => 'price',
+		points  => {
+		    color => [0.7, 0, 0.3],
+		},
+	    },
+	    'Trading Volume' => {
+		percent => 40,
+		gtype   => 'volume',
+		bars  => {
+		    color => [0.3, 0, 0.7],
+		},
+	    },
+	],
+    },
+
+=head2 Files
+
+The output is a collection of charts saved to a PostScript file.  Each hash ref
+holds options for creating the PostScript::File object used.  Once it is
+created, any charts using it will be added on a new page.
+
+If the array form is used, it contains one or more named hash refs.  The tags
+become the name of the file, with '.ps' appended.  
+
+See L<PostScript::File> for full details but these are the more useful sub-hash
+keys:
 
     paper	    eps
     height	    width
     bottom	    top
     left	    right
     clip_command    clipping
-    dir		    file
+    dir		    reencode
     landscape	    headings
-    reencode
+    png		    gs
 
-Example 5
+B<Example>
     
     files => [
-	retail => { ... },
+	'Food-Retailers' => {
+	    dir => '~/models',
+	    paper => 'A5',
+	},
     ],
 
     samples => [
 	sample1 => {
 	    symbol => 'TSCO.L',
-	    file   => 'retail',
+	    file   => 'Food-Retailers',
 	    ...
 	},
     ],
 
-Here the Tesco sample will appear as a page in the file F<retail.ps>.
+Here the Tesco sample will appear as a page in the file
+F<~/models/Food-Retailers.ps>.  In this case, the C<file> B<sample> entry is the
+default (the first in B<files>) and so could have been omitted.
 
-On the other hand, the specification may be held in a C<file> (singular) hash.  In this case the sample
-specification holds no C<file> entry, so every chart will appear in the default file.  Where the
-C<files> (plural) resource is used, the default will be the first entry in the array (unless another entry has
-the key name 'default', when it is used instead).  
+Where more than one sample specifies the same file, they appear on different
+pages within it, in the order declared.
 
-The way to put all samples' charts into the same file is to have only one file, as in the example above (under
-'named').  Each sample's chart will find its way there either because it was specified or because it is the
-default (and it happens to have a name).
+=head2 Stocks
 
-Where the default has been declared as a C<file> (singular) resource hash, it has no explicit name, so will be
-stored in a file called F<default.ps>.
+These are EPIC codes identifying public companies' share quotes.  The codes are
+those used by B<!Yahoo> at L<http://finance.yahoo.com>.  Each tag may refer to
+either a single code or a list enclosed within square brackets.
 
-=head3 Charts
+B<Example>
 
-These are Finance::Shares::Chart options.  It is probably a good idea to pre-define repeated elements (e.g.
-colours, styles) and use the perl variables as values in the hash or sub-hashes.  See L<Finance::Shares::Chart>
-for full details, but these top level sub-hash keys may be used in a chart resource:
+    stocks => [
+	lloyds => 'LLOY.L',
+	banks  => [qw(AL.L BARC.L BB.L HBOS.L)],
+    ],
 
-    prices	    volumes
-    cycles	    tests
-    x_axis	    key
-    png		    ghostscript
-    dots_per_inch   reverse
-    bgnd_outline    background
-    heading_font    normal_font
-    heading
+=head2 Dates
 
-Each graph sub-hash may contain the following keys, as well as 'points' for prices and 'bars' for volumes.
+Each series of quotes must have at least a start and end date.  These entries
+specify how the time axis is set up for each graph and which quotes are used for
+the function calculations.
 
-    percent	    show_dates
-    layout	    y_axis
-    
-When the model is run, three keys are filled internally and should NOT be specified here:
+B<Example>
+
+    dates => {
+	start => '2003-01-01',
+	end   => '2003-03-31',
+	by    => 'weeks',
+    },
+
+The entries are hash refs with the following fields.
 
 =over 8
 
-=item sample
+=item B<start>
 
-The Finance::Shares::Sample object created from the B<samples> resource is assigned to this.
+In YYYY-MM-DD format, this should be the first date we are interested in (but
+see B<before>).  (Defaults to 60 periods before B<end>.)
 
-=item file
+=item B<end>
 
-This is specified in the B<samples> resource.  Where this is not named explicitly, the default name is assumed.
-The name should be a key from the B<files> resource.  The corresponding PostScript::File object will be assigned
-in its place.
+In YYYY-MM-DD format, this should be the last quote date (see B<after>).
+(Defaults to today's date.)
 
-=item page
+=item B<by>
 
-The B<samples> hashes may have a field, 'page' which is assigned here.
+This specifies how the intervening dates are counted.  Suitable values are
+C<quotes>, C<weekdays>, C<days>, C<weeks> and C<months>.  (Default: 'weekdays')
+
+C<quotes> is the only choice which is guaranteed to have no undefined data.  But
+then it has no relationship to time.  C<weekdays> is probably the closest,
+except that it becomes obvious when data is missing.  
+
+The rest use a proper time axis, with C<weeks> and C<months> using averaged
+data.  If the dates axis is getting too crowded, these are a good way to cover
+a long period without using too many data points.
+
+=item B<before>
+
+Many functions require a number of data items beforet their results are valid.
+By default, this lead time is not displayed.  However, this allows the user to
+override that value.  For example, 0 will specify no lead time - so all the data
+is displayed and the lines begin when they can.
+
+It is worth noting that the C<before> value is calculated from the line
+specifications, before the quotes are fetched.  Any missing data will have to be
+made up from the graphed dates.
+
+=item B<after>
+
+It is possible to specify a number of unused dates after the end of the data.
+This might be used for extrapolating function lines into the immediate future.
 
 =back
 
-=head3 Functions
+=head2 Samples
 
-This array ref lists all the functions known to the model.  Like the other resources, they may or may not be used.
-However, unlike the others, the sub-hashes are not all the same format.  The only requirement is that they have an
-additional key, C<function> which holds the name of the method.  However, these keys are common:
+Pages are generated from B<sample> entries.  Defaults are generated for all
+essential features, making a valid (though not always useful) model.  A sample
+normally has one entry for each resource type; the entries being tags found in
+the relevent resource blocks.
 
-    graph	    line
-    period	    percent
-    strict	    shown
-    style	    key
+B<Example>
 
-Example 6
+    samples => [
+	one => {
+	    source   => 'database',
+	    chart    => 'blue_graphs',
+	    file     => 'letter_format',
+	    stock    => ['banks', 'financial'],
+	    dates    => 'default',
+	    lines    => ['slow_avg', '10day_lows'],
+	    tests    => 'oversold',
+	    
+	    group    => '<none>',
+	    page     => 'bank1',
+	    filename => 'banks',
+	},
+    ],
 
-    functions => {
+There are a few things to note about this example.
+
+=over
+
+=item The tags
+
+All of these values ('database', 'blue_graphs') are meaningless in themselves.
+They should be tags in the appropriate resource block.  So the <stocks> resource
+might include
+
+    stocks => [
+	banks => ['LLOY.L', 'HBOS.L', ... ],
+	financial => ['AV.L', 'PRU.L', ... ],
+	...
+    ],
+
+=item Singular and plural
+
+For system defined keys (source, chart, stock etc.) a trailing 's' is optional.
+Sometimes it is more natural to use the singular and sometinmes the plural, but
+they are interchangeable.
+
+=item Lists
+
+Many B<sample> entries can take a list of tags within square brackets as well as
+a single scalar.  E.g.
+
+    stock  => 'STAN.L',
+    stocks => ['STAN.L', 'HSBA.L'],
+
+This makes no sense for C<source>, C<chart> and C<file> as there can be only one
+of each.  However each chart can have many C<lines> and C<tests>.  
+
+C<stocks> and C<dates> may also take multiple entries, but these are used to
+generate a number of seperate data sets.  See L<Page Names>.
+
+=item Defaults
+
+If an entry is omitted the value 'default' is assumed (so the C<dates> entry
+above was not really necessary).  Although defaults are filled predictably,
+the system is quite complex - especially if multiple entries, default blocks,
+groups and configuration files are all in use.  When in doubt, it is always
+safer (though less lazy) to be explicit.
+
+C<lines> and C<tests> are an exception.  No defaults are used.  If you want
+a line or test, you have to specify it.  However, the system will automatically
+include any dependent lines - you don't have to list them all.
+
+=item Other entries
+
+These other keys may appear within a B<sample> specification.
+
+=over 10
+
+=item group
+
+See L<Groups> for details.
+
+=item page
+
+A short identifier used to 'number' the postscript pages.  It is intended to be
+a number, letter, roman numeral etc.  but any short word will do.  PostScript
+viewers should use this to identify each sheet.
+
+=item filename
+
+This is a convenience item allowing the user to specify individual filenames on
+a 'per sample' basis, leaving the B<files> entry to be more generic.  It is
+overridden by more global settings.
+
+=back
+
+=item Sample names
+
+The sample tag, C<one>, is never used and can be anything.
+
+=back
+
+As a convenience, C<stocks> and C<dates> may be given directly instead of
+setting up a resource entry with a tag.
+
+B<Example>
+
+    sample => {
+	stock => 'HBOS.L',
+	date  => {
+	    start => '2003-09-01',
+	    by => 'quotes',
+	},
+    },
+
+=head2 Groups
+
+It is quite likely that several samples will have many settings in common.
+Rather than repeating them, it is possible to put them in a B<group>.
+
+B<Example>
+
+    sources => [
+	import  => 'source.csv',
+	dbase   => { ... },
+    ],
+
+    files => [
+	summary => { ... },
+	pages   => { ... },
+    ],
+
+    charts => [
+	single => { ... },
+	quad   => { ... },
+    ],
+
+    lines => [
+	one   => { ... },
+	two   => { ... },
+	three => { ... },
+	four  => { ... },
+    ],
+
+    groups => [
+	main => {
+	    file  => 'pages',
+	    chart => 'quad',
+	    lines => [qw(one two)],
+	},
+	meta => {
+	    file  => 'summary',
+	    chart => 'single',
+	},
+    ],
+
+    samples => [
+	marks   => { stock => 'MKS.L',  page => 'marks' },
+	boots   => { stock => 'BOOT.L', page => 'boots' },
+	dixons  => { stock => 'DXN.L',  page => 'dixons' },
+	argos   => { stock => 'GUS.L',  page => 'argos' },
+	totals  => { group => 'meta',   line => 'three' },
+	summary => { group => 'meta',   line => 'four' },
+    ],
+
+C<group> provides shorthand for a group of settings, and makes editing
+easier.  
+
+C<page> is a kludge allowing individual pages to have their own page identifier.
+It actually sets the PostScript::File 'page' label, but is included as
+a B<sample> key as it typically changes with each sample.
+
+=head2 Names
+
+This provides an 'alias' facility.  For example, you might be fed up with typing
+'moving_average' a million times.  So your config file might include the
+following, allowing 'mov' to be used instead.
+
+    names => [
+	mov => 'moving_average',
+    ],
+
+Remember that any number of resource blocks may be used as they are merged
+together.
+
+=over
+
+[This is another facility that hasn't been well tested.  But if it doesn't work,
+you can always copy & paste.  So far names are consulted for:
+
+    function module names
+    page names (i.e. aliases for 'sample/stock/date')
+
+]
+
+=back
+
+=head2 Lines
+
+This array ref lists all the functions known to the model.  Like the other
+resources, they may or may not be used.  However, unlike the others, the
+sub-hashes are not all the same format as they may control a wide range of
+objects producing graph lines.
+
+B<Example>
+
+    lines => [
 	grad1	 => {
 	    function => 'gradient',
 	    period   => 1,
@@ -410,1847 +2313,319 @@ Example 6
 	grad_env => {
 	    function => 'envelope',
 	    percent  => 5,
-	    graph    => 'cycles',
+	    graph    => 'analysis',
 	    line     => 'grad1',
 	    style    => $fn_style,
 	},
 	expo     => {
 	    function => 'exponential_average',
 	},
-    },
+    ],
 
-Here C<grad1> is constructed from the L<Finance::Shares::Momentum> method, B<gradient> which uses closing prices
-by default and puts its results on the cycles graph.  The L<Finance::Shares::Bands> method B<envelope> uses this
-to add lines 5% above and below the grad1 line.  Another function C<expo> uses all default values when evaluating
-the B<exponential_average> method from L<Finance::Shares::Averages>.  C<$fn_style> would probably be a hash ref
-holding L<PostScript::Graph::Style> options.
+C<$fn_style> would probably be a hash ref holding L<PostScript::Graph::Style>
+options.
 
-If the C<function> (singular) version is used, the function defined there takes on the name 'default'.
+There are three types of lines.
 
-=head3 Tests
+=head3 Data lines
 
-See L</test> for details of the keys allowed in these named sub-hashes:
+These are built-in and never appear in a B<lines> block.  They all belong to the
+function C<data> and the individual line tags are C<open>, C<high>, C<low>,
+C<close> and C<volume>.  Treat them as reserved words.
 
-    graph1	    line1
-    graph2	    line2
-    test	    signals
-    shown	    style
-    graph	    key
-    decay	    ramp
-    weight
+=head3 Dependent lines
 
-Example 7
+Most functions produce lines in this category.  They are defined in B<line>
+blocks and usually show up as a line on a graph (though they may yield more
+depending on the function).  As well as the C<function> field, they also must
+have C<line> and either C<gtype> or C<graph> entries.  If these are omitted,
+they usually default to closing prices (i.e. line = C<data/close> and gtype
+= C<prices>).
 
-    tests => [
-	high_vol => {
-	    graph1 => 'volumes',
-	    line1  => 'v250000',
-	    test   => 'ge',
-	    signal => ['good_vol', 'record'],
-	    graph2 => 'volumes',
-	    line2  => 'volume',
-	    key    => 'high volume',
+=head3 Independent lines
+
+These are defined in B<line> blocks in the usual way, but they have no lines
+depending on them.  Important built-in examples are C<value>, which draws
+horizontal lines and C<mark> which uses test code (see below) to fill the data
+points.  More reserved words.
+
+=head3 Common Entry Fields
+
+The only requirement is that they must have a key, C<function>, whose value
+holds the name of the method.  However, these keys are also common:
+
+    graph	gtype
+    key		line
+    order	period
+    shown	style
+
+B<Example>
+
+    lines => [
+	avg => {
+	    function => 'moving_average',
+	    gtype    => 'volume',
+	    line     => ['volume'],
+	    period   => 20,
+	    key      => '20 day average of Volume',
+	    order    => 99,
+	    style    => {
+		bgnd_color => 0,
+		line => {
+		    inner_color  => [ 1, 0.7, 0.3 ],
+		    outer_color  => 0.4,
+		    inner_dashes => [ 12, 3, 6, 3 ],
+		    outer_dashes => [ ],
+		    inner_width  => 1.5,
+		    outer_width  => 2.5,
+		},
+		point => {
+		    color => [ 0, 0.3, 1.0 ],
+		    shape => 'plus',
+		    size  => 8,
+		    width => 4,
+		},
+	    },
 	},
     ],
+	    
+This example has an abnormally large C<style> entry in order to illustrate the
+possible fields.  The default styles are designed to draw each line in
+a different colour and often only need one or two fields specifying directly.
 
-    functions => [
-	v250000 => {
-	    function => 'value',
-	    graph    => 'volumes',
-	    value    => 250000,
-	    shown    => 0,
-	},
-	...
-    ],
-    
-This will produce a line on the tests graph in the default style.  The software generates keys describing each
-line, but they can get very long.  It is often best to declare your own.  See Example 8 for the signal
-definitions.
+=head2 Tests
 
-The function C<v250000> uses the B<value> method from L<Finance::Shares::Sample> and is not visible because the
-signal 'good_vol' will show where it is relevent.  There would be no problem giving the same name to different
-resources, but calling the signal 'good_vol' and the test 'high_vol' makes the example clearer.
+One of the original aims in writing these modules was to develop a suite that
+would link stock market analysis with the power of perl.  Well, here it is - its
+reason for existence.
 
-If the C<test> (singular) version is used, the test defined there takes on the name 'default'.
+Tests are segments of perl code (mostly in string form) that are eval'ed to
+produce signals of various kinds.  There are three types of entry.
 
-=head3 Signals
+=over
 
-Only the plural C<signals> version is available.  The named entries are array refs and not hash refs like all the
-others.  They list the parameters for the B<add_signal> method.  See L</add_signal>.
+=item Simple text
 
-Example 8
+The simplest and most common form, this perl fragment is eval'ed for every data
+point in the sample where it is applied.  It can be used to produce conditional
+signal marks on the charts, noting dates and prices for potential stock
+positions either as printed output or by invoking a callback function.
 
-    signals => [
-	good_vol => [ 'mark', undef, { 
-	    graph   => 'volumes',
-	    line    => 'volume',
-	    key     => 'volume over 250000',
-	}],
-	record   => [ 'print_values', {
-	    message => '$date: vv between hh and ll',
-	    lines   => {
-		vv	=> 'volumes::volume',
-		hh	=> 'prices::highest price',
-		ll	=> 'prices::lowest price',
-	    },
-	    masks   => {
-		vv	=> '%d',
-		hh	=> '%7.2f',
-		ll	=> '%7.2f',
-	    },
-	}],
-    ],
+Don't worry - it is only compiled once, and the compiled code is repeated - so
+it is just as efficient as running code in a script file.
 
-The C<good_vol> signal rings all volumes above 250000 and C<record> prints out the volume and price range for that
-day.  It is even more important to provide a key to 'mark' type signals.  Using the default keys quickly leads to half the
-page being taken up with the Key panels.
-    
-Like functions, the specifications vary according to the type of signal used - the first entry in the array ref.
-The second entry may be omitted if it would be C<undef>.  The third is often a hash ref passed to the signal
-handler, although this may be different for custom signals.  See L</print_values> for an explanation of the
-C<record> signal entries.
+=item Hash ref
 
-=head3 Samples
+This may have three keys, C<before>, C<during> and C<after>.  Each is a perl
+fragment, compiled and run before, during and after the sample points are
+considered.  C<during> is thus identical to L<Simple text>.
 
-A model may run tests and evaluate functions for several samples.  This is where the individual samples are
-specified, and there must be at least one.  The order is significant in that it affects how the charts are added
-to the file(s).  The sub-hash entries include options for creating a L<Finance::Shares::Sample> object:
+This form allows one-off invocation of callbacks, or an open-print-close
+sequence for writing signals to file.
 
-    start_date	    end_date
-    symbol	    dates_by
+=item Raw code
 
-There are, however, some significant additions.
-
-=over 8
-
-=item source
-
-This should be the name of the sources resource to use.  That value then becomes the C<source> entry for the
-Finance::Shares::Sample constructor.
-
-=item file
-
-The name of the B<files> resource specifying where the chart will go.
-
-=item chart
-
-One chart is created per sample, and this should be the name of the B<charts> resource holding the
-Finance::Shares::Chart constructor options to use.
-
-=item page
-
-As mentioned under L</Charts>, it is possible to specify a page identifier for every chart here.  Bear in mind,
-though, that this becomes the PostScript page 'number' and as such should be short and have no embedded spaces.
-The stock symbol is ideal.
-
-=item functions
-
-(Note the plural.)  This should be an array ref holding the names of all the function lines to be evaluated for
-the sample.  There is no 'default' - omitting this key means no functions are evaluated.  The functions will be
-evaluated in the order they appear.
-
-=item tests
-
-(Note the plural.)  This should be an array ref holding the names of all the tests to be performed on the sample.
-There is no 'default' - omitting this key means no tests are done.  They will be evaluated in the order they
-appear.
-
-=item groups
-
-(Note the plural.) If present, this should be an array ref holding names of zero or more B<groups> of settings.
-The settings are added in the order the group names are given, so later groups can override earlier settings.
-These can always be overridden by specifying the key directly.  Notice that subsequent keys override previous
-ones, so if two groups both have lists of functions only the second list will be used.
-
-If no 'groups' entry is present, the default group is assumed.  To prevent this, set to '[]'.
+These are the callbacks invoked by the previous types of perl fragment.
 
 =back
 
-Although it is possible to specify different dates for each sample, this should be used with care.  The date range
-includes every date needed for every sample and an attempt is made to calculate functions and tests for them all.
-If there is no reason for the overlap it would be better to run seperate models only differing by stock symbol and
-price.
+See L<Finance::Shares::test> for full details, but here is an illustration from
+the package testing to give some idea of the supported features.
 
-As with other resources, C<sample> (singlular) may be used if only one is required.
-
-Example 9
-
-    samples => [
-	1 => { symbol => MSFT, dates_by => 'weekdays', },
-	2 => { symbol => MSFT, dates_by => 'weeks', },
-	3 => { symbol => HPQ,  dates_by => 'weekdays', },
-    ],
-
-Note that the sample names are ignored.
-
-It is possible to use C<sample> (singular) to specify just one sample.
-
-Example 10
-
-    sample => {
-	symbol     => 'BSY.L',
-	start_date => '2002-10-01',
-	end_date   => '2002-12-31',
-	dates_by   => 'days',
-	functions  => [ 'simple3', 'expo20' ],
-	tests      => [ 'simple_above_expo' ],
-    },
-
-The default source, file and chart entries are assumed.
-
-=head3 Groups
-
-To avoid repetition it is possible to name a collection of B<samples> settings which are used together.  If
-a groups (or group) resource exists, the default group will be used in every sample that doesn't have a 'group'
-entry.
-
-Example 11
-
-    groups [
-	basic => {
-	    file       => 'file1',
-	    chart      => 'price_only',
-	    start_date => '2002-01-01',
-	    end_date   => '2002-12-31',
-	    dates_by   => 'weeks',
+B<Example>
+    
+    tests => [
+	sub1 => sub {
+	    my ($date, $high, $low) = @_;
+	    print "$date\: $low to $high\n";
 	},
-	gradient => {
-	    chart      => 'inc_cycles',
-	    functions  => [qw(simple3 grad1 chan10)],
-	},
-	vol_tests => {
-	    chart      => 'inc_signals',
-	    functions  => [qw(v250000 expo5 expo20)],
-	    tests      => [qw(high_vol move_up and)],
+
+	test1 => q(
+	    mark($above, 300) if $high > $value or not defined $high;
+	    call('sub1', $date, $high, $low) if $low >= 290;
+	),
+	
+	test2 => {
+	    before => <<END
+		print "before.\\n";
+		my \$name = "$filename.out";
+		open( \$self->{fh}, '>', \$name )
+		    or die "Unable to write to '\$name'";
+END
+	    ,
+	    during => q(
+		if ($close > $average and defined $average) {
+		    mark($mark, $close);
+		    my $fh = $self->{fh};
+		    print $fh "close=$close, average=$average\n"
+			if defined $close;
+		}
+	    ),
+	    after  => qq(
+		print "after.\\n";
+		close \$self->{fh};
+	    ),
 	},
     ],
 
-    samples [
-	1 => {
-	    symbol   => 'BSY.L',
-	    page     => 'BSY',
-	},
-	2 => {
-	    symbol   => 'BSY.L',
-	    page     => 'BSYm',
-	    dates_by => 'months',
-	    groups   => [qw(basic gradient)],
-	},
-	3 => {
-	    symbol   => 'PSON.L',
-	    file     => 'file2',
-	    groups   => ['vol_tests'],
-	},
-    ],
+Some notes.
 
-Assume the named references are all defined in their appropriate resource arrays.  Both BSkyB samples
-will appear on F<file1.ps>, but only the 'months' chart will have any lines on it.  The Pearson sample will use
-the same dates but the chart using the 'inc_signals' specification will be written to F<file2.ps>.
+=over
 
-=cut
+=item Perl variables
 
-=head2 The tests
+Perl variables may be used normally provided you avoid the tags used for
+B<lines> and B<tests>.  Variables with these names refer to the value of the
+line/test at that time.
 
-The tests currently available are:
+=item Persistence
 
-    gt	    1st line moves above 2nd
-    lt	    1st moves below 2nd
-    ge	    1st moves above or touches 2nd
-    le	    1st moves below or touches 2nd
-    eq	    1st touches 2nd
-    ne	    1st doesn't touch 2nd
-    min	    Smallest of 1st and 2nd
-    max	    Largest of 1st and 2nd
-    sum	    1st + 2nd
-    diff    1st - 2nd
-    and	    Logical 1st AND 2nd
-    or	    Logical 1st OR 2nd
-    not	    Logical NOT 1st
-    test    Logical value of 1st
+A special hash ref C<$self> has several predefined variables.  It is available
+to all the perl text, allowing variables set in one section to be available in
+another - when calculating averages, for example.
 
-Tests produce data lines in the standard format.  This means that data, functions and tests can be used
-interchangeably.  Tests can all be shown on any graph (or hidden).  Wherever a 'line' is expected, it can be
-a data, function or test line.  I think a circular reference is not possible because of the declaration order, but
-it would be a Very Bad Thing (TM) so be aware of the possibility.
+=item Programming facility
 
-B<not> and B<test> are unary, only working on the first line given.  The line values are converted to digital
-form, taking one of two values.  On the tests graph, these are 0 and the weight given to the test (up to 100).
-Other graphs have suitable minimum and maximum values depending on the Y axis scale.
+The perl fragments are just text or code refs.  They would typically be
+presented within a model spec file which B<fsmodel> invokes using B<do>.  It is
+therefore possible to create the code from seperate files, 'here' documents or
+quoted strings.  Don't forget to escape the '$' signs when using double-quoted
+strings.
 
-B<test> might be considered as B<not(not(...))>.  It uses a C<divide> value to convert the source line to 'on' or
-'off'.  This can be further conditioned by having this value decay over time.  Another use of B<test> is to
-trigger signals on pseudo-test functions like C<rising> or C<undersold>.
-
-All the logical tests (and, or, not and test) can be performed for their signals only if the C<logical> option is
-set.
-
-=head2 The signals
-
-The results lines are analog in that they can take a range of values.  Indeed they can be made to decrease over
-time.  But at any particular time they have a level or B<state>.  Signals, on the other hand, are a form of
-output that is inherently digital - either it has been invoked or it hasn't.  All tests can have zero or more
-signals associated with them which are invoked when some critical B<change> of state happens, like when one line
-crosses over another.  Currently the following signals are available:
-
-    mark	    Places a mark on a graph
-    mark_buy	    Draws a blue up arrow
-    mark_sell	    Draws a red down arrow
-    print_values    Write function/test values to a file
-    print	    Print a message on the console
-    custom	    Invoke a user defined callback
-
+=back
 
 =head1 CONSTRUCTOR
 
-A model can be specified completely in the option hash given to B<new()>, so the whole process is very simple:
+In addition to the resources covered in L<DESCRIPTION>, the following options
+(in key => value form) may also be included in the model specification.  [These,
+too, will be comma (not semi-colon) seperated.]
 
-    my $fsm = new Finance::Shares::Model(
-	    # model specified here
-	);
-    $fsm->output();
+=over 8
 
-The specification format is described in L</Recipes>.
-    
-=cut
+=item by
 
-sub new {
-    my $class = shift;
-    my $opt = {};
-    if (@_ == 1) { $opt = $_[0]; } else { %$opt = @_; }
-  
-    ## Initialization
-    my $o = {
-	opt       => $opt,
-	
-	fsc       => {},    # Finance::Shares::Chart objects as {filename}[]
-	psf       => {},    # PostScript::File objects indexed by filename
-	fss       => {},    # Finance::Shares::Sample objects (from add_samples)
-	order     => [],    # sequence of {samples} keys (from add_samples)
-	sigfns    => {},    # from add_signals
-	lines     => {},    # function/test id => sample line id, for each sample only
-	
-	run       => 0,	    # true if run() has created charts
-	start     => '9999-99-99',
-	end       => '0000-00-00',
-    };
-    bless( $o, $class );
+Set a default value for how the dates are shown.  Suitable values are
 
-    ## Defaults for top-level options
-    $o->{cgi_file}   = $opt->{cgi_file} || 'STDOUT';
-    $o->{fetch}      = $opt->{fetch};  
-    $o->{verbose}    = defined($opt->{verbose})    ? $opt->{verbose}    : 1;  
-    $o->{show_lines} = defined($opt->{show_lines}) ? $opt->{show_lines} : 0;  
-    $o->{dir}        = $opt->{directory};
-    $o->{delay}      = %$opt ? 0 : 1;
-    $o->{delay}      = ($opt->{run} == 0) if defined $opt->{run};
-    
-    ## Resources
-    $o->resource('source');
-    $o->resource('file');
-    $o->resource('chart');
-    $o->resource('function');
-    $o->resource('test');
-    $o->resource('signal');
-    $o->resource('group');
-    $o->resource('sample');
-    
-    ## PostScript::File objects
-    my $of = $o->{files};
-    die "No PostScript files\n" unless ($of and ref($of) eq 'HASH');
-    while( my ($id, $h) = each %$of ) {
-	$o->ensure_psfile( $id, $h );
-    }
-   
-    my $os = $o->{signals};
-    if (ref($os) eq 'HASH') {
-	while( my ($id, $ar) = each %$os ) {
-	    next unless ref($ar) eq 'ARRAY';
-	    my ($type, $obj, $hash) = @$ar;
-	    if (ref($obj) eq 'HASH') {
-		$hash = $obj;
-		$obj  = undef;
-	    }
-	    $o->add_signal($id, $type, $obj, $hash);
-	}
-    }
+    quotes  weekdays
+    days    weeks
+    months
 
-    $o->out(1, "verbose level $o->{verbose}");
-    $o->run() unless $o->{delay};
-    return $o;
-}
+=item config
 
-=head2 new( [ options ] )
-
-C<options> can be a hash ref or a list of hash keys and values.  Most of the top level keys are outlined above.
-However, there are a few others described here which control how the module behaves.
-
-=over 4
-
-=item cgi_file
-
-Specify the name of the C<file> or C<files> hash to be printed to STDOUT rather than to a file with that name.
-(Default: 'STDOUT')
+The name of a file containing a (partial) model specification.
 
 =item directory
 
-If the file names are not absolute paths, they will be placed in this directory.  (Default: undef)
+If C<filename> doesn't have a directory component, this becomes the directory.
+Otherwise the current directory is used.
 
-=item show_lines
+=item end
 
-This is provided to assist debugging.  Setting this to 1 makes the model print out all the lines it knowns, sample
-by sample.  (Default: 0)
+Set a default value for the last date considered, in YYYY-MM-DD format.
 
-=item run
+=item filename
 
-Setting this to 0 prevents the constructor from running the model.  A model is assumed if there are ANY
-parameters: if no parameters are given, this defaults to 0, otherwise the default is 1.
+The name associated with the default file specification.  '.ps' will be appended
+to this.
+
+=item no_chart
+
+Used by B<fsmodel>, this supresses any chart output if set to 1.
+
+=item null
+
+The string assigned to this will be read as meaning 'nothing'.  The following
+example states that the sample has no stock code.  (Default: '<none>')
+
+    null => '<nothing>',
+
+    sample => {
+	stock => '<nothing>',
+	...
+    },
+
+=item show_values
+
+Where a function requires more than one dependent line, any after the first may
+be a number.  This is converted internally to a C<value> line which may or may
+not be shown displayed.  
+
+There is no facility for specifying the style of these lines, but setting
+C<show_values> to 1 will show and 0 will hide them all.
+
+=item start
+
+Set a default value for the first date to be displayed, in YYYY-MM-DD format.
 
 =item verbose
 
-Gives some control over the number of messages sent to STDERR during the process.
+Control the amount of feedback given while the model is being run.
 
-    0	Only fatal messages
-    1	Minimal
-    2	Report each process
-    3+	Debugging
+    0	silent
+    1	default
+    2	show eval'ed code in user tests
+    
+    3	debug model outline
+    4	debug model including objects
+    5	most methods, including Chart
+    6	diagnostic, inc Functions
+    7	everything
+
+=item write_csv
+
+This saves the sample data in CSV format.  It may be either a name for the CSV
+file or '1', in which case a suitable name is generated.  If more than one
+sample page exists, all subsequent pages will also be saved into seperate files.
 
 =back
-
-=head1 MAIN METHODS
-
-=cut
-
-sub run {
-    my $o = shift;
-    
-    foreach my $id (@{$o->{sampleord}}) {
-	my $h0 = $o->{samples}{$id};
-	die "Missing sample hash\n" unless ref($h0) eq 'HASH';
-	$o->out(2, "Sample for $h0->{symbol} ...") if $h0->{symbol};
-	
-	## sample hash
-	my $gname = $h0->{group} || $o->{defgroup};
-	my $group = $o->{groups}{$gname} if $gname;
-	my @args = %$group if ref($group) eq 'HASH';
-	if (ref($h0->{groups}) eq 'ARRAY') {
-	    foreach my $gname (@{$h0->{groups}}) {
-		my $group = $o->{groups}{$gname};
-		push @args, %$group if ref($group) eq 'HASH';
-	    }
-	}
-	my $sname = $h0->{source} || $o->{defsource};
-	push @args, %$h0, (source => $o->{sources}{$sname});
-	my $h = deep_copy( { @args } );
-	
-	if (ref $h->{source} eq 'HASH') {
-	    $h->{source}{verbose} = $o->{verbose} unless defined $h->{source}{verbose};
-	    $h->{source}{mode}    = $o->{fetch} if $o->{fetch};	    # cmdline overrides model spec
-	}
-	my $fss;
-	eval {    
-	    $fss = new Finance::Shares::Sample( $h );
-	};
-	if ($@) {
-	    $o->out(0, "    Error with sample: $@");
-	    next;
-	}
-	$o->add_sample( $fss );
-
-	## chart
-	my $filename = $h->{file} || $o->{deffile};
-
-	my $psf = $o->{psf}{$filename}; 
-	die "No PostScript::File object named '$filename'\n" unless $psf;
-	my @chart_args = (
-	    sample => $fss,
-	    file   => $psf,
-	    page   => $h->{page},
-	);
-	my $cname = $h->{chart} || $o->{defchart} || '';
-	my $chash = $o->{charts}{$cname}; 
-	my @chart = %{deep_copy($chash)} if ref($chash) eq 'HASH'; 
-	$o->{fsc}{$filename} = [] unless defined $o->{fsc}{$filename};	    # charts for that file
-	push @{$o->{fsc}{$filename}}, new Finance::Shares::Chart(@chart, @chart_args);
-	$o->out(3, "    ". "Using chart '$cname' for " .
-	    ($filename eq 'STDOUT' ? 'STDOUT' : "file '$filename.ps'"));
-
-	## functions
-	my %lines;
-	if (ref($h->{functions}) eq 'ARRAY') {
-	    foreach my $id (@{$h->{functions}}) {
-		my $h0 = $o->{functions}{$id};
-		my $fh = deep_copy($h0);
-		my $fname = $fh->{function};
-		next unless $fname;
-		patch_line(\%lines, $fh, 'line');
-		my ($line1, $line2) = call_function( \%function,$fname, $fss,%$fh );
-		if (defined $line2) {
-		    $lines{$id . '_high'} = $line1;
-		    $lines{$id . '_low'} = $line2;
-		    $o->out(4, '    ' . $id . "_high = function $line1");
-		    $o->out(4, '    ' . $id . "_low  = function $line2");
-		} elsif (defined $line1) {
-		    $lines{$id} = $line1;
-		    $o->out(4, '    ' . "$id = function $line1");
-		}
-	    }
-	}
-
-	## tests
-	if (ref($h->{tests}) eq 'ARRAY') {
-	    foreach my $id (@{$h->{tests}}) {
-		my $h0 = $o->{tests}{$id};
-		my $th = deep_copy($h0);
-		patch_line(\%lines, $th, 'line1');
-		patch_line(\%lines, $th, 'line2');
-		$o->patch_signals(\%lines, $th->{signals});
-		my $line_id = $o->test_sample($fss, $th);
-		$lines{$id} = $line_id;
-		$o->out(4, '    ' . "$id = test $line_id");
-	    }
-	}
-	print $fss->show_lines if $o->{show_lines};
-	#print show_hash(\%lines);
-	$o->out(1, "Finished sample '". $fss->id() ."'");
-    }
-
-    $o->{run} = 1;
-}
-
-sub add_sample {
-    my ($o, $s) = @_;
-    die unless $s->isa('Finance::Shares::Sample');
-    my $start = $s->start_date();
-    my $end   = $s->end_date();
-    my $id    = $s->id();
-    push @{$o->{order}}, $id;
-    $o->{samples}{$id} = $s;
-    $o->{start} = $start if $start lt $o->{start};
-    $o->{end}   = $end   if $end   gt $o->{end};
-
-    return $s;
-}
-
-=head2 add_sample( sample )
-
-This adds stock quote data to the model.  C<sample> must be a L<Finance::Shares::Sample> object.  The results of
-the tests are written back to the sample which would typically be displayed on a L<Finance::Shares::Chart>.
-
-Multiple samples can be added.  These might be for the same stock sampled over days, weeks and months, or for
-different stocks and different dates.  Bear in mind that all tests are conducted on all dates, so it makes sense
-to keep the date ranges as similar as possible.
-
-=cut
-
-sub add_signal {
-    my ($o, $id, $signal, $obj, @args) = @_;
-    if ($sigfunc{$signal}) {
-	die "There is already a signal registered as '$id'\n" if defined $o->{sigfns}{$id};
-	$o->{sigfns}{$id} = [ $signal, $obj, @args ];
-    } else {
-	die "Unknown signal function type '$signal'\n";
-    }
-}
-
-=head2 add_signal( id, signal, [ object [, args ]] )
-
-Register a callback function which will be invoked when some test evaluates 'true'.
-
-=over 8
-
-=item id
-
-A string identifying the signal.  This must be unique.
-
-=item signal
-
-This must be a known signal name, see L</SIGNALS>.
-
-=item object
-
-Use 'undef' here for those signals that need to use the Finance::Shares::Sample, such as 'mark_buy'.
-When registering B<print>, this is the message to print and when registering a B<custom> function,
-this is the function reference.
-
-=item args
-
-Any arguments that will be passed to the signal function.
-
-=back
-
-See the individual signal handling methods for the arguments that signal requires.
-
-=cut
-
-sub test {
-    my $o = shift;
-    my $opt = {};
-    if (@_ == 1) { $opt = $_[0]; } else { %$opt = @_; }
-    my $h = {
-	graph1	=> 'prices',	line1	=> 'close',
-	#graph2	=> 'prices',	#line2	=> 'close',	# only defined when not unary test
-	test	=> 'gt',	shown	=> 1,		style	=> {},
-	weight	=> 100,		decay	=> 1,		ramp	=> 0,
-	%$opt,
-    };
-
-    my $id;
-    foreach my $s (values %{$o->{samples}}) {
-	$id = $o->test_sample($s, $h);
-    }
- 
-    return $id;
-}
-
-=head2 test( options )
-
-A test is added to the model and the resulting line added to each Sample.  Signals are invoked when a date is
-encountered that passes the test.  Tests may be binary (working on two lines) or unary (just working on one).
-
-The method returns the identifier string for the resulting data line.
-
-C<options> may be either a list or a hash ref.  Either way it should contain parameters passed as key => value
-pairs, with the following as known keys.
-
-=over 8
-
-=item graph1
-
-The graph holding C<line1>.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.
-
-=item line1
-
-A string identifying the only line for a unary test or the first line for a binary test.
-
-=item graph2
-
-The graph holding C<line2>.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.  Defaults to C<graph1>.
-
-=item line2
-
-A string identifying the second line for a binary test.  For a unary test this must be undefined.
-
-=item test
-
-The name of the test to be applied, e.g 'gt' or 'lt'.  Note this is a string and not a function reference.
-
-=item logical
-
-[Only logical tests B<and>, B<or>, B<not> and B<test>.]  When '1', the results line is not generated.  Only useful
-when signals are triggered and the line is not needed for other tests.  (Default: 0)
-
-=item shown
-
-True if the results should be shown on a graph.
-
-=item style
-
-If present, this should be either a PostScript::Graph::File object or a hash ref holding options for creating one.
-
-=item graph
-
-The destination graph, where C<line> will be displayed.  Must be one of 'prices', 'volumes', 'cycles' or 'tests'.
-
-If not specified, C<graph1> is used.  This is a little odd as the scales are usually meaningless.  However, as
-mostly the result is an on-or-off function, the line is suitably scaled so the shape is clear enough.
-
-=item key
-
-The string which will appear in the Key panel identifying the test results.
-
-=item divide
-
-[Only for B<not> and B<test>.]  This sets the point dividing 'true' from 'false' and should be a value
-within the range of C<line1> values.  (Default: 0)
-
-=item limit
-
-[Only for B<sum> and B<diff>.]  When 1, the result is clipped within the graphs axes.  Setting this to 0 allows the axis to
-accomodate all the arithmetic results.
-
-=item weight
-
-How important the test should appear.  Most tests implement this as the height of the results line.
-
-=item decay
-
-If the condition is met over a continuous period, the results line can be made to decay.  This factor is
-multiplied by the previous line value, so 0.95 would produce a slow decay while 0 signals only the first date in
-the period.
-
-=item ramp
-
-An alternative method for conditioning the test line.  This amount is added to the test value with each
-period.
-
-=item signals
-
-This should be an array ref holding one or more of the signals registered with this model.
-
-=back
-
-The results line would typically be shown on the 'tests' graph.  Most tests are either true or false, so the
-line is flat by default.  The line can be conditioned, however, so its value changes over time.
-Here are some examples of how the relevant parameters interact.
-
-Example 1
-
-    decay   => 0.5,
-    ramp    => 0,
-
-An exponential decay, halving with each period.
-
-    decay   => 0.95,
-    ramp    => 0,
-
-A much shallower decaying curve.
-
-    weight => 100,
-    decay  => 1,
-    ramp   => -20,
-
-A straight line decline which disappears after five days.
-
-    weight => 100,
-    decay  => 1.983,
-    ramp   => -99,
-
-An inverted curve with the first 5 days scoring more than 85 then dropping rapidly to 0 after 7 days.
-
-=cut
-
-sub output {
-    my $o = shift;
-    
-    my ($psf, $filename, $dir);
-    unless ($o->{run}) {
-	$psf = shift;
-	my $ref = ref $psf;
-	if ($psf and ($ref eq 'HASH' or $ref eq 'PostScript::File')) {
-	    ($filename, $dir) = @_;
-	} else {
-	    $dir = shift;
-	    $filename = $psf;
-	    $psf = undef;
-	}
-	$o->ensure_psfile( $filename, $psf );
-	$o->run();
-    }
-    $dir = $o->{dir} unless defined $dir;
-
-    my $res = '';
-    while( ($filename, $psf) = each %{$o->{psf}} ) {
-	die "There is no PostScript::File for '$filename'\n" unless ref($psf) eq 'PostScript::File';
-	my $pages = 0;
-	my $sample;
-	my $png = 0;
-	my $ghostscript;
-	foreach my $fsc (@{$o->{fsc}{$filename}}) {
-	    $psf->newpage() if $pages++;
-	    $o->out(3, "Building chart '" . $fsc->title() . "'");
-	    $fsc->build_chart($psf);
-	    $png = 1 if $fsc->png();
-	    $ghostscript = $fsc->ghostscript();
-	    $sample = $fsc->sample()->id();
-	}
-	if ($pages) {
-	    if ($filename eq $o->{cgi_file}) {
-		$o->out(2, "Written to STDOUT");
-		$res = $psf->output();
-	    } else {
-		if ($sample and $filename =~ /^file\d*$/) {
-		    my ($symbol, $start, $days, $end) = $sample =~ /([^\(]+)\(([^,]+),([^,]+),([^\)]+)/;
-		    $filename = "${symbol}_${days}_${start}_to_${end}";
-		}
-		if ($png) {
-		    $o->out(2, "Saving '". ($dir ? "$dir/" : '') . "$filename.png'");
-		    $psf->output($filename, $dir);
-		    my $psfile  = "$filename.ps";
-		    my $pngfile = check_file("$filename.png", $dir);
-		    my @cmd = qq(cat $psfile | $ghostscript -q -dBATCH -sDEVICE=png16m -sOutputFile=$pngfile -);
-		    system @cmd;
-		    unlink $psfile;
-		} else {
-		    $o->out(2, "Saving '". ($dir ? "$dir/" : '') . "$filename.ps'");
-		    $psf->output($filename, $dir);
-		}
-	    }
-	}
-    }
-
-    return $res;
-}
-
-
-=head2 output( [psfile,] [filename [, directory]] )
-
-C<psfile> can either be a L<PostScript::File> object, a hash ref suitable for constructing one or undefined.
-
-The charts are constructed and written out to the PostScript file.  A suitable suffix (.ps, .epsi or .epsf) will
-be appended to C<filename>.
-
-If no filename is given, the PostScript text is returned.  This can then be piped to B<gs> for conversion into
-other formats, or output directly from a cgi script.
-
-Example 1
-
-    my $file = $fsm->output();
-
-The PostScript is returned as a string.  The PostScript::File object has been constructed using defaults which
-produce a landscape A4 page.
-
-Example 2
-
-    $fsm->output('myfile');
-
-The default A4 landscape page(s) is/are saved as F<myfile.ps>.
-
-Example 3
-
-    my $pf = new PostScript::File(...);
-    my $file = $fsm->output($pf);
-
-The pages are formatted according to the PostScript::File parameters.  The same result would have been obtained
-had $pf been a hash ref.
-
-Example 4
-
-    my $pf = new PostScript::File(...);
-    $fsm->output($pf, 'shares/myfile', $dir);
-
-The specially tailored page(s) is/are written to F<$dir/shares/myfile.ps>.
-
-Note that it is not possible to print the charts individually once B<output()> has been called.  However, it is
-possible to output them seperately to their own files, I<then> call this to output a file showing them all.
-
-=cut
-
-=head1 SIGNALS
-
-Before they can be used signals must have been registered with the Model using B<add_signal>.
-The name must then be given to B<test> as (part of) the B<signal> value.
-
-Most parameters are given when it is registered, but the date and Y value of the signal is also passed to the handler.
-
-=cut
-
-sub signal_mark {
-    my ($s, $id, $date, $value, $p) = @_;
-    die "Cannot mark buy signal: no date\n" unless defined $date;
-    $p->{key} = $id unless defined $p->{key};
-    $p->{shown} = 1 unless defined $p->{shown};
-
-    $p->{style} = {
-	point => {
-	    shape => 'circle',
-	    size  => 10,
-	    color => [0.5, 0.7, 0.0],
-	},
-    } unless defined $p->{style};
-    
-    if (defined $p->{value}) {
-	$value = $p->{value};
-    } elsif (defined $p->{line}) {
-	$p->{graph} = 'prices', $p->{line} = 'close' unless defined $p->{graph};
-	my $vline = $s->choose_line($p->{graph}, $p->{line});
-	if (defined $vline) {
-	    $value = $vline->{data}{$date};
-	} else {
-	    warn "Cannot mark buy signal: line '$p->{line}' does not exist on $p->{graph}\n";
-	}
-	unless (defined $value) {
-	    undef $p->{graph};
-	    undef $p->{line};
-	}
-    }
-    
-    if (defined $value) {
-	# changes here must be reflected in test() patch
-	my $graph = $p->{graph} || 'tests';
-	my $line_id = "signal($id)";
-	my $buy = $s->choose_line( $graph, $line_id, 1 );
-	$buy = $s->add_line( $graph, $line_id, {}, $p->{key}, $p->{style}, $p->{shown} ) unless defined $buy;
-	$buy->{data}{$date} = $value;
-    } else {
-	if (defined $p->{line}) {
-	    warn "Cannot mark buy signal: no value for $date on $p->{graph} line '$p->{key}'\n";
-	}
-    }
-}
-
-=head2 mark
-
-A point is drawn on a graph when the test evaluates 'true'.  The following parameters may be passed to
-B<add_signal> within a hash ref.
-
-Example
-
-    $fsm->add_signal('note_price', 'mark', undef, {
-	graph => 'prices', 
-	line  => 'high',
-    });
-    
-=over 8
-
-=item graph
-
-One of prices, volumes, cycles or tests.  If you have specified a particular graph for the test, you probably
-want to set this to the same.
-
-=item value
-
-If present, this should be a suitable Y coordinate.  No bounds checking is done.
-
-=item line
-
-The Y coordinate may be obtained from the line identified by this string.  By default, the test line value is
-used.  C<graph> should be set if this is given.
-
-=item key
-
-Optional string appearing in the Key panel.
-
-=item style
-
-An optional hash ref containing options for a PostScript::Graph::Style, or a PostScript::Graph::Style object.  It
-should only have a B<point> group defined (line makes no sense).  (Default: green circle).
-
-=item shown
-
-Optional flag, true if the mark is to be shown (Default: 1)
-
-=back
-
-=cut
-
-sub signal_mark_buy {
-    my ($s, $id, $date, $value, $p) = @_;
-    $p->{key} = "buy signal ($id)" unless defined $p->{key};
-
-    $p->{style} = {
-	same => 0, 
-	auto => 'none', 
-	point => { 
-	    shape => 'north',
-	    size => 10,
-	    y_offset => -12,
-	    color => [0.5, 0.6, 1],
-	    width => 2,
-	},
-    } unless defined $p->{style};
-    
-    signal_mark($s, $id, $date, $value, $p);
-}
-
-=head2 mark_buy
-
-A convenience form of 'mark' providing a blue up arrow as the default style.  See the signal L</mark> for details.
-
-Example
-
-    $fsm->add_signal('buy01', 'mark_buy', undef, {
-	graph => 'prices', 
-	value => 440,
-    });
-    
-=cut
-
-sub signal_mark_sell {
-    my ($s, $id, $date, $value, $p) = @_;
-    $p->{key} = "sell signal ($id)" unless defined $p->{key};
-
-    $p->{style} = {
-	same => 0, 
-	auto => 'none', 
-	point => { 
-	    shape => 'south',
-	    size => 10,
-	    y_offset => 12,
-	    color => [0.9, 0.6, 0.5],
-	    width => 2,
-	},
-    } unless defined $p->{style};
-    
-    signal_mark($s, $id, $date, $value, $p);
-}
-
-=head2 mark_sell
-
-A convenience form of 'mark' providing a red down arrow as the default style.  See the signal L</mark> for details.
-
-Example
-
-    $fsm->add_signal('sell01', 'mark_sell', undef, {
-	graph => 'prices', 
-	line  => 'high',
-    });
-    
-=cut
-
-sub signal_print {
-    my ($msg, $id, $date, $value) = @_;
-    $msg = '' if not defined $msg or ref($msg);
-    print "SIGNAL $id at $date", ($msg ? ": $msg" : ''), "\n";
-}
-
-=head2 print
-
-This is the lightweight print signal.  See L</print_values> for another which can show 'live' values.
-
-It prints a string to STDOUT when the test evaluates 'true'.
-
-Register the signal like this:
-
-    $fsm->add_signal('msg1', 'print', 'Some message');
-
-or even
-    
-    $fsm->add_signal('msg2', 'print');
-
-Note that this is slighty different from all the others - there is no C<undef> (the object placeholder).
-    
-=cut
-
-sub signal_print_values {
-    my ($s, $id, $date, $value, $p) = @_;
-    die "Cannot print value: no date\n" unless defined $date;
-
-    my $msg = $p->{message};
-    $msg = '' unless defined $msg;
-    warn "No message for print_values signal\n" unless $msg;
-    
-    my $lines = {};
-    my $masks = {};
-    if (ref($p->{lines}) eq 'ARRAY') {
-	my $mask = shift @{$p->{masks}};
-	foreach my $i (0 .. $#{$p->{lines}}) {
-	    my $full_id = $p->{lines}[$i];
-	    $lines->{$full_id} = $full_id;
-	    $masks->{$full_id} = defined($p->{masks}[$i]) ? $p->{masks}[$i] : '%s';
-	}
-    } elsif (ref($p->{lines}) eq 'HASH') {
-	$lines = $p->{lines};
-	$masks = $p->{masks};
-    } elsif (defined $p->{lines}) {
-	my $full_id = $p->{lines};
-	$lines->{$full_id} = $full_id;
-	$masks->{$full_id} = defined($p->{masks}) ? $p->{masks} : '%s';
-    }
-
-    while( my ($key, $full_id) = each %$lines ) {
-	my $line = $s->line_by_key($full_id);
-	my $v = sprintf($masks->{$key}, $line->{data}{$date});
-	$v = '<undefined>' unless defined $v;
-	$msg =~ s/$key/$v/gi;
-    }
-    $msg =~ s/\$date/$date/g;
-    
-    my $mask = $p->{mask};
-    $mask = '%s' unless defined $mask;
-    $value = sprintf($mask, $value);
-    $msg =~ s/\$value/$value/gi;
-
-    my $file = $p->{file};
-    $file = \*STDOUT unless defined $file;
-    
-    print $file $msg, "\n";
-} 
-
-=head2 print_values
-
-This is the heavy duty print signal.  See L</print> for a lighter weight one.
-
-This signal is intended for constructing data files from significant events.  There is a message template which
-can include line identifiers.  When the message is output for a particular date, the line values are substituted
-for their identifiers.
-
-It prints a string to a file or to STDOUT when the test evaluates 'true'.
-The following parameters may be passed to B<add_signal> within a hash ref.
-
-=over 8
-
-=item message
-
-This is the string that is output.  It may include C<$date> and any number of identifiers, which will
-be replaced with suitable values.  Note that C<message> should be given in single quotes or with the '$' sign
-escaped.  $date looks like a variable but is just a placeholder for the signal's date.
-
-=item mask
-
-If given this should be a B<printf> format string specifying the format of $value, e.g. '%6.2f'.
-
-=item masks
-
-If given, this provides a C<mask> for each of the line values.  In the same format as C<lines>.
-
-=item lines
-
-If a string or a reference to an array of strings, these are line identifiers, formed by concatenating the graph,
-'::' and the line key.  If a hash ref is given, the line identifiers are the values associated with keys used in
-C<message>.  The default line identifiers are as follows, not that spaces are allowed within the string.
-
-    prices::opening price
-    prices::closing price
-    prices::lowest price
-    prices::highest price
-    volumes::volume
-
-Note that a case insensitive regex match is used to pick out the identifier (or hash key) within C<message>.  So
-avoid special characters as the results will not be what you expect.
-
-[Future releases may change the graph::user_key identifiers to text identifiers as used in the model specification.]
-
-=item file
-
-If given, this should be an already open file handle.  It defaults to C<\*STDOUT>.
-
-=back
-
-Example 1
-
-    my $fsm = new Finance::Shares::Model;
-
-    $fsm->add_signal('value', 'print_value', undef, {
-	    message => 'Signal is $value at $date', 
-	});
-
-Output the value of the test line.
-	
-Example 2
-     
-    my $fss = Finance::Shares::Sample;
-
-    my $avgline = $fss->simple_average(
-	graph => 'prices',
-	period => 3,
-	key => 'simple 3 day average',
-    );
-    
-    $fsm->add_signal('note_vol', 'print_value', undef, {
-	message => '$date: Volume=vv, average=avg', 
-	lines   => {
-	    avg => 'prices::simple 3 day average',
-	    vv  => 'volumes::volume',
-	},
-    });
-
-Show the value of other lines.
-
-Example 3
-   
-    my $sfile;
-    open $sfile, '>', 'signals.txt';
-    
-    $fsm->add_signal('csv', 'print_value', undef, {
-	message => '$date,open,high,low,close,volume', 
-	lines => {
-	    open   => 'prices::opening price',
-	    high   => 'prices::highest price',
-	    low    => 'prices::lowest price',
-	    close  => 'prices::closing price',
-	    volume => 'volumes::volume',
-	},
-	masks   => {
-	    open   => '%6.2f',
-	    high   => '%6.2f',
-	    low    => '%6.2f',
-	    close  => '%6.2f',
-	    volume => '10d',
-	},
-	file    => $sfile,
-    });
-
-    $fsm->test(
-	graph1 => 'prices', line1 => 'close',
-	graph1 => 'prices', line2 => $avgline,
-	test   => 'gt',
-	signal => 'csv',
-    );
-
-    close $sfile;
-
-Construct a CSV file 'signals.txt'  holding quotes for all the dates when the signal fires.
-    
-=cut
-
-
-sub signal_custom {
-    my ($func, $id, $date, $value, @args) = @_;
-    die "Not a CODE reference\n" unless ref($func) eq 'CODE';
-    &$func( $id, $date, $value, @args );
-}
-
-=head2 custom
-
-Use this to register your own callbacks which should look like this:
-
-    sub custom_func {
-	my ($id, $date, $value, @args) = @_;
-	...
-    }
-
-where the parameters are:
-
-    $id	    The identifier given to add_signal()
-    $date   The date of the signal
-    $value  The value of the test invoking the signal
-    @args   Optional arguments given to add_signal()
-    
-You would register your function with a call to add_signal with 'custom' as the signal type:
-
-    $fsm->add_signal( 'myFunc', 'custom', \&custom_func,
-		      @args );
-	
-Example
-
-    my $fss = new Finance::Shares::Sample(...);
-    my $fsm = new Finance::Shares::Model;
-    
-    # A comparison line
-    my $level = $fss->value(
-	graph => 'volumes', value => 250000
-    );
-
-    # The callback function
-    sub some_func {
-	my ($id, $date, $value, @args) = @_;
-	...
-    }
-    
-    # Registering the callback
-    $fsm->add_signal( 'MySignal', 'custom', \&some_func, 
-	3, 'blind', $mice );
-
-    # Do the test which may invoke the callback
-    $fsm->test(
-	graph1 => 'volumes', line1 => 'volume',
-	graph1 => 'volumes', line2 => $level,
-	test   => 'gt',
-	signal => 'custom',
-    );
-
-Here &some_func will be be called with a parameter list like this when the volume moves above 250000:
-
-    ('MySignal', '2002-07-30', 250064, 3, 'blind', $mice)
-
-=cut
-
-=head1 SUPPORT METHODS
-
-=cut
-
-sub test_sample {
-    my ($o, $s, $h) = @_;
-    my $id;
-    my $label = $h->{key};
-    my ($base1, $base2);
-    $base1 = $s->choose_line($h->{graph1}, $h->{line1});
-    die "No $h->{graph1} line with id '$h->{line1}'" unless $base1;
-    die "Line '$h->{line1}' has no key" unless $base1->{key};
-    if($h->{line2}) {
-	my $graph2 = $h->{graph2};
-	$graph2 = $h->{graph1} unless defined $graph2;
-	$base2 = $s->choose_line($graph2, $h->{line2});
-	die "No $graph2 line with id '$h->{line2}'\n" unless $base2;
-	die "Line '$h->{line2}' has no key\n" unless $base2->{key};
-	$label = (defined $testpre{$h->{test}} ? "$testpre{$h->{test}} " : '') . $base1->{key} . ' ' .
-		 (defined $testname{$h->{test}} ? "$testname{$h->{test}} " : '') . $base2->{key} unless $label;
-	$id = line_id("test_$h->{test}", $h->{graph1}, $h->{line1}, $graph2, $h->{line2}) unless $id;
-    } else {
-	$label = (defined $testpre{$h->{test}} ? "$testpre{$h->{test}} " : '') . $base1->{key} . ' ' .
-		 (defined $testname{$h->{test}} ? "$testname{$h->{test}} " : '') unless $label;
-	$label = "$testname{$h->{test}} $base1->{key}" unless $label;
-	$id = line_id("test_$h->{test}", $h->{graph1}, $h->{line1}) unless $id;
-    }
-    
-    my $graph = $h->{graph};
-    $graph = $h->{graph1} unless defined $graph;
-    my ($min, $max) = value_range( $s, $graph, $h->{weight} );
-    $h->{decay} = 1 unless defined $h->{decay};
-    $h->{decay} = 0 if $h->{decay} < 0;
-    $h->{ramp}  = 0 unless defined $h->{ramp};
-    my $data = prepare_values( $base1, $base2 );
-    my @args = (%$h, sample => $s, line1 => $base1, line2 => $base2, min => $min, max => $max);
-    my $res = call_function(\%testfunc,$h->{test}, $o,$data,@args );
-    $s->add_line($graph, $id, $res, $label, $h->{style}, $h->{shown}) if $res;
-
-    $h->{signals} = [ $h->{signal} ] if defined($h->{signal}) and not defined($h->{signals});
-    if ($h->{signals}) {
-	# A test may produce a line on one graph but invoke a 'mark' signal on another
-	# The signal line may use values from the test graph axis, which might need clipping.
-	foreach my $id (@{$h->{signals}}) {
-	    next unless $id;
-	    my $sf = $o->{sigfns}{$id};
-	    next unless ref($sf) eq 'ARRAY';
-	    my ($signal, $org, @rest) = @$sf;
-	    if ($signal =~ /mark/) {
-		my $p = $rest[0];
-		my $graph = $p->{graph} || 'tests';
-		my $line_id = "signal($id)";
-		my $sline = $s->choose_line( $graph, $line_id, 1 );
-		if ($sline) {
-		    my $min = $s->{$graph}{min};
-		    my $max = $s->{$graph}{max};
-		    my $data = $sline->{data};
-		    foreach my $date (keys %$data) {
-			my $value = $data->{$date};
-			$value = $min if $value < $min;
-			$value = $max if $value > $max;
-			$data->{$date} = $value;
-		    }
-		}
-	    }
-	}
-    }
-    
-    return $id;
-}
-
-sub signal {
-    my ($o, $ss, $obj, $date, $value) = @_;
-    # changes here must be reflected in test() patch
-    my $signals = ref($ss) eq 'ARRAY' ? $ss : [ $ss ];
-    foreach my $id (@$signals) {
-	next unless $id;
-	my $sf = $o->{sigfns}{$id};
-	return unless ref($sf) eq 'ARRAY';
-	my ($signal, $org, @rest) = @$sf;
-	$org = $obj unless defined $org;
-	call_function( \%sigfunc,$signal, $org,$id,$date,$value,@rest );
-    }
-}
-
-=head2 signal( signal [, object [, param ]] )
-
-All callbacks of the type indicated by C<signal> will be invoked.
-
-=over 8
-
-=item signal
-
-This can be either a single signal name, or an array ref containing signal names.  Allowed names include:
-
-    mark_buy
-    mark_sell
-    print
-    custom
-
-=item object
-
-An object may be given when the signal was registered with B<add_signal>.  But if it was not, this will be the
-first parameter passed instead.
-
-=item param
-
-The second parameter passed to the callback function.  Any number of arguments may be passed here as an array ref.
-
-=back
-
-Any other registered parameters are passed after C<param>.
-
-=cut
-
-
-sub test_gt {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp <= 0 and $comp > 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp > 0 and $comp <= 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_lt {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp >= 0 and $comp < 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp < 0 and $comp >= 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_ge {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp < 0 and $comp >= 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp >= 0 and $comp < 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_le {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp > 0 and $comp <= 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp <= 0 and $comp > 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_eq {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp != 0 and $comp == 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp == 0 and $comp != 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_ne {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $prev_comp;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	my $comp = ($v1 <=> $v2);
-	if (defined $prev_comp and defined $comp) {
-	    if ($prev_comp == 0 and $comp != 0) {	# change this when copying
-		$level = $a{max};
-		$o->signal($a{signals}, $a{sample}, $date, $level);
-	    } elsif ($prev_comp != 0 and $comp == 0) {	# change this when copying
-		$level = $a{min} ;
-	    } else {
-		$level = condition_level( $level, \%a );
-	    }
-	}
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	$prev_comp  = $comp;
-	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_min {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-
-    my $lowest;
-    my $prev;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = ($v1 <= $v2 ? $v1 : $v2);
-	my $line = ($v1 <=> $v2);
-	$o->signal($a{signals}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
-	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
-	$level = $a{max} if $level > $a{max};
-	$level = $a{min} if $level < $a{min};
-	
-	$lowest = $line;
-	$prev =	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_max {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    
-    my $lowest;
-    my $prev;
-    my $level = $a{min};
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = ($v1 >= $v2 ? $v1 : $v2);
-	my $line = ($v1 <=> $v2);
-	$o->signal($a{signals}, $a{sample}, $date, $level) if (defined $lowest and $line and $lowest != $line);
-	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
-	$level = $a{max} if $level >= $a{max};
-	$level = $a{min} if $level <= $a{min};
-	
-	$lowest = $line;
-	$prev =	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_sum {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    
-    my $prev;
-    my $level;
-    my %res;
-    my $limit = defined($a{limit}) ? $a{limit} : 1;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = $v1 + $v2;
-	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
-	$level = $a{max} if $limit and $level >= $a{max};
-	$level = $a{min} if $limit and $level <= $a{min};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_diff {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    
-    my $prev;
-    my $level;
-    my %res;
-    my $limit = defined($a{limit}) ? $a{limit} : 1;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = $v1 - $v2;
-
-	$level = condition_level( $level, \%a ) if (defined $prev and $prev == $level);
-	$level = $a{max} if $limit and $level >= $a{max};
-	$level = $a{min} if $limit and $level <= $a{min};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level;
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_or {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    
-    my $prev;
-    my $level;
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = ($v1 || $v2) ? $a{max} : $a{min};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{logical};
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_and {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    
-    my $prev;
-    my $level;
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1, $v2) = @{$data->{$date}};
-	$level = ($v1 && $v2) ? $a{max} : $a{min};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{logical};
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_not {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    $a{divide} = 0 unless defined $a{divide};
-    
-    my $prev;
-    my $level;
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1) = @{$data->{$date}};
-	$level = $v1 > $a{divide} ? $a{min} : $a{max};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{logical};
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub test_test {
-    my ($o, $data, %a) = @_;					# See test for list of keys
-    $a{divide} = 0 unless defined $a{divide};
-    
-    my $prev;
-    my $level;
-    my %res;
-    foreach my $date (sort keys %$data) {
-	my ($v1) = @{$data->{$date}};
-	$level = $v1 > $a{divide} ? $a{max} : $a{min};
-	
-	$o->signal($a{signals}, $a{sample}, $date, $level) if defined $prev and $prev < $a{max} and $level == $a{max};
-	$prev =	$res{$date} = $level unless $a{logical};
-    }
-
-    return %res ? \%res : undef;
-}
-
-sub ensure_psfile {
-    my ($o, $filename, $h) = @_;
-    die "No filename for ensure_psfile\n" unless defined $filename;
-    
-    if (ref($h) eq 'PostScript::File') {
-	$o->{psf}{$filename} = $h;
-    } else {
-	my $of = (ref($h) eq 'HASH') ? deep_copy($h) : {};
-	$of->{paper}     = 'A4' unless (defined $of->{paper});
-	$of->{landscape} = 1    unless (defined $of->{landscape});
-	$of->{left}      = 36   unless (defined $of->{left});
-	$of->{right}     = 36   unless (defined $of->{right});
-	$of->{top}       = 36   unless (defined $of->{top});
-	$of->{bottom}    = 36   unless (defined $of->{bottom});
-	$of->{errors}    = 1    unless (defined $of->{errors});
-	$o->{psf}{$filename} = new PostScript::File( $of );
-    }
-}
-
-sub resource {
-    my ($o, $singular, $create) = @_;
-    my $plural    = $singular . 's';
-    my $default   = 'def' . $singular;
-    my $order     = $singular . 'ord';
-    $o->{$plural} = {};
-    $o->{$order}  = [];
-
-    my $ar = $o->{opt}{$plural};
-    if (ref($ar) eq 'ARRAY') {
-	$o->{$default} = $ar->[0];
-	for (my $i = 0; $i <= $#$ar; $i += 2) {
-	    my $id = $ar->[$i];
-	    my $h  = $ar->[$i+1];
-	    next unless defined $h;
-	    $o->{$default} = 'default' if $id eq 'default';
-	    $o->{$plural}{$id} = $h;
-	    push @{$o->{$order}}, $id;
-	}
-    }
-    
-    my $h = $o->{opt}{$singular};
-    if (defined $h) {
-	my $name = 'default';
-	$o->{$default} = $name;
-	$o->{$plural}{$name} = $h;
-	push @{$o->{$order}}, $name;
-    }
-    
-    #print $plural, ": $default=", $o->{$default} || '<none>'," order=", show_deep($o->{$order}), show_deep($o->{$plural}), "\n";
-} 
-
-sub patch_signals {
-    my ($o, $lines, $ss) = @_;
-    my $signals = ref($ss) eq 'ARRAY' ? $ss : [ $ss ];
-    foreach my $id (@$signals) {
-	next unless $id;
-	my $sf = $o->{sigfns}{$id};
-	return unless ref($sf) eq 'ARRAY';
-	my ($signal, $org, @rest) = @$sf;
-	if ($signal =~ /mark/) {
-	    my $h = $rest[0];
-	    return unless ref($h) eq 'HASH';
-	    patch_line($lines, $h, 'line');
-	}
-    }
-}
-
-sub out {
-    my ($o, $lvl, @args) = @_;
-    print STDERR @args, "\n" if $lvl <= $o->{verbose};
-}
-
-### SUPPORT FUNCTIONS
-
-sub value_range {
-    my ($s, $graph, $weight) = @_;
-    my ($min, $max);
-    
-    if ($graph eq 'tests') {
-	$min = 0;
-	$max = $weight;
-	$max = 100 if not $max or $max > 100;
-    } else {
-	my $gmin = $s->{$graph}{min};
-	my $gmax = $s->{$graph}{max};
-	warn "min/max not defined for $graph\n" unless defined $gmin and defined $gmax;
-	my $margin = ($gmax - $gmin) * $points_margin;
-	$min = $gmin - $margin;
-	$max = $gmax + $margin;
-    }
-
-    return ($min, $max);
-}
-
-sub prepare_values {
-    my ($base1, $base2) = @_;
-    my ($join, $data1, $data2);
-    if (defined $base2) {
-	$data1 = $base1->{data} || {};
-	$data2 = $base2->{data} || {};
-	$join  = { %$data1, %$data2 };
-	foreach my $date (keys %$join) {
-	    my $v1 = $data1->{$date};
-	    my $v2 = $data2->{$date};
-	    if (defined $v1 and defined $v2) {
-		$join->{$date} = [ $v1, $v2 ];
-	    } else {
-		delete $join->{$date};
-	    }
-	}
-    } else {
-	$data1 = $base1->{data} || {};
-	$join  = {};
-	foreach my $date (keys %$data1) {
-	    my $v1 = $data1->{$date};	    # undefined values not allowed in tests
-	    if (defined $v1) {
-		$join->{$date} = [ $v1 ];
-	    } else {
-		delete $join->{$date};
-	    }
-	}
-    }
-    
-    return $join;
-}
-# returns hash containing only values common to both lines
-
-sub condition_level {
-    my ($level, $h) = @_;
-
-    my $lvl = $level - $h->{min};
-    $lvl = $lvl*$h->{decay} + $h->{ramp};
-    return $lvl + $h->{min};
-}
-
-
-
-sub patch_line {
-    my ($lines, $h, $name) = @_;
-    return unless defined $h->{$name};
-    my $l = $lines->{'test_' . $h->{$name}};
-    if (defined $l) {
-	$h->{$name} = $l;
-    } else {
-	my $tag = $h->{$name};
-	$l = $lines->{$tag};
-	$h->{$name} = $l if defined $l;
-    }
-}
 
 =head1 BUGS
 
-The complexity of this software has seriously outstripped the testing, so there will be unfortunate interactions.
-Please do let me know when you suspect something isn't right.  A short script working from a CSV file
-demonstrating the problem would be very helpful.
+Please let me know when you suspect something isn't right.  A short script
+working from a CSV file demonstrating the problem would be very helpful.
+
+In particular the regular expression/wild card matching doesn't work properly.
 
 =head1 AUTHOR
 
 Chris Willmot, chris@willmot.org.uk
 
+=head1 LICENCE
+
+Copyright (c) 2002-2003 Christopher P Willmot
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+A copy can be found at L<http://www.gnu.org/copyleft/gpl.html>
+
 =head1 SEE ALSO
 
-L<Finance::Shares::MySQL>,
-L<Finance::Shares::Sample>,
-L<Finance::Shares::Chart>.
+L<Finance::Shares::Overview> provides an introduction to the suite, and
+L<fsmodel> is the principal script.
 
-Most models use functions from one or more of L<Finance::Shares::Averages>, L<Finance::Shares::Bands> and
-L<Finance::Shares::Momentum> as well.
+Other modules involved in processing the model include
+L<Finance::Shares::MySQL>, L<Finance::Shares::Chart>.
 
-There is also an introduction, L<Finance::Shares::Overview> and a tutorial beginning with
-L<Finance::Shares::Lesson1>.
+Chart and file details may be found in L<PostScript::File>,
+L<PostScript::Graph::Paper>, L<PostScript::Graph::Key>,
+L<PostScript::Graph::Style>.
+
+All functions are invoked from their own modules, all with lower-case names such
+as L<Finance::Shares::moving_average>.  The nitty-gritty on how to write each
+line specification are found there.
+
+Core modules used directly by this module include L<Finance::Shares::data>,
+L<Finance::Shares::value>, L<Finance::Share::mark> and L<Finance::Share::test>.
+
+For information on writing additional line functions see
+L<Finance::Share::Function> and L<Finance::Share::Line>.
+Also, L<Finance::Share::test> covers writing your own tests.
 
 =cut
-
-1;
 

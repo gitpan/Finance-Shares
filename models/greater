@@ -1,0 +1,30 @@
+# Model Specification for Finance::Shares::Model version 1.00
+#
+# Mark quotes where close > open.  The mark is more like a highlighter,
+# appearing behind the data.
+
+
+lines => [
+    result => {
+	function => 'mark',
+	style    => {
+	    bgnd_outline => 1,
+	    line => {
+		inner_width => 15,
+		inner_color => [0.9, 1.0, 0.4],
+	    },
+	},
+	order    => -1,
+    },
+],
+
+tests => <<'END'
+    mark($result, $close) if $close > $open;
+END
+,
+
+sample => {
+    test => 'default',
+    filename => 'greater',
+},
+

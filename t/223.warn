@@ -1,0 +1,58 @@
+Finance::Shares::Model=HASH(0x817509c) ...
+[ 
+  [ 
+    [ 
+      { built=>1, data=>ARRAY(0x87f005c), decay=><undef>,
+      fsfn=>Finance::Shares::momentum=HASH(0x880aaec), graph=>1 day comparison,
+      gtype=>analysis, home=>HASH(0x8805e3c), id=>line, key=>1 weekday momentum
+      of 'LGEN.L Closing price' (Shape only), lmax=>33, lmin=>-7.83,
+      npoints=>146, order=>5, ramp=><undef>, scale=>1, shown=>1,
+      style=>PostScript::Graph::Style=HASH(0x8824978), verbose=>1 } ]
+  , 
+    [ 
+      { built=>1, data=>ARRAY(0x87f63a8), decay=><undef>,
+      fsfn=>Finance::Shares::gradient=HASH(0x880dd20), graph=>1 day comparison,
+      gtype=>analysis, home=>HASH(0x8805e3c), id=>grad, key=>1 weekday gradient
+      of 'LGEN.L Closing price' (Shape only), lmax=>66, lmin=>-7.83,
+      npoints=>144, order=>6, ramp=><undef>, scale=>1, shown=>1,
+      style=>PostScript::Graph::Style=HASH(0x84891bc), verbose=>1 } ]
+  , 
+    [ 
+      { built=>1, data=>ARRAY(0x87e7c90), decay=><undef>,
+      fsfn=>Finance::Shares::rate_of_change=HASH(0x880fb6c), graph=>1 day
+      comparison, gtype=>analysis, home=>HASH(0x8805e3c), id=>line, key=>1
+      weekday rate of change of 'Closing price' (Shape only), lmax=>100,
+      lmin=>-7.20191254108975, npoints=>146, order=>7, ramp=><undef>, scale=>1,
+      shown=>1, style=>PostScript::Graph::Style=HASH(0x881a9c4), verbose=>1 } ]
+  , 
+    [ 
+      { built=>1, data=>ARRAY(0x881720c), decay=><undef>,
+      fsfn=>Finance::Shares::momentum=HASH(0x88110f4), graph=>5 day comparison,
+      gtype=>analysis, home=>HASH(0x8806b2c), id=>line, key=>5 weekday momentum
+      of 'LGEN.L Closing price' (Shape only), lmax=>33, lmin=>-16.4,
+      npoints=>142, order=>8, ramp=><undef>, scale=>1, shown=>1,
+      style=>PostScript::Graph::Style=HASH(0x8820f88), verbose=>1 } ]
+  , 
+    [ 
+      { built=>1, data=>ARRAY(0x8819008), decay=><undef>,
+      fsfn=>Finance::Shares::gradient=HASH(0x88113a0), graph=>5 day comparison,
+      gtype=>analysis, home=>HASH(0x8806b2c), id=>grad, key=>5 weekday gradient
+      of 'LGEN.L Closing price' (Shape only), lmax=>66, lmin=>-5.01181818181818,
+      npoints=>142, order=>9, ramp=><undef>, scale=>1, shown=>1,
+      style=>PostScript::Graph::Style=HASH(0x882b9e8), verbose=>1 } ]
+  , 
+    [ 
+      { built=>1, data=>ARRAY(0x881ab94), decay=><undef>,
+      fsfn=>Finance::Shares::rate_of_change=HASH(0x881263c), graph=>5 day
+      comparison, gtype=>analysis, home=>HASH(0x8806b2c), id=>line, key=>5
+      weekday rate of change of 'Closing price' (Shape only), lmax=>100,
+      lmin=>-13.8689217758985, npoints=>142, order=>10, ramp=><undef>, scale=>1,
+      shown=>1, style=>PostScript::Graph::Style=HASH(0x8814800), verbose=>1 } ]
+  , 
+    [  ]
+  ]
+]
+#     Failed test (t/223.t at line 134)
+#          got: '1 weekday momentum of 'LGEN.L Closing price' (Shape only)'
+#     expected: '1 weekday rate of change of 'LGEN.L Closing price' (Shape only)'
+# Looks like you planned 10 tests but only ran 3.

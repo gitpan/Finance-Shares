@@ -1,0 +1,232 @@
+
+sbry	 43
+sfw	 43
+tsco	 43
+
+boc	 22
+mrw	 43 +
+shire	 61 +
+lgen	147 +
+egg	262
+
+
+010.t
+    No input at all - suitable defaults are created
+    No build
+
+020.t
+    A few simple resources
+    all default hashes with typical entries
+    No build
+
+030.t
+    More complex resources
+    Some keys are plural
+    Some are arrays holding several typical entries
+    No build
+
+040.t	: 040.conf
+    Typical, single entries from config file
+    others filled with defaults
+    No build
+
+050.t	: 050.conf
+    Input from both config file and options
+    Some add entries to existing resource
+    Both single and plural keys used
+    Entries with same key over-written
+    Options overwrites config file
+    Cmdline overwrites options
+    No build
+
+060.t
+    Multiple options testing preparation structure
+    No build
+
+070.t
+    Particular date and sample entries have defaults filled
+    The default group is considered
+    No build
+
+080.t
+    literals in sample entry become resources
+    No build
+
+090.t
+    literals in sample entry become resources
+    from group instead of sample
+    No build
+
+100.t	: boc.csv
+    Single sample defaulting to typical, simple values
+    no lines
+    data only, blue candles
+
+110.t	: MySQL
+    Simple sample with named resources
+    value
+    red candles, 2 price lines
+
+120.t	: shire.csv
+    Lines which depend on data
+    Lead times
+    checking dates, data and line IDs
+    moving_average
+    2 price, 1 volume lines
+
+121.t	: shire.csv
+    Lines which depend on data
+    weighted_average
+    2 price, 1 volume lines
+
+122.t	: shire.csv
+    Lines which depend on data
+    exponential_average
+    2 price, 1 volume lines
+
+130.t	: shire.csv
+    Lines which use other lines
+    Scaling test on foreign graph
+    moving_average, greater_than
+    price= 2 avg + 1 level, volume=, level= 1
+
+140.t	: mrw.csv, sbry.csv, sfw.csv, tsco.csv
+    Multiple pages
+    mean of several values from different pages
+    use of '*' for sample in line name
+    common dates, after
+    moving_average, multiline_mean, compare
+    retail: price= 1
+    4 named: price=1, volume=, level=1
+
+150.t	: MySQL
+    Multiple pages from single sample
+    mean of several values
+    use of '*' for date in line name
+    mean is on hidden chart
+    moving_average, mean, compare
+    4 unnamed: price=1, volume=, level=1
+
+160.t	: egg.csv
+    Different date settings
+    no lines
+    4 pages, data only
+
+170.t	: MySQL, 170.conf, 170.stocks
+    Stocks from file (default)
+    config file
+    2 stocks x 3 dates
+    no lines
+    6 pages, data only (A5)
+
+171.t	: MySQL, 170.conf, 170.stocks
+    Stocks from file (named resource)
+    no lines
+    2 pages, data only (A5)
+
+
+172.t	: MySQL, 170.conf, 170.stocks
+    Stocks from file (named in sample)
+    no lines
+    2 pages, data only (A5)
+
+180.t	: shire.csv
+    lines
+    Test lines using line_dump and line_compare
+    highest, lowest, greater_equal, less_equal
+    1 page: price=2, volume=2, level=2
+
+181.t	: shire.csv
+    testing conditioning of levels, greater_than and less_than
+    Test lines using line_dump and line_compare
+    show_value control of generated value line
+    moving_average, greater_than, less_than
+    1 page: price=1 + 1 level, volume=1, level=1
+
+190.t	: mrw.csv
+    testing tests with code to be evaluated 
+    single code segment, trigger = 0
+    lowest, value, mark
+    1 page: price=1 + 1 signal, volume=
+
+191.t	: mrw.csv
+    testing tests with code to be evaluated 
+    first=1, marking low vals
+    lowest, value, mark
+    1 page: price=1 + 1 signal, volume=
+
+192.t	: mrw.csv
+    testing tests with code to be evaluated 
+    first=1, marking high vals, adjusted for undefs
+    lowest, value, mark
+    1 page: price=1 + 1 signal, volume=
+
+193.t	: mrw.csv
+    testing tests
+      multiple tests
+      multiple marks in same code
+      custom function call
+    display order
+    value, moving_average, calculated
+    1 page: price=1 + signal, volume=1 + 2 signals
+
+194.t	: mrw.csv
+    testing tests
+      before/during/after code strings
+      printing to file
+    moving average
+    1 page: price=1 + 1 signal
+    output file checked
+
+200.t	: lgen.csv
+    historical highs/lows
+    historical_high historical_low
+    1 page: level=2
+
+210.t	: lgen.csv
+    bollinger bands
+    bollinger_band
+    1 page: price=4
+
+211.t	: lgen.csv
+    percentage bands
+    percent_band
+    1 page: price=6
+
+220.t	: lgen.csv
+    momentum
+    momentum
+    1 page: price=1, volume0, analysis=2 + 1
+
+221.t	: lgen.csv
+    gradient
+    gradient
+    1 page: price=1, volume0, analysis=2 + 1
+
+222.t	: lgen.csv
+    rate_of_change
+    rate_of_change
+    1 page: price=1, volume0, analysis=2 + 1
+
+223.t	: lgen.csv
+    comparing rate_of_change, momentum and gradient
+    rate_of_change, momentum, gradient
+    1 page: price=3, analysis=3x1
+
+230.t	: shire.csv
+    rising, falling
+    rising, falling
+    1 page: level=1, price=2, analysis=1
+
+231.t	: shire.csv
+    oversold, undersold
+    oversold, undersold
+    1 page: price=2, analysis=3
+
+232.t	: lgen.csv
+    on_balance_volume
+    on_balance_volume
+    1 page: analysis=1
+
+
+

@@ -1,0 +1,191 @@
+The motivation for this rewrite:
+1   declarative rather than procedural
+2   avoiding 'out of memory' errors from
+    hashes
+
+
+INPUT
+=====
+Options can be read from a config file
+or given to the constructor.
+
+    source(s)  {} or str or [ tag => {} or str, ... ] 
+    stock(s)   str or [ tag => [] or str, ... ] 
+    date(s)    {} or [ tag => {}, ... ] 
+    file(s)    {} or [ tag => {}, ... ] 
+    chart(s)   {} or [ tag => {}, ... ] 
+    name(s)    [ tag => str, ... ] 
+    group(s)   {} or [ tag => {}, ... ] 
+    sample(s)  {} or [ tag => {}, ... ] 
+
+    line(s)    [ tag => {}, ... ] 
+    signal(s)  [ tag => [], ... ] 
+
+plus misc settings e.g.
+    verbose    n
+    config     str
+
+Last entry counts:
+    Defaults
+    Config file
+    Model spec
+    Command line
+
+PREPARATION
+===========
+
+copy names to alias hash
+
+foreach date
+    build date array entry
+next date
+
+foreach sample
+    build option hash from group entries
+    add sample entries to option hash
+    build sample array entry
+next sample
+
+temporary
+    sources     []
+    stocks      []
+    dates       []
+    files       []
+    charts      []
+    groups      []
+    samples     []
+    lines       []
+    tests       []
+ 
+samples
+    sname    [ str, ... ]
+    scodes   [ [ str, ... ] or str, ... ]
+    sdates   [ [ str, ... ] or str, ... ]
+    slines   [ [ str, ... ] or str, ... ]
+    stests   [ str, ... ]
+    ssource  [ {} or str, ... ]
+    sfname   [ str, ... ]
+    sfspec   [ str, ... ]
+    schart   [ str, ... ]
+    spage    [ str, ... ]
+
+    alias    {}
+    
+CREATE OBJECTS
+==============
+
+create start
+    foreach sample
+	create_source
+	create_psfile
+	foreach code
+	    foreach date
+		new page array entry
+		add page to file's page list
+		create_chart
+		create_data
+	    next date 
+	next code
+    next sample
+
+    foreach file
+	foreach page
+	    foreach line
+		create_line
+	    next line
+	next page
+    next line
+create end
+
+create_line start
+    new function object
+    add line array entry
+    add line to fsc
+    foreach dependent line
+	create_line
+    next line
+create_line end
+
+delete all given options
+
+
+files
+    fname    [ str, ... ]
+    ffile    [ str, ... ]
+ *  fpsf     [ psf, ... ]
+    fpages   [ [ page_numbers, ... ], ... ]
+
+pages
+    pname    [ str, ... ]
+ *  pfsd     [ fsd or undef, ... ]
+ *  pfsc     [ fsc, ... ]
+    pbefore  [ num or undef, ... ]
+    plines   [ [name, ...], ... ]
+ *  pfsls    [ [ [fsl, ...], ... ], ... ]
+ *  ptests   [ test, ... ]
+ *  ptfsls   [ fsl, ... ]
+	$o->{pfsls}[$page][$func][$line]
+
+known lines and functions
+    objects  {}
+
+Line Dependencies
+-----------------
+Within each fn
+    line     [ name,       ... ]
+becomes
+    line     [ [fsl, ...], ... ]
+as each name may expand to multiple
+lines.  However the fsls cannot be
+merged as some Functions require the
+names/lines to correspond.
+
+Generated Lines
+---------------
+Within each fn
+    lnames  [ id,  ... ]
+    fsls    [ fsl, ... ]
+
+BUILDING
+========
+
+build start
+    foreach file
+	foreach fpage
+	    foreach pline
+		build_line pline
+	    next pline
+	    build_chart
+	next fpage
+	output_file
+    next file
+build end
+
+build_line start
+    foreach ldep
+	build_line ldep
+    next ldep
+    build_function
+build_line end
+
+
+FUNCTIONS
+=========
+
+data
+test
+mark
+
+value
+moving_average
+mean
+
+greater_than
+greater_equal
+less_than
+less_equal
+compare
+highest
+lowest
+
+

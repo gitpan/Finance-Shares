@@ -1,0 +1,92 @@
+# Model Specification for Finance::Shares::Model version 1.00
+# 
+# An oscillator is constructed using 9 and 18 day moving averages.
+# The rate of change of the resulting histogram is used to produce potential buy
+# signals.
+
+# Constants can be pre-defined
+my $average = 'moving_average';
+
+my $bar_style = {
+    bar => {},
+};
+
+my $up_arrow = {
+    shape => 'north',
+    size  => 12,
+    y_offset => -12,
+};
+
+# Function modules used must be declared
+use Finance::Shares::moving_average;
+use Finance::Shares::compare;
+use Finance::Shares::gradient;
+use Finance::Shares::mark;
+
+# The model specification is a list starting here
+
+filename => 'oscillator',
+
+source => {
+    user     => 'test',
+    password => 'test',
+    database => 'test',
+    #mode     => 'offline',
+},
+
+lines => [
+    short => {
+	function => $average,
+	period   => 9,
+	order    => -1,
+    },
+    long => {
+	function => $average,
+	period   => 18,
+	order    => -2,
+    },
+    comp => {
+	function => 'compare',
+	lines    => ['long', 'short'],
+	style    => $bar_style,
+    },
+    grad => {
+	function => 'gradient',
+	line     => 'comp',
+	period   => 3,
+	shown    => 0,
+    },
+    above => {
+	function   => 'mark',
+	first_only => 1,
+	key        => 'Lines converge from above',
+	style      => {
+	    color => [0.9, 1.0, 1.0],
+	    point => $up_arrow,
+	},
+    },
+    below => {
+	function   => 'mark',
+	first_only => 1,
+	key        => 'Lines converge from below',
+	style      => {
+	    color => [0.1, 0.2, 1.0],
+	    point => $up_arrow,
+	},
+    },
+],
+
+tests => [
+    maxima => <<'END_CODE'
+    my $posn = defined($low) ? $low - 2 : undef;
+    mark($above, $posn) if $grad <= 0;
+    mark($below, $posn) if $grad >= 0;
+    #print $self->{date}, "\t", $open, "\t", $high, "\t", $low, "\t", $close, "\n";
+END_CODE
+],
+
+sample => {
+    line => 'grad',
+    test => 'maxima',
+},
+
